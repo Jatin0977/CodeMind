@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeMind — Agentic Codebase Intelligence & Visual Explorer</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark-theme">
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand-logo">
+        <div class="logo-glow-orb"></div>
+        <span class="brand-icon">⚡</span>
+        <div class="brand-text">
+          <span class="brand-title">CodeMind</span>
+          <span class="brand-subtitle">Agentic Code Intelligence Platform</span>
+        </div>
+      </div>
+      <div class="milestone-badge">
+        <span class="badge-dot"></span>
+        <span>Module 1 Active</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="status-chip" id="embeddingStatus">
+        <span class="chip-icon">🧠</span>
+        <span class="chip-label">Embedding:</span>
+        <span class="chip-val" id="embeddingModelLabel">all-MiniLM-L6-v2</span>
+      </div>
+      <div class="status-chip" id="llmStatus">
+        <span class="chip-icon">✨</span>
+        <span class="chip-label">LLM:</span>
+        <span class="chip-val" id="llmStatusLabel">Detecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-main">
+    <!-- Top Control Bar (Repo Scanner) -->
+    <section class="control-panel glass-card">
+      <div class="repo-input-group">
+        <label for="repoPathInput" class="input-label">Repository Path</label>
+        <div class="input-with-action">
+          <span class="input-icon">📁</span>
+          <input 
+            type="text" 
+            id="repoPathInput" 
+            class="glow-input" 
+            value="." 
+            placeholder="Local folder path (e.g. . or C:\path\to\repo)"
+          />
+          <button id="scanBtn" class="btn btn-primary">
+            <span class="btn-spinner hidden" id="scanSpinner"></span>
+            <span class="btn-icon" id="scanIcon">⚡</span>
+            <span class="btn-text" id="scanText">Scan & Index Codebase</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="options-group">
+        <label class="toggle-control">
+          <input type="checkbox" id="mockModeToggle">
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Offline / Mock LLM Mode</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Overview Statistics Cards -->
+    <section class="metrics-grid" id="metricsGrid">
+      <div class="stat-card glass-card">
+        <div class="stat-header">
+          <span class="stat-icon">📄</span>
+          <span class="stat-title">Files & Lines</span>
+        </div>
+        <div class="stat-value" id="statFiles">0</div>
+        <div class="stat-detail" id="statLines">0 total code lines</div>
+      </div>
+
+      <div class="stat-card glass-card">
+        <div class="stat-header">
+          <span class="stat-icon">🏛️</span>
+          <span class="stat-title">AST Classes</span>
+        </div>
+        <div class="stat-value" id="statClasses">0</div>
+        <div class="stat-detail" id="statClassDetail">Parsed from Python AST</div>
+      </div>
+
+      <div class="stat-card glass-card">
+        <div class="stat-header">
+          <span class="stat-icon">⚙️</span>
+          <span class="stat-title">Functions & Methods</span>
+        </div>
+        <div class="stat-value" id="statFunctions">0</div>
+        <div class="stat-detail" id="statMethodsDetail">0 methods & 0 top funcs</div>
+      </div>
+
+      <div class="stat-card glass-card">
+        <div class="stat-header">
+          <span class="stat-icon">🧩</span>
+          <span class="stat-title">Semantic Chunks</span>
+        </div>
+        <div class="stat-value" id="statChunks">0</div>
+        <div class="stat-detail" id="statChunksDetail">Indexed in vector store</div>
+      </div>
+    </section>
+
+    <!-- Workspace 3-Pane Explorer -->
+    <section class="workspace-grid">
+      <!-- Left Pane: File Explorer -->
+      <aside class="panel glass-card file-explorer-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📁</span> File Explorer
+          </div>
+          <span class="count-pill" id="fileCountPill">0 files</span>
+        </div>
+        <div class="search-box">
+          <input type="text" id="fileFilterInput" class="compact-input" placeholder="Filter files...">
+        </div>
+        <div class="file-list-container" id="fileList">
+          <div class="empty-state">
+            <span class="empty-icon">📂</span>
+            <p>Click "Scan & Index Codebase" to load repository files.</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Pane: Q&A Assistant & AST Symbol Viewer -->
+      <section class="panel glass-card center-panel">
+        <!-- Tabs Header -->
+        <div class="tabs-header">
+          <button class="tab-btn active" id="tabQABtn" onclick="switchTab('qa')">
+            <span>🤖</span> Grounded Codebase Q&A
+          </button>
+          <button class="tab-btn" id="tabSymbolsBtn" onclick="switchTab('symbols')">
+            <span>🔍</span> AST Symbol Inspector
+          </button>
+        </div>
+
+        <!-- Tab 1: Q&A Assistant -->
+        <div class="tab-content active" id="tabQA">
+          <!-- Question Input Box -->
+          <div class="qa-input-card">
+            <div class="example-chips">
+              <span class="chip-hint">Try:</span>
+              <button class="chip-btn" onclick="setExampleQuery('How does the file filter ignore directories and binary files?')">Ignore Filters</button>
+              <button class="chip-btn" onclick="setExampleQuery('Explain how Python AST parses classes and function calls.')">Python AST</button>
+              <button class="chip-btn" onclick="setExampleQuery('How does the ASTCodeChunker split code boundaries?')">Code Chunking</button>
+            </div>
+
+            <div class="qa-textarea-wrapper">
+              <textarea 
+                id="questionInput" 
+                class="glow-textarea" 
+                rows="3" 
+                placeholder="Ask any question about this codebase (e.g. 'How does repository ingestion work?')"
+              ></textarea>
+              <div class="qa-action-row">
+                <div class="top-k-selector">
+                  <label for="topKSelect">Evidence Chunks:</label>
+                  <select id="topKSelect" class="compact-select">
+                    <option value="3">3 Chunks</option>
+                    <option value="4" selected>4 Chunks</option>
+                    <option value="6">6 Chunks</option>
+                  </select>
+                </div>
+                <button id="askBtn" class="btn btn-accent">
+                  <span class="btn-spinner hidden" id="askSpinner"></span>
+                  <span class="btn-icon" id="askIcon">💬</span>
+                  <span class="btn-text" id="askText">Ask CodeMind</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Answer & Citations Container -->
+          <div class="answer-container hidden" id="answerContainer">
+            <div class="answer-card">
+              <div class="answer-meta-row">
+                <div class="answer-badge">
+                  <span class="badge-dot green"></span>
+                  <span id="answerModelBadge">Grounded Answer</span>
+                </div>
+                <div class="latency-badge" id="answerLatencyBadge">0ms</div>
+              </div>
+
+              <div class="markdown-body" id="answerBody"></div>
+
+              <!-- Clickable Source Citations -->
+              <div class="citations-section" id="citationsSection">
+                <div class="citations-title">
+                  <span>📌</span> Verified Source References (Click to view code):
+                </div>
+                <div class="citations-list" id="citationsList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: AST Symbol Inspector -->
+        <div class="tab-content" id="tabSymbols">
+          <div class="symbols-view-container" id="symbolsContainer">
+            <div class="empty-state">
+              <span class="empty-icon">🔍</span>
+              <p>Select a Python file from the left File Explorer to inspect its AST classes, methods, and functions.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Pane: Code Viewer & Line Highlight Modal/Panel -->
+      <aside class="panel glass-card code-viewer-panel" id="codeViewerPanel">
+        <div class="panel-header">
+          <div class="panel-title" id="codeViewerTitle">
+            <span>📄</span> Code Inspector
+          </div>
+          <span class="code-line-badge" id="codeLineSpanBadge">No file selected</span>
+        </div>
+
+        <div class="code-viewer-container" id="codeViewerContainer">
+          <div class="empty-state">
+            <span class="empty-icon">💻</span>
+            <p>Select a file or click a source citation badge to inspect code line ranges.</p>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <!-- Notification Toast -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
