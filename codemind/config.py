@@ -2,9 +2,38 @@
 Configuration settings for CodeMind repository ingestion and analysis.
 """
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Set, Dict
+from typing import Set, Dict, Optional
+
+
+def load_dotenv_if_present(env_path: Optional[Path] = None) -> None:
+    """Load key-value pairs from .env file into os.environ if not already set."""
+    if env_path is None:
+        candidates = [Path.cwd() / ".env", Path(__file__).parent.parent / ".env"]
+    else:
+        candidates = [env_path]
+
+    for p in candidates:
+        if p.exists() and p.is_file():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            k = k.strip()
+                            v = v.strip().strip("'\"")
+                            if k and k not in os.environ:
+                                os.environ[k] = v
+            except Exception:
+                pass
+            break
+
+
+# Auto-load .env file if available
+load_dotenv_if_present()
 
 
 @dataclass
