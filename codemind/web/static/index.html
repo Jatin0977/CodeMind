@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CodeMind — Agentic Codebase Intelligence & Visual Explorer</title>
+  <title>CodeMind — Repository Ingestion & Static Code Analysis</title>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,16 +19,30 @@
         <span class="brand-icon">⚡</span>
         <div class="brand-text">
           <span class="brand-title">CodeMind</span>
-          <span class="brand-subtitle">Agentic Code Intelligence Platform</span>
+          <span class="brand-subtitle">Repository Ingestion & Static Code Analysis</span>
         </div>
       </div>
       <div class="milestone-badge">
         <span class="badge-dot"></span>
-        <span>Module 1 Active</span>
+        <span>College Evaluation 1 (Phases 1 & 2)</span>
       </div>
     </div>
 
     <div class="header-right">
+      <div class="status-chip" id="ingestionEngineChip">
+        <span class="chip-icon">📁</span>
+        <span class="chip-label">Ingestion Engine:</span>
+        <span class="chip-val highlight-green">Active</span>
+      </div>
+      <div class="status-chip" id="astEngineChip">
+        <span class="chip-icon">🔍</span>
+        <span class="chip-label">Static Analysis:</span>
+        <span class="chip-val highlight-cyan">Python AST</span>
+      </div>
+
+      <!-- ============================================================================
+           Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+           (Code Embeddings, Vector Store, and LLM / Gemini Provider Status Chips)
       <div class="status-chip" id="embeddingStatus">
         <span class="chip-icon">🧠</span>
         <span class="chip-label">Embedding:</span>
@@ -39,15 +53,19 @@
         <span class="chip-label">LLM:</span>
         <span class="chip-val" id="llmStatusLabel">Detecting...</span>
       </div>
+      ============================================================================ -->
     </div>
   </header>
 
   <!-- Main Container -->
   <main class="app-main">
-    <!-- Top Control Bar (Repo Scanner) -->
+    <!-- Top Control Bar (Repository Source Input) -->
     <section class="control-panel glass-card">
       <div class="repo-input-group">
-        <label for="repoPathInput" class="input-label">Repository Path</label>
+        <label for="repoPathInput" class="input-label">
+          <span>Repository Source</span>
+          <span class="input-hint">(Local Folder Path, .ZIP Archive, or Git Clone URL)</span>
+        </label>
         <div class="input-with-action">
           <span class="input-icon">📁</span>
           <input 
@@ -55,16 +73,19 @@
             id="repoPathInput" 
             class="glow-input" 
             value="." 
-            placeholder="Local folder path (e.g. . or C:\path\to\repo)"
+            placeholder="Enter local folder path (e.g. .), .zip archive, or Git clone URL (e.g. https://github.com/...)"
           />
           <button id="scanBtn" class="btn btn-primary">
             <span class="btn-spinner hidden" id="scanSpinner"></span>
             <span class="btn-icon" id="scanIcon">⚡</span>
-            <span class="btn-text" id="scanText">Scan & Index Codebase</span>
+            <span class="btn-text" id="scanText">Scan & Analyze Codebase</span>
           </button>
         </div>
       </div>
 
+      <!-- ============================================================================
+           Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+           (Offline / Mock LLM Mode Toggle)
       <div class="options-group">
         <label class="toggle-control">
           <input type="checkbox" id="mockModeToggle">
@@ -72,14 +93,15 @@
           <span class="toggle-label">Offline / Mock LLM Mode</span>
         </label>
       </div>
+      ============================================================================ -->
     </section>
 
-    <!-- Overview Statistics Cards -->
+    <!-- Overview Statistics Cards (Phase 1 & Phase 2) -->
     <section class="metrics-grid" id="metricsGrid">
       <div class="stat-card glass-card">
         <div class="stat-header">
           <span class="stat-icon">📄</span>
-          <span class="stat-title">Files & Lines</span>
+          <span class="stat-title">Files & Code Lines</span>
         </div>
         <div class="stat-value" id="statFiles">0</div>
         <div class="stat-detail" id="statLines">0 total code lines</div>
@@ -87,22 +109,34 @@
 
       <div class="stat-card glass-card">
         <div class="stat-header">
+          <span class="stat-icon">🌐</span>
+          <span class="stat-title">Languages & Size</span>
+        </div>
+        <div class="stat-value" id="statLanguages">0</div>
+        <div class="stat-detail" id="statSize">0 KB codebase size</div>
+      </div>
+
+      <div class="stat-card glass-card">
+        <div class="stat-header">
           <span class="stat-icon">🏛️</span>
-          <span class="stat-title">AST Classes</span>
+          <span class="stat-title">AST Classes & Methods</span>
         </div>
         <div class="stat-value" id="statClasses">0</div>
-        <div class="stat-detail" id="statClassDetail">Parsed from Python AST</div>
+        <div class="stat-detail" id="statMethods">0 methods extracted</div>
       </div>
 
       <div class="stat-card glass-card">
         <div class="stat-header">
           <span class="stat-icon">⚙️</span>
-          <span class="stat-title">Functions & Methods</span>
+          <span class="stat-title">Functions & Imports</span>
         </div>
         <div class="stat-value" id="statFunctions">0</div>
-        <div class="stat-detail" id="statMethodsDetail">0 methods & 0 top funcs</div>
+        <div class="stat-detail" id="statImports">0 imports & 0 docstrings</div>
       </div>
 
+      <!-- ============================================================================
+           Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+           (Semantic Chunks & Vector Store Metric Card)
       <div class="stat-card glass-card">
         <div class="stat-header">
           <span class="stat-icon">🧩</span>
@@ -111,6 +145,7 @@
         <div class="stat-value" id="statChunks">0</div>
         <div class="stat-detail" id="statChunksDetail">Indexed in vector store</div>
       </div>
+      ============================================================================ -->
     </section>
 
     <!-- Workspace 3-Pane Explorer -->
@@ -124,31 +159,60 @@
           <span class="count-pill" id="fileCountPill">0 files</span>
         </div>
         <div class="search-box">
-          <input type="text" id="fileFilterInput" class="compact-input" placeholder="Filter files...">
+          <input type="text" id="fileFilterInput" class="compact-input" placeholder="Filter files by name or path...">
         </div>
         <div class="file-list-container" id="fileList">
           <div class="empty-state">
             <span class="empty-icon">📂</span>
-            <p>Click "Scan & Index Codebase" to load repository files.</p>
+            <p>Click "Scan & Analyze Codebase" to ingest repository files.</p>
           </div>
         </div>
       </aside>
 
-      <!-- Center Pane: Q&A Assistant & AST Symbol Viewer -->
+      <!-- Center Pane: AST Symbol Inspector & Static Analysis Overview -->
       <section class="panel glass-card center-panel">
         <!-- Tabs Header -->
         <div class="tabs-header">
-          <button class="tab-btn active" id="tabQABtn" onclick="switchTab('qa')">
-            <span>🤖</span> Grounded Codebase Q&A
-          </button>
-          <button class="tab-btn" id="tabSymbolsBtn" onclick="switchTab('symbols')">
+          <button class="tab-btn active" id="tabSymbolsBtn" onclick="switchTab('symbols')">
             <span>🔍</span> AST Symbol Inspector
           </button>
+          <button class="tab-btn" id="tabAnalysisBtn" onclick="switchTab('analysis')">
+            <span>📊</span> Static Analysis Overview
+          </button>
+
+          <!-- ============================================================================
+               Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+               (Grounded Codebase Q&A Tab Button)
+          <button class="tab-btn" id="tabQABtn" onclick="switchTab('qa')">
+            <span>🤖</span> Grounded Codebase Q&A
+          </button>
+          ============================================================================ -->
         </div>
 
-        <!-- Tab 1: Q&A Assistant -->
-        <div class="tab-content active" id="tabQA">
-          <!-- Question Input Box -->
+        <!-- Tab 1: AST Symbol Inspector -->
+        <div class="tab-content active" id="tabSymbols">
+          <div class="symbols-view-container" id="symbolsContainer">
+            <div class="empty-state">
+              <span class="empty-icon">🔍</span>
+              <p>Select a Python file from the left File Explorer to inspect its AST classes, methods, functions, and imports.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Static Analysis Overview -->
+        <div class="tab-content" id="tabAnalysis">
+          <div class="analysis-view-container" id="analysisContainer">
+            <div class="empty-state">
+              <span class="empty-icon">📊</span>
+              <p>Scan a repository to view static code analysis metrics and file breakdown.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================================
+             Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+             (Tab: Grounded Q&A Assistant, Semantic Evidence, and Citation Jumpers)
+        <div class="tab-content" id="tabQA">
           <div class="qa-input-card">
             <div class="example-chips">
               <span class="chip-hint">Try:</span>
@@ -162,7 +226,7 @@
                 id="questionInput" 
                 class="glow-textarea" 
                 rows="3" 
-                placeholder="Ask any question about this codebase (e.g. 'How does repository ingestion work?')"
+                placeholder="Ask any question about this codebase..."
               ></textarea>
               <div class="qa-action-row">
                 <div class="top-k-selector">
@@ -182,7 +246,6 @@
             </div>
           </div>
 
-          <!-- Answer & Citations Container -->
           <div class="answer-container hidden" id="answerContainer">
             <div class="answer-card">
               <div class="answer-meta-row">
@@ -195,7 +258,6 @@
 
               <div class="markdown-body" id="answerBody"></div>
 
-              <!-- Clickable Source Citations -->
               <div class="citations-section" id="citationsSection">
                 <div class="citations-title">
                   <span>📌</span> Verified Source References (Click to view code):
@@ -205,23 +267,14 @@
             </div>
           </div>
         </div>
-
-        <!-- Tab 2: AST Symbol Inspector -->
-        <div class="tab-content" id="tabSymbols">
-          <div class="symbols-view-container" id="symbolsContainer">
-            <div class="empty-state">
-              <span class="empty-icon">🔍</span>
-              <p>Select a Python file from the left File Explorer to inspect its AST classes, methods, and functions.</p>
-            </div>
-          </div>
-        </div>
+        ============================================================================ -->
       </section>
 
-      <!-- Right Pane: Code Viewer & Line Highlight Modal/Panel -->
+      <!-- Right Pane: Source Code Viewer -->
       <aside class="panel glass-card code-viewer-panel" id="codeViewerPanel">
         <div class="panel-header">
           <div class="panel-title" id="codeViewerTitle">
-            <span>📄</span> Code Inspector
+            <span>📄</span> Source Code Viewer
           </div>
           <span class="code-line-badge" id="codeLineSpanBadge">No file selected</span>
         </div>
@@ -229,7 +282,7 @@
         <div class="code-viewer-container" id="codeViewerContainer">
           <div class="empty-state">
             <span class="empty-icon">💻</span>
-            <p>Select a file or click a source citation badge to inspect code line ranges.</p>
+            <p>Select any file from the File Explorer to view its full source code and line numbers.</p>
           </div>
         </div>
       </aside>

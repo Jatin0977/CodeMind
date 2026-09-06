@@ -1,3 +1,4 @@
+
 """
 Configuration settings for CodeMind repository ingestion and analysis.
 """

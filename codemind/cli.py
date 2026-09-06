@@ -1,5 +1,6 @@
 """
-Command-line interface for CodeMind codebase inspection, chunking, semantic search, and grounded RAG.
+Command-line interface for CodeMind codebase inspection and static analysis.
+Prepared for College Evaluation 1 (Technical Phases 1 and 2).
 """
 
 import sys
@@ -20,13 +21,19 @@ from .ingestion.repo_loader import RepositoryLoader
 from .ingestion.models import IngestedRepository, SourceFile
 from .parsing.parser_factory import GLOBAL_PARSER_FACTORY
 from .parsing.base_parser import ParsedFile, Symbol
-from .chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
-from .chunking.models import CodeChunk
-from .retrieval.retriever import SemanticRetriever
-from .embeddings.factory import get_embedding_provider
-from .rag.engine import RAGEngine
-from .rag.models import RAGResponse
-from .rag.providers.factory import get_llm_provider
+
+# ============================================================================
+# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+# (Chunking, Semantic Search Embeddings, Vector Store, and Grounded RAG)
+# ============================================================================
+# from .chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
+# from .chunking.models import CodeChunk
+# from .retrieval.retriever import SemanticRetriever
+# from .embeddings.factory import get_embedding_provider
+# from .rag.engine import RAGEngine
+# from .rag.models import RAGResponse
+# from .rag.providers.factory import get_llm_provider
+# ============================================================================
 
 
 def inspect_repository(
@@ -92,7 +99,7 @@ def inspect_repository(
     sub_divider = "-" * 60
 
     print(divider)
-    print(f" CodeMind - Codebase Inspection Report")
+    print(f" CodeMind - Codebase Inspection Report (Evaluation 1)")
     print(divider)
     print(f"Repository:          {repo.repo_name}")
     print(f"Path:                {repo.repo_path}")
@@ -102,7 +109,7 @@ def inspect_repository(
     print(f"Total lines:         {repo.summary.total_lines:,}")
     print(f"Total size:          {repo.summary.total_size_bytes / 1024:.1f} KB")
     print(sub_divider)
-    print(f"AST Symbols Extracted:")
+    print(f"AST Symbols Extracted (Static Code Analysis):")
     print(f"  Classes:           {total_classes}")
     print(f"  Functions (top):   {total_functions}")
     print(f"  Methods:           {total_methods}")
@@ -166,143 +173,27 @@ def inspect_repository(
     return 0
 
 
-def chunk_repository(
-    repo_path: str,
-    as_json: bool = False,
-    max_samples: int = 10,
-) -> int:
-    """Ingest and chunk all codebase files, printing chunk statistics and samples."""
-    loader = RepositoryLoader()
-
-    try:
-        repo: IngestedRepository = loader.load_repository(repo_path)
-    except Exception as e:
-        print(f"Error loading repository: {e}", file=sys.stderr)
-        return 1
-
-    all_chunks: List[CodeChunk] = []
-    chunk_type_counts: Dict[str, int] = {}
-
-    for source_file in repo.files:
-        parsed = GLOBAL_PARSER_FACTORY.parse(source_file)
-        file_chunks = GLOBAL_CHUNKER_FACTORY.chunk_file(source_file, parsed)
-        all_chunks.extend(file_chunks)
-        for c in file_chunks:
-            chunk_type_counts[c.chunk_type] = chunk_type_counts.get(c.chunk_type, 0) + 1
-
-    if as_json:
-        output_data = {
-            "repository": repo.repo_name,
-            "total_chunks": len(all_chunks),
-            "chunk_type_breakdown": chunk_type_counts,
-            "chunks": [c.to_dict() for c in all_chunks],
-        }
-        print(json.dumps(output_data, indent=2))
-        return 0
-
-    divider = "=" * 60
-    sub_divider = "-" * 60
-
-    print(divider)
-    print(f" CodeMind - Codebase Chunking Report")
-    print(divider)
-    print(f"Repository:          {repo.repo_name}")
-    print(f"Total Chunks:        {len(all_chunks)}")
-    print(sub_divider)
-    print(f"Chunk Breakdown by Type:")
-    for c_type, count in sorted(chunk_type_counts.items(), key=lambda x: -x[1]):
-        display_type = c_type.replace("_", " ").title()
-        print(f"  - {display_type:<18} {count:>3} chunks")
-    print(sub_divider)
-
-    if all_chunks:
-        print(f"Sample Chunks (showing up to {max_samples}):")
-        for idx, chunk in enumerate(all_chunks[:max_samples], 1):
-            type_label = chunk.chunk_type.upper()
-            sym_label = chunk.symbol_name or chunk.file_name
-            lines_span = f"{chunk.start_line}-{chunk.end_line}"
-            print(f"\n  [{idx}] {type_label}: {sym_label}")
-            print(f"      File:   {chunk.relative_path}:{lines_span} ({chunk.line_count} lines)")
-            if chunk.signature:
-                print(f"      Sig:    {chunk.signature}")
-            print(f"      ID:     {chunk.chunk_id}")
-
-        if len(all_chunks) > max_samples:
-            remaining = len(all_chunks) - max_samples
-            print(f"\n  ... and {remaining} more chunks.")
-
-    print(divider)
+# ============================================================================
+# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+# (Chunking, Semantic Search, and Grounded RAG Subcommands)
+# ============================================================================
+def chunk_repository(repo_path: str, as_json: bool = False, max_samples: int = 10) -> int:
+    """[Temporarily disabled for College Evaluation 1]"""
+    print(
+        "[College Evaluation 1 Notice] The 'chunk' feature is temporarily disabled for College Evaluation 1 "
+        "(Technical Phases 1 and 2 only). Please use 'inspect' or 'serve'.",
+        file=sys.stderr,
+    )
     return 0
 
 
-def search_repository(
-    repo_path: str,
-    query: str,
-    top_k: int = 5,
-    as_json: bool = False,
-) -> int:
-    """Index codebase chunks and execute semantic similarity search for a query."""
-    loader = RepositoryLoader()
-
-    try:
-        repo: IngestedRepository = loader.load_repository(repo_path)
-    except Exception as e:
-        print(f"Error loading repository: {e}", file=sys.stderr)
-        return 1
-
-    retriever = SemanticRetriever()
-    indexed_count = retriever.index_repository(repo)
-
-    if indexed_count == 0:
-        print("No indexable chunks found in repository.", file=sys.stderr)
-        return 1
-
-    results = retriever.search(query, top_k=top_k)
-
-    if as_json:
-        output_data = {
-            "query": query,
-            "repository": repo.repo_name,
-            "total_indexed_chunks": indexed_count,
-            "results": [r.to_dict() for r in results],
-        }
-        print(json.dumps(output_data, indent=2))
-        return 0
-
-    divider = "=" * 60
-    sub_divider = "-" * 60
-
-    print(divider)
-    print(f" CodeMind - Semantic Code Search Results")
-    print(f" Query: \"{query}\"")
-    print(f" Indexed Chunks: {indexed_count} | Embedding: {retriever.embedding_provider.model_name}")
-    print(divider)
-
-    if not results:
-        print("No matching code chunks found.")
-        print(divider)
-        return 0
-
-    for res in results:
-        chunk = res.chunk
-        type_str = chunk.chunk_type.upper()
-        sym_str = chunk.symbol_name or "block"
-        print(f"\nResult {res.rank} [Score: {res.score:.3f}] - {chunk.relative_path}:{chunk.start_line}-{chunk.end_line}")
-        print(f"  Symbol:    {type_str} {sym_str}")
-        if chunk.signature:
-            print(f"  Signature: {chunk.signature}")
-
-        # Show snippet with line numbers (up to 8 lines)
-        raw_lines = chunk.content.splitlines()
-        preview_lines = raw_lines[:8]
-        print("  Snippet:")
-        for offset, line in enumerate(preview_lines):
-            line_no = chunk.start_line + offset
-            print(f"    {line_no:>4}: {line}")
-        if len(raw_lines) > 8:
-            print(f"    ... ({len(raw_lines) - 8} more lines)")
-
-    print("\n" + divider)
+def search_repository(repo_path: str, query: str, top_k: int = 5, as_json: bool = False) -> int:
+    """[Temporarily disabled for College Evaluation 1]"""
+    print(
+        "[College Evaluation 1 Notice] The 'search' feature (Semantic Vector Search) is temporarily disabled "
+        "for College Evaluation 1 (Technical Phases 1 and 2 only). Please use 'inspect' or 'serve'.",
+        file=sys.stderr,
+    )
     return 0
 
 
@@ -314,56 +205,14 @@ def ask_repository(
     model_name: Optional[str] = None,
     as_json: bool = False,
 ) -> int:
-    """Answer a developer question using Grounded Codebase RAG with citations."""
-    loader = RepositoryLoader()
-
-    try:
-        repo: IngestedRepository = loader.load_repository(repo_path)
-    except Exception as e:
-        print(f"Error loading repository: {e}", file=sys.stderr)
-        return 1
-
-    llm_provider = get_llm_provider(provider_type=provider_type, model_name=model_name)
-    rag_engine = RAGEngine(llm_provider=llm_provider)
-
-    response: RAGResponse = rag_engine.ask(query=question, repo=repo, top_k=top_k)
-
-    if as_json:
-        print(json.dumps(response.to_dict(), indent=2))
-        return 0
-
-    divider = "=" * 65
-    sub_divider = "-" * 65
-
-    print(divider)
-    print(f" CodeMind - Grounded Codebase Q&A (RAG)")
-    print(f" Question: \"{question}\"")
-    print(f" Model:    {response.model_name} (Latency: {response.latency_ms:.1f}ms)")
-    print(divider)
-
-    print("\nAnswer:")
-    print(response.answer)
-
-    print("\n" + sub_divider)
-    if response.citations:
-        print(f"Cited Source References ({len(response.citations)}):")
-        for idx, cit in enumerate(response.citations, start=1):
-            # Find matching chunk for symbol label
-            sym_label = ""
-            for s in response.sources:
-                if cit in f"{s.chunk.relative_path}:{s.chunk.start_line}-{s.chunk.end_line}":
-                    if s.chunk.symbol_name:
-                        sym_label = f" ({s.chunk.chunk_type.upper()}: {s.chunk.symbol_name})"
-                    break
-            print(f"  [{idx}] [{cit}]{sym_label}")
-    else:
-        if response.is_sufficient:
-            print("Sources: Grounded in retrieved repository chunks.")
-        else:
-            print("No relevant source code citations found.")
-
-    print(divider)
+    """[Temporarily disabled for College Evaluation 1]"""
+    print(
+        "[College Evaluation 1 Notice] The 'ask' feature (Grounded RAG / LLM) is temporarily disabled "
+        "for College Evaluation 1 (Technical Phases 1 and 2 only). Please use 'inspect' or 'serve'.",
+        file=sys.stderr,
+    )
     return 0
+# ============================================================================
 
 
 def serve_web(host: str = "127.0.0.1", port: int = 8000) -> int:
@@ -379,6 +228,7 @@ def serve_web(host: str = "127.0.0.1", port: int = 8000) -> int:
     divider = "=" * 60
     print(divider)
     print(" CodeMind - Interactive Web UI & Visual Code Explorer")
+    print(" College Evaluation 1: Technical Phases 1 & 2")
     print(divider)
     print(f" Server running at: http://{host}:{port}")
     print(" Open the URL above in your web browser to access the dashboard.")
@@ -394,13 +244,13 @@ def main() -> int:
     """CLI entrypoint."""
     parser = argparse.ArgumentParser(
         prog="python -m codemind.cli",
-        description="CodeMind - Agentic Codebase Intelligence & Software Evolution Platform",
+        description="CodeMind - Repository Ingestion & Static Code Analysis (Evaluation 1)",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # 1. 'inspect' subcommand
+    # 1. 'inspect' subcommand (Active - Phases 1 & 2)
     inspect_parser = subparsers.add_parser(
-        "inspect", help="Inspect a local codebase repository and extract AST symbols"
+        "inspect", help="Inspect a codebase repository (Local path, ZIP, or Git URL) and extract AST symbols"
     )
     inspect_parser.add_argument(
         "path",
@@ -427,102 +277,9 @@ def main() -> int:
         help="Maximum sample symbols to display in summary (default: 10)",
     )
 
-    # 2. 'chunk' subcommand
-    chunk_parser = subparsers.add_parser(
-        "chunk", help="Chunk codebase files into AST-aware semantic code and doc chunks"
-    )
-    chunk_parser.add_argument(
-        "path",
-        nargs="?",
-        default=".",
-        help="Path to repository (default: current directory)",
-    )
-    chunk_parser.add_argument(
-        "--json",
-        "-j",
-        action="store_true",
-        help="Output chunks as structured JSON",
-    )
-    chunk_parser.add_argument(
-        "--max-samples",
-        type=int,
-        default=10,
-        help="Maximum sample chunks to display (default: 10)",
-    )
-
-    # 3. 'search' subcommand
-    search_parser = subparsers.add_parser(
-        "search", help="Perform semantic vector search over codebase chunks"
-    )
-    search_parser.add_argument(
-        "path",
-        nargs="?",
-        default=".",
-        help="Path to repository (default: current directory)",
-    )
-    search_parser.add_argument(
-        "query",
-        type=str,
-        help="Natural language search query",
-    )
-    search_parser.add_argument(
-        "--top-k",
-        "-k",
-        type=int,
-        default=5,
-        help="Number of top search results to return (default: 5)",
-    )
-    search_parser.add_argument(
-        "--json",
-        "-j",
-        action="store_true",
-        help="Output search results as JSON",
-    )
-
-    # 4. 'ask' subcommand (Grounded RAG)
-    ask_parser = subparsers.add_parser(
-        "ask", help="Ask a question about the repository using Grounded RAG"
-    )
-    ask_parser.add_argument(
-        "path",
-        nargs="?",
-        default=".",
-        help="Path to repository (default: current directory)",
-    )
-    ask_parser.add_argument(
-        "question",
-        type=str,
-        help="Developer question to answer from codebase",
-    )
-    ask_parser.add_argument(
-        "--top-k",
-        "-k",
-        type=int,
-        default=4,
-        help="Number of evidence chunks to retrieve (default: 4)",
-    )
-    ask_parser.add_argument(
-        "--mock",
-        action="store_true",
-        help="Force use Mock LLM provider (offline mode without API key)",
-    )
-    ask_parser.add_argument(
-        "--model",
-        "-m",
-        type=str,
-        default=None,
-        help="LLM model name (default: gemini-2.5-flash)",
-    )
-    ask_parser.add_argument(
-        "--json",
-        "-j",
-        action="store_true",
-        help="Output grounded response as JSON",
-    )
-
-    # 5. 'serve' subcommand (Interactive Web UI)
+    # 2. 'serve' subcommand (Active - Interactive Web UI)
     serve_parser = subparsers.add_parser(
-        "serve", help="Launch the interactive Web UI & Visual Code Explorer"
+        "serve", help="Launch the interactive Web UI for Ingestion & Static Code Analysis"
     )
     serve_parser.add_argument(
         "--host",
@@ -538,6 +295,35 @@ def main() -> int:
         help="Port number to listen on (default: 8000)",
     )
 
+    # ============================================================================
+    # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+    # ============================================================================
+    chunk_parser = subparsers.add_parser(
+        "chunk", help="[Disabled in Eval 1] Chunk codebase into semantic units"
+    )
+    chunk_parser.add_argument("path", nargs="?", default=".")
+    chunk_parser.add_argument("--json", "-j", action="store_true")
+    chunk_parser.add_argument("--max-samples", type=int, default=10)
+
+    search_parser = subparsers.add_parser(
+        "search", help="[Disabled in Eval 1] Semantic vector search"
+    )
+    search_parser.add_argument("path", nargs="?", default=".")
+    search_parser.add_argument("query", type=str, nargs="?", default="")
+    search_parser.add_argument("--top-k", "-k", type=int, default=5)
+    search_parser.add_argument("--json", "-j", action="store_true")
+
+    ask_parser = subparsers.add_parser(
+        "ask", help="[Disabled in Eval 1] Grounded RAG Q&A"
+    )
+    ask_parser.add_argument("path", nargs="?", default=".")
+    ask_parser.add_argument("question", type=str, nargs="?", default="")
+    ask_parser.add_argument("--top-k", "-k", type=int, default=4)
+    ask_parser.add_argument("--mock", action="store_true")
+    ask_parser.add_argument("--model", "-m", type=str, default=None)
+    ask_parser.add_argument("--json", "-j", action="store_true")
+    # ============================================================================
+
     args = parser.parse_args()
 
     if args.command == "inspect":
@@ -546,6 +332,11 @@ def main() -> int:
             detail=args.detail,
             as_json=args.json,
             max_samples=args.max_samples,
+        )
+    elif args.command == "serve":
+        return serve_web(
+            host=args.host,
+            port=args.port,
         )
     elif args.command == "chunk":
         return chunk_repository(
@@ -569,11 +360,6 @@ def main() -> int:
             provider_type=provider_type,
             model_name=args.model,
             as_json=args.json,
-        )
-    elif args.command == "serve":
-        return serve_web(
-            host=args.host,
-            port=args.port,
         )
     else:
         parser.print_help()

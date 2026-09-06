@@ -1,5 +1,6 @@
 """
-FastAPI application backend for CodeMind Web UI and Visual Code Explorer.
+FastAPI application backend for CodeMind Web UI — Ingestion & Static Code Analysis Dashboard.
+Prepared for College Evaluation 1 (Technical Phases 1 and 2).
 """
 
 import os
@@ -12,66 +13,122 @@ from ..ingestion.repo_loader import RepositoryLoader
 from ..ingestion.models import IngestedRepository, SourceFile
 from ..parsing.parser_factory import GLOBAL_PARSER_FACTORY
 from ..parsing.base_parser import ParsedFile
-from ..chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
-from ..chunking.models import CodeChunk
-from ..retrieval.retriever import SemanticRetriever
-from ..rag.engine import RAGEngine
-from ..rag.models import RAGResponse
-from ..rag.providers.factory import get_llm_provider
+
+# ============================================================================
+# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+# (Code Chunking, Embeddings, Vector Stores, Semantic Retrieval, and RAG Engine)
+# ============================================================================
+# from ..chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
+# from ..chunking.models import CodeChunk
+# from ..retrieval.retriever import SemanticRetriever
+# from ..rag.engine import RAGEngine
+# from ..rag.models import RAGResponse
+# from ..rag.providers.factory import get_llm_provider
+# ============================================================================
 
 
 class ScanRequest(BaseModel):
-    repo_path: str = Field(default=".", description="Local repository path to scan")
+    repo_path: str = Field(default=".", description="Local repository path, ZIP file, or Git clone URL to scan")
 
 
-class AskRequest(BaseModel):
-    question: str = Field(..., description="Developer question")
-    top_k: int = Field(default=4, ge=1, le=10, description="Top evidence chunks to retrieve")
-    mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
-    model: Optional[str] = Field(default=None, description="Optional LLM model name")
+# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+# class AskRequest(BaseModel):
+#     question: str = Field(..., description="Developer question")
+#     top_k: int = Field(default=4, ge=1, le=10, description="Top evidence chunks to retrieve")
+#     mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
+#     model: Optional[str] = Field(default=None, description="Optional LLM model name")
 
 
 class CodebaseState:
-    """Session state holding the currently ingested repository and retrieval engine."""
+    """Session state holding the currently ingested repository and static analysis results."""
 
     def __init__(self):
         self.repo: Optional[IngestedRepository] = None
         self.parsed_files: Dict[str, ParsedFile] = {}  # rel_path -> ParsedFile
-        self.chunks: List[CodeChunk] = []
-        self.chunk_breakdown: Dict[str, int] = {}
-        self.retriever = SemanticRetriever()
-        self.rag_engine = RAGEngine(retriever=self.retriever)
+        self.static_metrics: Dict[str, Any] = {}
 
-    def scan_and_index(self, repo_path: str) -> Dict[str, Any]:
-        """Load repository, extract AST symbols, generate chunks, and build vector index."""
+        # ============================================================================
+        # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+        # ============================================================================
+        # self.chunks: List[CodeChunk] = []
+        # self.chunk_breakdown: Dict[str, int] = {}
+        # self.retriever = SemanticRetriever()
+        # self.rag_engine = RAGEngine(retriever=self.retriever)
+        # ============================================================================
+
+    def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
+        """
+        Load repository (local, ZIP, or Git URL), extract AST symbols, and compute static metrics.
+        Runs purely on Technical Phase 1 (Ingestion) and Phase 2 (Static Code Analysis).
+        """
         loader = RepositoryLoader()
         self.repo = loader.load_repository(repo_path)
         self.parsed_files.clear()
-        self.chunks.clear()
-        self.chunk_breakdown.clear()
 
         total_classes = 0
         total_functions = 0
         total_methods = 0
         total_imports = 0
+        total_docstrings = 0
+        syntax_errors = 0
+        file_analysis_list: List[Dict[str, Any]] = []
 
         for sf in self.repo.files:
             parsed = GLOBAL_PARSER_FACTORY.parse(sf)
+            file_meta = {
+                "relative_path": sf.relative_path,
+                "file_name": sf.file_name,
+                "language": sf.language,
+                "line_count": sf.line_count,
+                "file_size": sf.file_size,
+                "is_python": sf.is_python,
+                "is_doc": sf.is_documentation,
+                "classes_count": 0,
+                "functions_count": 0,
+                "methods_count": 0,
+                "imports_count": 0,
+                "has_docstring": False,
+                "is_valid": True,
+                "error": None,
+            }
+
             if parsed:
                 self.parsed_files[sf.relative_path] = parsed
+                file_meta["is_valid"] = parsed.is_valid
+                file_meta["error"] = parsed.error
+
                 if parsed.is_valid:
-                    total_classes += len(parsed.classes)
-                    total_functions += len(parsed.functions)
-                    total_methods += sum(len(c.methods) for c in parsed.classes)
-                    total_imports += len(parsed.imports)
+                    c_count = len(parsed.classes)
+                    f_count = len(parsed.functions)
+                    m_count = sum(len(c.methods) for c in parsed.classes)
+                    i_count = len(parsed.imports)
+                    has_doc = bool(parsed.docstring)
 
-            file_chunks = GLOBAL_CHUNKER_FACTORY.chunk_file(sf, parsed)
-            self.chunks.extend(file_chunks)
-            for c in file_chunks:
-                self.chunk_breakdown[c.chunk_type] = self.chunk_breakdown.get(c.chunk_type, 0) + 1
+                    total_classes += c_count
+                    total_functions += f_count
+                    total_methods += m_count
+                    total_imports += i_count
+                    if has_doc:
+                        total_docstrings += 1
 
-        # Index in vector store
-        indexed_chunks_count = self.retriever.index_chunks(self.chunks)
+                    file_meta["classes_count"] = c_count
+                    file_meta["functions_count"] = f_count
+                    file_meta["methods_count"] = m_count
+                    file_meta["imports_count"] = i_count
+                    file_meta["has_docstring"] = has_doc
+                else:
+                    syntax_errors += 1
+
+            file_analysis_list.append(file_meta)
+
+        self.static_metrics = {
+            "classes": total_classes,
+            "functions": total_functions,
+            "methods": total_methods,
+            "imports": total_imports,
+            "docstrings": total_docstrings,
+            "syntax_errors": syntax_errors,
+        }
 
         # Prepare file tree items
         files_data = [
@@ -95,15 +152,10 @@ class CodebaseState:
             "total_lines": self.repo.summary.total_lines,
             "total_size_bytes": self.repo.summary.total_size_bytes,
             "languages": self.repo.summary.language_breakdown,
-            "ast_metrics": {
-                "classes": total_classes,
-                "functions": total_functions,
-                "methods": total_methods,
-                "imports": total_imports,
-            },
-            "total_chunks": len(self.chunks),
-            "chunk_breakdown": self.chunk_breakdown,
-            "indexed_chunks": indexed_chunks_count,
+            "skipped_count": self.repo.summary.skipped_count,
+            "skipped_files": self.repo.summary.skipped_files[:10],
+            "ast_metrics": self.static_metrics,
+            "file_analysis": file_analysis_list,
             "files": files_data,
         }
 
@@ -120,8 +172,8 @@ def create_app():
     from fastapi.middleware.cors import CORSMiddleware
 
     app = FastAPI(
-        title="CodeMind — Visual Code Explorer & Grounded RAG",
-        description="Agentic Codebase Intelligence & Software Evolution Platform",
+        title="CodeMind — Repository Ingestion & Static Code Analysis",
+        description="College Evaluation 1: Technical Phases 1 & 2 Platform",
         version="0.1.0",
     )
 
@@ -146,44 +198,49 @@ def create_app():
 
     @app.get("/api/health")
     def health_check():
-        has_gemini = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
         return {
             "status": "healthy",
             "version": "0.1.0",
-            "has_gemini_key": has_gemini,
-            "embedding_model": GLOBAL_STATE.retriever.embedding_provider.model_name,
-            "is_indexed": GLOBAL_STATE.repo is not None,
+            "evaluation_phase": "Evaluation 1: Technical Phases 1 & 2 (Ingestion & Static Analysis)",
+            "is_scanned": GLOBAL_STATE.repo is not None,
             "repo_name": GLOBAL_STATE.repo.repo_name if GLOBAL_STATE.repo else None,
+            "total_files": GLOBAL_STATE.repo.summary.total_files if GLOBAL_STATE.repo else 0,
         }
 
     @app.post("/api/scan")
     def scan_repository(request: ScanRequest):
         try:
-            summary = GLOBAL_STATE.scan_and_index(request.repo_path)
+            summary = GLOBAL_STATE.scan_and_analyze(request.repo_path)
             return summary
         except FileNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e))
+        except NotADirectoryError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    @app.post("/api/ask")
-    def ask_question(request: AskRequest):
-        if GLOBAL_STATE.repo is None:
-            raise HTTPException(
-                status_code=400,
-                detail="No repository scanned yet. Please scan a repository first.",
-            )
-
-        provider_type = "mock" if request.mock else None
-        llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
-        rag_engine = RAGEngine(retriever=GLOBAL_STATE.retriever, llm_provider=llm_provider)
-
-        response: RAGResponse = rag_engine.ask(
-            query=request.question,
-            top_k=request.top_k,
-        )
-
-        return response.to_dict(include_sources=True)
+    # ============================================================================
+    # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+    # ============================================================================
+    # @app.post("/api/ask")
+    # def ask_question(request: AskRequest):
+    #     if GLOBAL_STATE.repo is None:
+    #         raise HTTPException(
+    #             status_code=400,
+    #             detail="No repository scanned yet. Please scan a repository first.",
+    #         )
+    #
+    #     provider_type = "mock" if request.mock else None
+    #     llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
+    #     rag_engine = RAGEngine(retriever=GLOBAL_STATE.retriever, llm_provider=llm_provider)
+    #
+    #     response: RAGResponse = rag_engine.ask(
+    #         query=request.question,
+    #         top_k=request.top_k,
+    #     )
+    #
+    #     return response.to_dict(include_sources=True)
+    # ============================================================================
 
     @app.get("/api/file")
     def get_file_content(path: str):

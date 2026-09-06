@@ -24,27 +24,90 @@ class RepositoryLoader:
 
     def load_repository(self, repo_path: Union[str, Path]) -> IngestedRepository:
         """
-        Scan and ingest a repository at the specified local path.
+        Scan and ingest a repository from a local path, ZIP archive, or Git clone URL.
 
         Args:
-            repo_path: Path to the root of the codebase directory.
+            repo_path: Local folder path, path to a .zip archive, or a Git URL (e.g. https://github.com/user/repo.git).
 
         Returns:
             IngestedRepository containing all ingested files and summary statistics.
 
         Raises:
-            FileNotFoundError: If the provided path does not exist.
-            NotADirectoryError: If the provided path is not a directory.
+            FileNotFoundError: If the provided local path or zip does not exist.
+            NotADirectoryError: If the provided path is not a directory or supported archive.
         """
+        raw_path_str = str(repo_path).strip()
+
+        # Handle Git URLs (https://, http://, git@)
+        if raw_path_str.startswith(("http://", "https://", "git@")):
+            return self._load_git_repository(raw_path_str)
+
         path_obj = Path(repo_path).resolve()
 
         if not path_obj.exists():
-            raise FileNotFoundError(f"Repository directory does not exist: {path_obj}")
+            raise FileNotFoundError(f"Repository path does not exist: {path_obj}")
+
+        # Handle ZIP archives
+        if path_obj.is_file() and path_obj.suffix.lower() == ".zip":
+            return self._load_zip_repository(path_obj)
 
         if not path_obj.is_dir():
-            raise NotADirectoryError(f"Provided path is not a directory: {path_obj}")
+            raise NotADirectoryError(f"Provided path is neither a directory nor a zip archive: {path_obj}")
 
-        repo_name = path_obj.name
+        return self._scan_directory(path_obj, repo_name=path_obj.name)
+
+    def _load_git_repository(self, git_url: str) -> IngestedRepository:
+        """Clone a remote Git repository to a temporary directory and ingest it."""
+        import tempfile
+        import subprocess
+        import shutil
+
+        temp_dir = tempfile.mkdtemp(prefix="codemind_git_")
+        # Extract repo name from URL
+        repo_name = git_url.rstrip("/").split("/")[-1]
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+
+        try:
+            logger.info(f"Cloning remote repository {git_url} to {temp_dir}...")
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", git_url, temp_dir],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Git clone failed: {result.stderr.strip() or result.stdout.strip()}")
+
+            return self._scan_directory(Path(temp_dir), repo_name=repo_name, original_path=git_url)
+        except Exception as e:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise RuntimeError(f"Failed to clone and ingest repository from URL '{git_url}': {e}")
+
+    def _load_zip_repository(self, zip_path: Path) -> IngestedRepository:
+        """Extract a ZIP archive to a temporary directory and ingest it."""
+        import tempfile
+        import zipfile
+
+        temp_dir = tempfile.mkdtemp(prefix="codemind_zip_")
+        repo_name = zip_path.stem
+
+        try:
+            logger.info(f"Extracting ZIP archive {zip_path} to {temp_dir}...")
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(temp_dir)
+
+            return self._scan_directory(Path(temp_dir), repo_name=repo_name, original_path=str(zip_path))
+        except Exception as e:
+            raise RuntimeError(f"Failed to extract and ingest ZIP archive '{zip_path}': {e}")
+
+    def _scan_directory(
+        self,
+        path_obj: Path,
+        repo_name: str,
+        original_path: Optional[str] = None,
+    ) -> IngestedRepository:
+        """Recursively scan a directory, apply filters, and build IngestedRepository model."""
         source_files: List[SourceFile] = []
         summary = IngestionSummary()
 
@@ -80,7 +143,7 @@ class RepositoryLoader:
                     summary.skipped_files.append({"path": rel_path_str, "reason": "Failed to decode content"})
 
         return IngestedRepository(
-            repo_path=str(path_obj),
+            repo_path=original_path or str(path_obj),
             repo_name=repo_name,
             files=source_files,
             summary=summary,

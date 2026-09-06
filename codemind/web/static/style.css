@@ -941,3 +941,316 @@ body {
   z-index: 1000;
   transition: opacity 0.3s, transform 0.3s;
 }
+
+/* College Evaluation 1 — Static Analysis Overview & Enhancements */
+.highlight-green {
+  color: #34d399 !important;
+}
+
+.highlight-cyan {
+  color: #00f0ff !important;
+}
+
+.input-hint {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.file-item-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.line-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.import-card {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.import-line {
+  display: flex;
+  gap: 8px;
+}
+
+.import-lineno {
+  color: #64748b;
+  width: 32px;
+}
+
+.import-statement {
+  color: #a5b4fc;
+}
+
+.symbol-calls-tag {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+/* Static Analysis Dashboard */
+.analysis-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.analysis-section-card {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.analysis-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analysis-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.info-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.info-path {
+  word-break: break-all;
+  color: var(--accent-cyan);
+}
+
+.languages-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.languages-bar-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.languages-chips-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lang-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+}
+
+.lang-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+}
+
+.lang-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lang-pct {
+  color: var(--text-muted);
+}
+
+/* AST Summary Chips */
+.ast-summary-chips-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.ast-chip {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ast-chip-num {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+}
+
+.ast-chip-lbl {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.color-rose {
+  color: var(--accent-rose) !important;
+}
+
+.color-green {
+  color: var(--accent-green) !important;
+}
+
+/* Analysis Table */
+.analysis-table-wrapper {
+  overflow-x: auto;
+  max-height: 400px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.analysis-table th {
+  background: rgba(18, 24, 38, 0.95);
+  position: sticky;
+  top: 0;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 2;
+}
+
+.analysis-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+}
+
+.analysis-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.analysis-table tbody tr:hover {
+  background: var(--bg-surface-hover);
+}
+
+.file-td-name {
+  font-family: var(--font-mono);
+  color: var(--text-primary) !important;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-td-icon {
+  font-size: 14px;
+}
+
+.lang-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  background: var(--bg-surface);
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.num-td {
+  font-family: var(--font-mono);
+  text-align: right;
+  padding-right: 18px !important;
+}
+
+.center-td {
+  text-align: center;
+}
+
+.badge-valid {
+  font-size: 10px;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-error {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.15);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.badge-doc {
+  font-size: 10px;
+  font-weight: 700;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge-nodoc {
+  color: #475569;
+}
+

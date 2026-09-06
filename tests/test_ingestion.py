@@ -149,6 +149,24 @@ class TestRepositoryLoader(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             loader.load_repository(self.root / "non_existent_directory")
 
+    def test_load_zip_repository(self):
+        import zipfile
+        zip_path = self.root.parent / "sample_archive.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("module_a.py", "def compute(): return 100\n")
+            zf.writestr("docs/guide.md", "# Guide\nDetailed instructions.\n")
+
+        try:
+            loader = RepositoryLoader()
+            repo = loader.load_repository(zip_path)
+            self.assertIsInstance(repo, IngestedRepository)
+            self.assertEqual(repo.summary.total_files, 2)
+            self.assertIsNotNone(repo.get_file_by_relative_path("module_a.py"))
+            self.assertIsNotNone(repo.get_file_by_relative_path("docs/guide.md"))
+        finally:
+            if zip_path.exists():
+                zip_path.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()

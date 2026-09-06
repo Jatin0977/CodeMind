@@ -1,5 +1,6 @@
 """
 Unit tests for CodeMind FastAPI Web API and Explorer endpoints.
+Prepared for College Evaluation 1 (Technical Phases 1 and 2).
 """
 
 import os
@@ -9,12 +10,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from codemind.web.app import create_app, GLOBAL_STATE
-from codemind.embeddings.mock_provider import MockEmbeddingProvider
-from codemind.retrieval.retriever import SemanticRetriever
 
 
 class TestWebAPI(unittest.TestCase):
-    """Test suite for CodeMind web endpoints."""
+    """Test suite for CodeMind web endpoints (Evaluation 1)."""
 
     @classmethod
     def setUpClass(cls):
@@ -51,24 +50,19 @@ class TestWebAPI(unittest.TestCase):
             encoding="utf-8",
         )
 
-        # Use fast mock embedding provider for tests
-        GLOBAL_STATE.retriever = SemanticRetriever(
-            embedding_provider=MockEmbeddingProvider(dimension=64)
-        )
-
     @classmethod
     def tearDownClass(cls):
         cls.temp_dir.cleanup()
 
     def test_health_endpoint(self):
-        """Test GET /api/health returns system status."""
+        """Test GET /api/health returns system status and evaluation phase."""
         response = self.client.get("/api/health")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "healthy")
         self.assertEqual(data["version"], "0.1.0")
-        self.assertIn("has_gemini_key", data)
-        self.assertIn("embedding_model", data)
+        self.assertIn("evaluation_phase", data)
+        self.assertIn("is_scanned", data)
 
     def test_root_serves_html(self):
         """Test GET / returns HTML dashboard."""
@@ -90,8 +84,8 @@ class TestWebAPI(unittest.TestCase):
         self.assertEqual(data["ast_metrics"]["functions"], 1)
         self.assertEqual(data["ast_metrics"]["methods"], 2)
         self.assertEqual(data["ast_metrics"]["imports"], 1)
-        self.assertGreater(data["total_chunks"], 0)
-        self.assertGreater(data["indexed_chunks"], 0)
+        self.assertIn("file_analysis", data)
+        self.assertEqual(len(data["file_analysis"]), 2)
         self.assertEqual(len(data["files"]), 2)
 
     def test_scan_invalid_path_returns_404(self):
@@ -132,41 +126,15 @@ class TestWebAPI(unittest.TestCase):
         self.assertEqual(len(data["functions"]), 1)
         self.assertEqual(data["functions"][0]["name"], "sqrt_val")
 
-    def test_ask_mock_grounded_rag(self):
-        """Test POST /api/ask with mock mode returns grounded response."""
-        self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
-
-        response = self.client.post(
-            "/api/ask",
-            json={
-                "question": "How does the calculator add numbers?",
-                "top_k": 3,
-                "mock": True,
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn("answer", data)
-        self.assertTrue(data["is_sufficient"])
-        self.assertGreater(len(data["citations"]), 0)
-        self.assertGreater(len(data["sources"]), 0)
-
-    def test_ask_out_of_scope_insufficient_context(self):
-        """Test POST /api/ask with irrelevant question returns insufficient context."""
-        self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
-
-        response = self.client.post(
-            "/api/ask",
-            json={
-                "question": "Quantum gravity quantum black hole entanglement dynamics?",
-                "top_k": 3,
-                "mock": True,
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertFalse(data["is_sufficient"])
-        self.assertIn("insufficient context", data["answer"].lower())
+    # ============================================================================
+    # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
+    # (Grounded RAG API endpoint tests)
+    # ============================================================================
+    # def test_ask_mock_grounded_rag(self):
+    #     ...
+    # def test_ask_out_of_scope_insufficient_context(self):
+    #     ...
+    # ============================================================================
 
 
 if __name__ == "__main__":
