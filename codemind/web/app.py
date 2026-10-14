@@ -14,29 +14,26 @@ from ..ingestion.models import IngestedRepository, SourceFile
 from ..parsing.parser_factory import GLOBAL_PARSER_FACTORY
 from ..parsing.base_parser import ParsedFile
 
-# ============================================================================
-# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-# (Code Chunking, Embeddings, Vector Stores, Semantic Retrieval, and RAG Engine)
-# ============================================================================
-# from ..chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
-# from ..chunking.models import CodeChunk
-# from ..retrieval.retriever import SemanticRetriever
-# from ..rag.engine import RAGEngine
-# from ..rag.models import RAGResponse
-# from ..rag.providers.factory import get_llm_provider
-# ============================================================================
+from ..chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
+from ..chunking.models import CodeChunk
+from ..retrieval.retriever import SemanticRetriever
+from ..rag.engine import RAGEngine
+from ..rag.models import RAGResponse
+from ..rag.providers.factory import get_llm_provider
+from ..graph.models import NodeType, EdgeType, Node, Edge, GraphSummary
+from ..graph.builder import KnowledgeGraphBuilder
+from ..graph.query import GraphQueryEngine
 
 
 class ScanRequest(BaseModel):
     repo_path: str = Field(default=".", description="Local repository path, ZIP file, or Git clone URL to scan")
 
 
-# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-# class AskRequest(BaseModel):
-#     question: str = Field(..., description="Developer question")
-#     top_k: int = Field(default=4, ge=1, le=10, description="Top evidence chunks to retrieve")
-#     mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
-#     model: Optional[str] = Field(default=None, description="Optional LLM model name")
+class AskRequest(BaseModel):
+    question: str = Field(..., description="Developer question")
+    top_k: int = Field(default=4, ge=1, le=10, description="Top evidence chunks to retrieve")
+    mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
+    model: Optional[str] = Field(default=None, description="Optional LLM model name")
 
 
 class CodebaseState:
@@ -46,15 +43,11 @@ class CodebaseState:
         self.repo: Optional[IngestedRepository] = None
         self.parsed_files: Dict[str, ParsedFile] = {}  # rel_path -> ParsedFile
         self.static_metrics: Dict[str, Any] = {}
-
-        # ============================================================================
-        # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-        # ============================================================================
-        # self.chunks: List[CodeChunk] = []
-        # self.chunk_breakdown: Dict[str, int] = {}
-        # self.retriever = SemanticRetriever()
-        # self.rag_engine = RAGEngine(retriever=self.retriever)
-        # ============================================================================
+        self.chunks: List[CodeChunk] = []
+        self.chunk_breakdown: Dict[str, int] = {}
+        self.retriever = SemanticRetriever()
+        self.graph_builder = KnowledgeGraphBuilder()
+        self.graph_query_engine: Optional[GraphQueryEngine] = None
 
     def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
         """
@@ -64,6 +57,8 @@ class CodebaseState:
         loader = RepositoryLoader()
         self.repo = loader.load_repository(repo_path)
         self.parsed_files.clear()
+        self.chunks.clear()
+        self.chunk_breakdown.clear()
 
         total_classes = 0
         total_functions = 0
@@ -121,6 +116,12 @@ class CodebaseState:
 
             file_analysis_list.append(file_meta)
 
+            # Chunk file into semantic units (Phase 3)
+            file_chunks = GLOBAL_CHUNKER_FACTORY.chunk_file(sf, parsed)
+            self.chunks.extend(file_chunks)
+            for c in file_chunks:
+                self.chunk_breakdown[c.chunk_type] = self.chunk_breakdown.get(c.chunk_type, 0) + 1
+
         self.static_metrics = {
             "classes": total_classes,
             "functions": total_functions,
@@ -129,6 +130,14 @@ class CodebaseState:
             "docstrings": total_docstrings,
             "syntax_errors": syntax_errors,
         }
+
+        # Index in vector store (Phase 3)
+        indexed_chunks_count = self.retriever.index_chunks(self.chunks)
+
+        # Construct Software Knowledge Graph (Phase 4)
+        nx_graph = self.graph_builder.build(self.repo, self.parsed_files)
+        self.graph_query_engine = GraphQueryEngine(nx_graph, self.graph_builder.nodes_by_id)
+        graph_summary = self.graph_builder.get_summary().to_dict()
 
         # Prepare file tree items
         files_data = [
@@ -156,8 +165,15 @@ class CodebaseState:
             "skipped_files": self.repo.summary.skipped_files[:10],
             "ast_metrics": self.static_metrics,
             "file_analysis": file_analysis_list,
+            "total_chunks": len(self.chunks),
+            "chunk_breakdown": self.chunk_breakdown,
+            "indexed_chunks": indexed_chunks_count,
+            "graph_summary": graph_summary,
             "files": files_data,
         }
+
+    # Alias for backwards compatibility
+    scan_and_index = scan_and_analyze
 
 
 # Global session instance
@@ -198,13 +214,21 @@ def create_app():
 
     @app.get("/api/health")
     def health_check():
+        has_gemini = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
         return {
             "status": "healthy",
             "version": "0.1.0",
-            "evaluation_phase": "Evaluation 1: Technical Phases 1 & 2 (Ingestion & Static Analysis)",
+            "evaluation_phase": "Evaluation 2: Technical Phases 1–4",
+            "has_gemini_key": has_gemini,
+            "embedding_model": GLOBAL_STATE.retriever.embedding_provider.model_name,
             "is_scanned": GLOBAL_STATE.repo is not None,
+            "is_indexed": GLOBAL_STATE.repo is not None and len(GLOBAL_STATE.chunks) > 0,
+            "has_graph": GLOBAL_STATE.graph_query_engine is not None,
+            "total_graph_nodes": len(GLOBAL_STATE.graph_builder.nodes_by_id) if GLOBAL_STATE.graph_builder else 0,
+            "total_graph_edges": len(GLOBAL_STATE.graph_builder.edges_list) if GLOBAL_STATE.graph_builder else 0,
             "repo_name": GLOBAL_STATE.repo.repo_name if GLOBAL_STATE.repo else None,
             "total_files": GLOBAL_STATE.repo.summary.total_files if GLOBAL_STATE.repo else 0,
+            "total_chunks": len(GLOBAL_STATE.chunks),
         }
 
     @app.post("/api/scan")
@@ -219,28 +243,24 @@ def create_app():
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    # ============================================================================
-    # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-    # ============================================================================
-    # @app.post("/api/ask")
-    # def ask_question(request: AskRequest):
-    #     if GLOBAL_STATE.repo is None:
-    #         raise HTTPException(
-    #             status_code=400,
-    #             detail="No repository scanned yet. Please scan a repository first.",
-    #         )
-    #
-    #     provider_type = "mock" if request.mock else None
-    #     llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
-    #     rag_engine = RAGEngine(retriever=GLOBAL_STATE.retriever, llm_provider=llm_provider)
-    #
-    #     response: RAGResponse = rag_engine.ask(
-    #         query=request.question,
-    #         top_k=request.top_k,
-    #     )
-    #
-    #     return response.to_dict(include_sources=True)
-    # ============================================================================
+    @app.post("/api/ask")
+    def ask_question(request: AskRequest):
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No repository scanned yet. Please scan a repository first.",
+            )
+
+        provider_type = "mock" if request.mock else None
+        llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
+        rag_engine = RAGEngine(retriever=GLOBAL_STATE.retriever, llm_provider=llm_provider)
+
+        response: RAGResponse = rag_engine.ask(
+            query=request.question,
+            top_k=request.top_k,
+        )
+
+        return response.to_dict(include_sources=True)
 
     @app.get("/api/file")
     def get_file_content(path: str):
@@ -274,5 +294,100 @@ def create_app():
             raise HTTPException(status_code=404, detail=f"No parsed symbols found for: {path}")
 
         return parsed.to_dict()
+
+    @app.get("/api/graph")
+    def get_knowledge_graph(
+        node_type: Optional[str] = None,
+        query: Optional[str] = None,
+        max_nodes: int = 500,
+    ):
+        """
+        Return the software knowledge graph nodes and edges.
+        Supports filtering by node_type and search query substring.
+        """
+        if GLOBAL_STATE.repo is None or GLOBAL_STATE.graph_query_engine is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+
+        summary = GLOBAL_STATE.graph_builder.get_summary().to_dict()
+        nodes = [n.to_dict() for n in GLOBAL_STATE.graph_builder.nodes_by_id.values()]
+
+        if node_type:
+            nodes = [n for n in nodes if n.get("node_type") == node_type]
+
+        if query:
+            q = query.lower().strip()
+            nodes = [
+                n for n in nodes
+                if q in n.get("name", "").lower()
+                or q in n.get("relative_path", "").lower()
+                or q in n.get("id", "").lower()
+            ]
+
+        if len(nodes) > max_nodes:
+            nodes = nodes[:max_nodes]
+
+        node_id_set = {n["id"] for n in nodes}
+        edges = [
+            e.to_dict() for e in GLOBAL_STATE.graph_builder.edges_list
+            if e.source in node_id_set and e.target in node_id_set
+        ]
+
+        return {
+            "summary": summary,
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "nodes": nodes,
+            "edges": edges,
+        }
+
+    @app.get("/api/graph/impact")
+    def get_graph_impact(node_id: str, max_depth: int = 3):
+        """
+        Return structural reachability impact analysis for a given node.
+        Traces reverse dependencies (incoming CALLS, INHERITS, IMPORTS) up to max_depth.
+        """
+        if GLOBAL_STATE.repo is None or GLOBAL_STATE.graph_query_engine is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+
+        result = GLOBAL_STATE.graph_query_engine.trace_impact(node_id, max_depth=max_depth)
+        if not result.get("found"):
+            raise HTTPException(status_code=404, detail=result.get("error", f"Node '{node_id}' not found"))
+
+        return result
+
+    @app.get("/api/graph/node")
+    def get_graph_node_details(node_id: str):
+        """
+        Return detailed query information for a specific node:
+        Callers, callees, dependencies, dependents, and dependency depth.
+        """
+        if GLOBAL_STATE.repo is None or GLOBAL_STATE.graph_query_engine is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+
+        node = GLOBAL_STATE.graph_query_engine.get_node(node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found.")
+
+        return {
+            "node": node,
+            "callers": GLOBAL_STATE.graph_query_engine.get_callers(node_id),
+            "callees": GLOBAL_STATE.graph_query_engine.get_callees(node_id),
+            "dependencies": GLOBAL_STATE.graph_query_engine.get_dependencies(node_id),
+            "dependents": GLOBAL_STATE.graph_query_engine.get_dependents(node_id),
+            "dependency_depth": GLOBAL_STATE.graph_query_engine.get_dependency_depth(node_id),
+        }
+
+    @app.get("/api/graph/cycles")
+    def get_graph_cycles():
+        """Return circular dependencies detected in the software knowledge graph."""
+        if GLOBAL_STATE.repo is None or GLOBAL_STATE.graph_query_engine is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+
+        cycles = GLOBAL_STATE.graph_query_engine.detect_cycles()
+        return {
+            "has_cycles": len(cycles) > 0,
+            "cycle_count": len(cycles),
+            "cycles": cycles,
+        }
 
     return app

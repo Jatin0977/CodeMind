@@ -19,30 +19,31 @@
         <span class="brand-icon">⚡</span>
         <div class="brand-text">
           <span class="brand-title">CodeMind</span>
-          <span class="brand-subtitle">Repository Ingestion & Static Code Analysis</span>
+          <span class="brand-subtitle">Repository Ingestion, Static Analysis & Knowledge Graph</span>
         </div>
       </div>
       <div class="milestone-badge">
         <span class="badge-dot"></span>
-        <span>College Evaluation 1 (Phases 1 & 2)</span>
+        <span>College Evaluation 2 (Phases 1–4)</span>
       </div>
     </div>
 
     <div class="header-right">
       <div class="status-chip" id="ingestionEngineChip">
         <span class="chip-icon">📁</span>
-        <span class="chip-label">Ingestion Engine:</span>
+        <span class="chip-label">Ingestion:</span>
         <span class="chip-val highlight-green">Active</span>
       </div>
       <div class="status-chip" id="astEngineChip">
         <span class="chip-icon">🔍</span>
-        <span class="chip-label">Static Analysis:</span>
+        <span class="chip-label">Static AST:</span>
         <span class="chip-val highlight-cyan">Python AST</span>
       </div>
-
-      <!-- ============================================================================
-           Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-           (Code Embeddings, Vector Store, and LLM / Gemini Provider Status Chips)
+      <div class="status-chip" id="graphEngineChip">
+        <span class="chip-icon">🕸️</span>
+        <span class="chip-label">Graph:</span>
+        <span class="chip-val highlight-purple" id="graphStatusLabel">Active</span>
+      </div>
       <div class="status-chip" id="embeddingStatus">
         <span class="chip-icon">🧠</span>
         <span class="chip-label">Embedding:</span>
@@ -53,7 +54,6 @@
         <span class="chip-label">LLM:</span>
         <span class="chip-val" id="llmStatusLabel">Detecting...</span>
       </div>
-      ============================================================================ -->
     </div>
   </header>
 
@@ -83,9 +83,6 @@
         </div>
       </div>
 
-      <!-- ============================================================================
-           Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-           (Offline / Mock LLM Mode Toggle)
       <div class="options-group">
         <label class="toggle-control">
           <input type="checkbox" id="mockModeToggle">
@@ -93,7 +90,6 @@
           <span class="toggle-label">Offline / Mock LLM Mode</span>
         </label>
       </div>
-      ============================================================================ -->
     </section>
 
     <!-- Overview Statistics Cards (Phase 1 & Phase 2) -->
@@ -134,9 +130,6 @@
         <div class="stat-detail" id="statImports">0 imports & 0 docstrings</div>
       </div>
 
-      <!-- ============================================================================
-           Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-           (Semantic Chunks & Vector Store Metric Card)
       <div class="stat-card glass-card">
         <div class="stat-header">
           <span class="stat-icon">🧩</span>
@@ -145,7 +138,15 @@
         <div class="stat-value" id="statChunks">0</div>
         <div class="stat-detail" id="statChunksDetail">Indexed in vector store</div>
       </div>
-      ============================================================================ -->
+
+      <div class="stat-card glass-card">
+        <div class="stat-header">
+          <span class="stat-icon">🕸️</span>
+          <span class="stat-title">Knowledge Graph</span>
+        </div>
+        <div class="stat-value" id="statGraphNodes">0</div>
+        <div class="stat-detail" id="statGraphEdges">0 edges (CONTAINS, CALLS, IMPORTS, INHERITS)</div>
+      </div>
     </section>
 
     <!-- Workspace 3-Pane Explorer -->
@@ -179,14 +180,12 @@
           <button class="tab-btn" id="tabAnalysisBtn" onclick="switchTab('analysis')">
             <span>📊</span> Static Analysis Overview
           </button>
-
-          <!-- ============================================================================
-               Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-               (Grounded Codebase Q&A Tab Button)
           <button class="tab-btn" id="tabQABtn" onclick="switchTab('qa')">
             <span>🤖</span> Grounded Codebase Q&A
           </button>
-          ============================================================================ -->
+          <button class="tab-btn" id="tabGraphBtn" onclick="switchTab('graph')">
+            <span>🕸️</span> Software Knowledge Graph
+          </button>
         </div>
 
         <!-- Tab 1: AST Symbol Inspector -->
@@ -209,9 +208,7 @@
           </div>
         </div>
 
-        <!-- ============================================================================
-             Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-             (Tab: Grounded Q&A Assistant, Semantic Evidence, and Citation Jumpers)
+        <!-- Tab 3: Grounded Q&A Assistant -->
         <div class="tab-content" id="tabQA">
           <div class="qa-input-card">
             <div class="example-chips">
@@ -267,7 +264,186 @@
             </div>
           </div>
         </div>
-        ============================================================================ -->
+
+        <!-- Tab 4: Software Knowledge Graph -->
+        <div class="tab-content" id="tabGraph">
+          <!-- Graph Toolbar -->
+          <div class="graph-toolbar-card">
+            <div class="graph-toolbar-row">
+              <div class="graph-search-box">
+                <span class="search-icon">🔍</span>
+                <input 
+                  type="text" 
+                  id="graphSearchInput" 
+                  class="compact-input" 
+                  placeholder="Filter nodes by name, ID, or file path..."
+                />
+              </div>
+
+              <div class="graph-filter-item">
+                <label for="graphNodeTypeFilter" class="filter-lbl">Node Type:</label>
+                <select id="graphNodeTypeFilter" class="compact-select">
+                  <option value="">All Types (Files, Classes, Funcs, Methods)</option>
+                  <option value="file">Files Only</option>
+                  <option value="class">Classes Only</option>
+                  <option value="function">Top-Level Functions Only</option>
+                  <option value="method">Methods Only</option>
+                </select>
+              </div>
+
+              <div class="graph-filter-item">
+                <label for="graphEdgeTypeFilter" class="filter-lbl">Edge Type:</label>
+                <select id="graphEdgeTypeFilter" class="compact-select">
+                  <option value="">All Relationships</option>
+                  <option value="CALLS">CALLS (Invocations)</option>
+                  <option value="IMPORTS">IMPORTS (Module Dependencies)</option>
+                  <option value="INHERITS">INHERITS (Class Hierarchy)</option>
+                  <option value="CONTAINS">CONTAINS (Scope Hierarchy)</option>
+                </select>
+              </div>
+
+              <div class="graph-toolbar-actions">
+                <button id="resetGraphBtn" class="chip-btn" title="Reset View and Centering">
+                  <span>🔄</span> Reset
+                </button>
+                <button id="cyclesGraphBtn" class="chip-btn" title="Inspect Circular Dependencies">
+                  <span>🔁</span> Check Cycles
+                </button>
+                <button id="clearImpactBtn" class="chip-btn hidden" title="Clear Impact Highlight">
+                  <span>✖️</span> Clear Impact
+                </button>
+              </div>
+            </div>
+
+            <!-- Graph Legend Bar -->
+            <div class="graph-legend-row">
+              <span class="legend-title">Nodes:</span>
+              <span class="legend-chip chip-file"><span class="legend-dot dot-file"></span> File</span>
+              <span class="legend-chip chip-class"><span class="legend-dot dot-class"></span> Class</span>
+              <span class="legend-chip chip-func"><span class="legend-dot dot-func"></span> Function</span>
+              <span class="legend-chip chip-method"><span class="legend-dot dot-method"></span> Method</span>
+              <span class="legend-sep">|</span>
+              <span class="legend-title">Edges:</span>
+              <span class="legend-chip edge-calls"><span class="legend-line line-calls"></span> CALLS</span>
+              <span class="legend-chip edge-imports"><span class="legend-line line-imports"></span> IMPORTS</span>
+              <span class="legend-chip edge-inherits"><span class="legend-line line-inherits"></span> INHERITS</span>
+              <span class="legend-chip edge-contains"><span class="legend-line line-contains"></span> CONTAINS</span>
+            </div>
+          </div>
+
+          <!-- Graph Interactive Workspace (Canvas + Inspection Card) -->
+          <div class="graph-workspace-container">
+            <!-- Canvas Viewport -->
+            <div class="graph-canvas-container" id="graphCanvasContainer">
+              <canvas id="graphCanvas"></canvas>
+              <div class="graph-hud-overlay">
+                <span class="hud-stat" id="hudNodeCount">0 nodes</span>
+                <span class="hud-stat" id="hudEdgeCount">0 edges</span>
+                <span class="hud-hint">Scroll to Zoom • Drag to Pan / Move Nodes • Click Node to Inspect</span>
+              </div>
+              <div class="graph-zoom-controls">
+                <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
+                <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">-</button>
+                <button class="zoom-btn" id="zoomFitBtn" title="Fit to Screen">⛶</button>
+              </div>
+            </div>
+
+            <!-- Side Inspection & Impact Panel -->
+            <div class="graph-details-pane" id="graphDetailsPane">
+              <!-- Default Prompt State -->
+              <div class="empty-state" id="graphNoSelectionPrompt">
+                <span class="empty-icon">🕸️</span>
+                <p>Click any node in the graph above to inspect callers, callees, dependencies, and trace structural reachability impact.</p>
+              </div>
+
+              <!-- Selected Node Details Card -->
+              <div class="node-details-card hidden" id="nodeDetailsCard">
+                <div class="node-details-header">
+                  <div class="node-header-title-row">
+                    <span class="node-type-badge" id="selectedNodeTypeBadge">CLASS</span>
+                    <span class="node-name" id="selectedNodeName">NodeName</span>
+                  </div>
+                  <div class="node-path" id="selectedNodePath">path/to/file.py (L1-10)</div>
+                </div>
+
+                <div class="node-actions-row">
+                  <button class="btn btn-accent btn-sm" id="traceImpactBtn">
+                    <span>⚡</span> Trace Structural Reachability
+                  </button>
+                  <button class="btn btn-secondary btn-sm" id="viewSourceBtn">
+                    <span>📄</span> View Source
+                  </button>
+                </div>
+
+                <!-- Callers Section -->
+                <div class="node-relation-section">
+                  <div class="relation-section-title">
+                    <span>📞</span> Incoming Callers <span class="relation-count" id="callersCount">0</span>
+                  </div>
+                  <div class="relation-chips-list" id="callersList">
+                    <span class="empty-relation">No incoming callers recorded.</span>
+                  </div>
+                </div>
+
+                <!-- Callees Section -->
+                <div class="node-relation-section">
+                  <div class="relation-section-title">
+                    <span>⚡</span> Outgoing Invocations (Callees) <span class="relation-count" id="calleesCount">0</span>
+                  </div>
+                  <div class="relation-chips-list" id="calleesList">
+                    <span class="empty-relation">No outgoing callees recorded.</span>
+                  </div>
+                </div>
+
+                <!-- Dependencies & Depth Section -->
+                <div class="node-relation-section">
+                  <div class="relation-section-title">
+                    <span>🔗</span> Dependencies & Depth
+                  </div>
+                  <div class="dependency-stats-row">
+                    <span class="dep-stat-badge" id="depDepthBadge">Max Depth: 0</span>
+                    <span class="dep-stat-badge" id="depCountBadge">0 Dependencies</span>
+                    <span class="dep-stat-badge" id="dependentsCountBadge">0 Dependents</span>
+                  </div>
+                  <div class="relation-chips-list" id="dependenciesList"></div>
+                </div>
+              </div>
+
+              <!-- Impact Analysis Report Panel -->
+              <div class="impact-report-panel hidden" id="impactReportPanel">
+                <div class="impact-panel-header">
+                  <div class="impact-panel-title">
+                    <span>⚡</span> Structural Reachability Impact Analysis
+                  </div>
+                  <button class="close-card-btn" id="closeImpactBtn" title="Close Impact Report">✕</button>
+                </div>
+
+                <div class="impact-disclaimer-alert">
+                  <span class="alert-icon">ℹ️</span>
+                  <span><strong>Structural Reachability:</strong> Traces deterministic static relationships in the AST graph (incoming CALLS, INHERITS, IMPORTS). This is not an advanced predictive or statistical impact score.</span>
+                </div>
+
+                <div class="impact-summary-stats">
+                  <div class="impact-stat-item">
+                    <span class="impact-stat-label">Total Impacted</span>
+                    <span class="impact-stat-val" id="impactTotalVal">0</span>
+                  </div>
+                  <div class="impact-stat-item">
+                    <span class="impact-stat-label">Max Traversal</span>
+                    <span class="impact-stat-val" id="impactDepthVal">3 Levels</span>
+                  </div>
+                  <div class="impact-stat-item">
+                    <span class="impact-stat-label">Breakdown</span>
+                    <span class="impact-stat-breakdown" id="impactBreakdownVal">Files: 0, Classes: 0, Funcs: 0, Methods: 0</span>
+                  </div>
+                </div>
+
+                <div class="impact-entities-title">Structurally Reachable Entities:</div>
+                <div class="impact-entities-list" id="impactEntitiesList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Right Pane: Source Code Viewer -->

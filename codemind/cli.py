@@ -22,18 +22,14 @@ from .ingestion.models import IngestedRepository, SourceFile
 from .parsing.parser_factory import GLOBAL_PARSER_FACTORY
 from .parsing.base_parser import ParsedFile, Symbol
 
-# ============================================================================
-# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-# (Chunking, Semantic Search Embeddings, Vector Store, and Grounded RAG)
-# ============================================================================
-# from .chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
-# from .chunking.models import CodeChunk
-# from .retrieval.retriever import SemanticRetriever
-# from .embeddings.factory import get_embedding_provider
-# from .rag.engine import RAGEngine
-# from .rag.models import RAGResponse
-# from .rag.providers.factory import get_llm_provider
-# ============================================================================
+from .chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
+from .chunking.models import CodeChunk
+from .retrieval.retriever import SemanticRetriever
+from .embeddings.factory import get_embedding_provider
+from .rag.engine import RAGEngine
+from .rag.models import RAGResponse
+from .rag.providers.factory import get_llm_provider
+from .graph import KnowledgeGraphBuilder, GraphQueryEngine, NodeType, EdgeType
 
 
 def inspect_repository(
@@ -173,27 +169,135 @@ def inspect_repository(
     return 0
 
 
-# ============================================================================
-# Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-# (Chunking, Semantic Search, and Grounded RAG Subcommands)
-# ============================================================================
-def chunk_repository(repo_path: str, as_json: bool = False, max_samples: int = 10) -> int:
-    """[Temporarily disabled for College Evaluation 1]"""
-    print(
-        "[College Evaluation 1 Notice] The 'chunk' feature is temporarily disabled for College Evaluation 1 "
-        "(Technical Phases 1 and 2 only). Please use 'inspect' or 'serve'.",
-        file=sys.stderr,
-    )
+def chunk_repository(
+    repo_path: str,
+    as_json: bool = False,
+    max_samples: int = 10,
+) -> int:
+    """Ingest and chunk all codebase files, printing chunk statistics and samples."""
+    loader = RepositoryLoader()
+
+    try:
+        repo: IngestedRepository = loader.load_repository(repo_path)
+    except Exception as e:
+        print(f"Error loading repository: {e}", file=sys.stderr)
+        return 1
+
+    all_chunks: List[CodeChunk] = []
+    chunk_type_counts: Dict[str, int] = {}
+
+    for source_file in repo.files:
+        parsed = GLOBAL_PARSER_FACTORY.parse(source_file)
+        file_chunks = GLOBAL_CHUNKER_FACTORY.chunk_file(source_file, parsed)
+        all_chunks.extend(file_chunks)
+        for c in file_chunks:
+            chunk_type_counts[c.chunk_type] = chunk_type_counts.get(c.chunk_type, 0) + 1
+
+    if as_json:
+        output_data = {
+            "repository": repo.repo_name,
+            "total_chunks": len(all_chunks),
+            "chunk_type_breakdown": chunk_type_counts,
+            "chunks": [c.to_dict() for c in all_chunks],
+        }
+        print(json.dumps(output_data, indent=2))
+        return 0
+
+    divider = "=" * 60
+    sub_divider = "-" * 60
+
+    print(divider)
+    print(f" CodeMind - Codebase Chunking Report")
+    print(divider)
+    print(f"Repository:          {repo.repo_name}")
+    print(f"Total Chunks:        {len(all_chunks)}")
+    print(sub_divider)
+    print(f"Chunk Breakdown by Type:")
+    for c_type, count in sorted(chunk_type_counts.items(), key=lambda x: -x[1]):
+        display_type = c_type.replace("_", " ").title()
+        print(f"  - {display_type:<18} {count:>3} chunks")
+    print(sub_divider)
+
+    if all_chunks:
+        print(f"Sample Chunks (showing up to {max_samples}):")
+        for idx, chunk in enumerate(all_chunks[:max_samples], 1):
+            type_label = chunk.chunk_type.upper()
+            sym_label = chunk.symbol_name or Path(chunk.relative_path).name
+            lines_span = f"{chunk.start_line}-{chunk.end_line}"
+            print(f"\n  [{idx}] {type_label}: {sym_label}")
+            print(f"      File:   {chunk.relative_path}:{lines_span} ({chunk.line_count} lines)")
+            if chunk.signature:
+                print(f"      Sig:    {chunk.signature}")
+            print(f"      ID:     {chunk.chunk_id}")
+
+        if len(all_chunks) > max_samples:
+            remaining = len(all_chunks) - max_samples
+            print(f"\n  ... and {remaining} more chunks.")
+
+    print(divider)
     return 0
 
 
-def search_repository(repo_path: str, query: str, top_k: int = 5, as_json: bool = False) -> int:
-    """[Temporarily disabled for College Evaluation 1]"""
-    print(
-        "[College Evaluation 1 Notice] The 'search' feature (Semantic Vector Search) is temporarily disabled "
-        "for College Evaluation 1 (Technical Phases 1 and 2 only). Please use 'inspect' or 'serve'.",
-        file=sys.stderr,
-    )
+def search_repository(
+    repo_path: str,
+    query: str,
+    top_k: int = 5,
+    as_json: bool = False,
+) -> int:
+    """Index codebase chunks and execute semantic similarity search for a query."""
+    loader = RepositoryLoader()
+
+    try:
+        repo: IngestedRepository = loader.load_repository(repo_path)
+    except Exception as e:
+        print(f"Error loading repository: {e}", file=sys.stderr)
+        return 1
+
+    retriever = SemanticRetriever()
+    indexed_count = retriever.index_repository(repo)
+
+    if indexed_count == 0:
+        print("No indexable chunks found in repository.", file=sys.stderr)
+        return 1
+
+    results = retriever.search(query, top_k=top_k)
+
+    if as_json:
+        output_data = {
+            "query": query,
+            "repository": repo.repo_name,
+            "total_indexed_chunks": indexed_count,
+            "results": [r.to_dict() for r in results],
+        }
+        print(json.dumps(output_data, indent=2))
+        return 0
+
+    divider = "=" * 65
+    sub_divider = "-" * 65
+
+    print(divider)
+    print(f" CodeMind - Semantic Code Search")
+    print(f" Query: \"{query}\"")
+    print(divider)
+    print(f"Repository:     {repo.repo_name}")
+    print(f"Indexed Chunks: {indexed_count}")
+    print(f"Model:          {retriever.embedding_provider.model_name}")
+    print(sub_divider)
+
+    if not results:
+        print("No relevant matching chunks found.")
+    else:
+        for res in results:
+            chunk = res.chunk
+            sym_tag = f" ({chunk.chunk_type.upper()}: {chunk.symbol_name})" if chunk.symbol_name else ""
+            print(f"\n[Rank {res.rank}] Score: {res.score:.4f} - {chunk.relative_path}:{chunk.start_line}-{chunk.end_line}{sym_tag}")
+            if chunk.signature:
+                print(f"  Signature: {chunk.signature}")
+            first_line = chunk.content.strip().splitlines()[0] if chunk.content.strip() else ""
+            preview = (first_line[:75] + "...") if len(first_line) > 75 else first_line
+            print(f"  Snippet:   {preview}")
+
+    print(divider)
     return 0
 
 
@@ -205,14 +309,139 @@ def ask_repository(
     model_name: Optional[str] = None,
     as_json: bool = False,
 ) -> int:
-    """[Temporarily disabled for College Evaluation 1]"""
-    print(
-        "[College Evaluation 1 Notice] The 'ask' feature (Grounded RAG / LLM) is temporarily disabled "
-        "for College Evaluation 1 (Technical Phases 1 and 2 only). Please use 'inspect' or 'serve'.",
-        file=sys.stderr,
-    )
+    """Answer a developer question using Grounded Codebase RAG with citations."""
+    loader = RepositoryLoader()
+
+    try:
+        repo: IngestedRepository = loader.load_repository(repo_path)
+    except Exception as e:
+        print(f"Error loading repository: {e}", file=sys.stderr)
+        return 1
+
+    llm_provider = get_llm_provider(provider_type=provider_type, model_name=model_name)
+    rag_engine = RAGEngine(llm_provider=llm_provider)
+
+    response: RAGResponse = rag_engine.ask(query=question, repo=repo, top_k=top_k)
+
+    if as_json:
+        print(json.dumps(response.to_dict(), indent=2))
+        return 0
+
+    divider = "=" * 65
+    sub_divider = "-" * 65
+
+    print(divider)
+    print(f" CodeMind - Grounded Codebase Q&A (RAG)")
+    print(f" Question: \"{question}\"")
+    print(f" Model:    {response.model_name} (Latency: {response.latency_ms:.1f}ms)")
+    print(divider)
+
+    print("\nAnswer:")
+    print(response.answer)
+
+    print("\n" + sub_divider)
+    if response.citations:
+        print(f"Cited Source References ({len(response.citations)}):")
+        for idx, cit in enumerate(response.citations, start=1):
+            # Find matching chunk for symbol label
+            sym_label = ""
+            for s in response.sources:
+                if cit in f"{s.chunk.relative_path}:{s.chunk.start_line}-{s.chunk.end_line}":
+                    if s.chunk.symbol_name:
+                        sym_label = f" ({s.chunk.chunk_type.upper()}: {s.chunk.symbol_name})"
+                    break
+            print(f"  [{idx}] [{cit}]{sym_label}")
+    else:
+        if response.is_sufficient:
+            print("Sources: Grounded in retrieved repository chunks.")
+        else:
+            print("No relevant source code citations found.")
+
+    print(divider)
     return 0
-# ============================================================================
+
+
+def graph_repository(
+    repo_path: str,
+    impact_node: Optional[str] = None,
+    cycles_only: bool = False,
+    max_depth: int = 3,
+    as_json: bool = False,
+) -> int:
+    """Build and query the Software Knowledge Graph from the CLI."""
+    loader = RepositoryLoader()
+    try:
+        repo: IngestedRepository = loader.load_repository(repo_path)
+    except Exception as e:
+        print(f"Error loading repository: {e}", file=sys.stderr)
+        return 1
+
+    parsed_files = {}
+    for sf in repo.files:
+        parsed = GLOBAL_PARSER_FACTORY.parse(sf)
+        if parsed:
+            parsed_files[sf.relative_path] = parsed
+
+    builder = KnowledgeGraphBuilder()
+    nx_graph = builder.build(repo, parsed_files)
+    engine = GraphQueryEngine(nx_graph, builder.nodes_by_id)
+    summary = builder.get_summary()
+
+    if impact_node:
+        impact = engine.trace_impact(impact_node, max_depth=max_depth)
+        if as_json:
+            print(json.dumps(impact, indent=2))
+            return 0
+
+        divider = "=" * 60
+        print(divider)
+        print(" CodeMind - Structural Reachability Impact Analysis (Phase 4)")
+        print(divider)
+        print(f"Target Node:         {impact_node}")
+        print(f"Analysis Type:       {impact.get('analysis_type', 'Structural Reachability')}")
+        print(f"Disclaimer:          {impact.get('disclaimer')}")
+        print(f"Total Impacted:      {impact.get('total_impacted', 0)}")
+        print(f"Impact Breakdown:    {impact.get('impact_by_type', {})}")
+        print("-" * 60)
+        for idx, item in enumerate(impact.get("impacted_entities", []), 1):
+            n = item["node"]
+            print(f"  [{idx}] (Depth {item['depth']}) [{n.get('node_type', '').upper()}] {n.get('name')} ({n.get('relative_path')})")
+            print(f"       Rel: {item.get('relationship')} | Path: {' -> '.join(item.get('path', []))}")
+        print(divider)
+        return 0
+
+    if cycles_only:
+        cycles = engine.detect_cycles()
+        if as_json:
+            print(json.dumps({"has_cycles": len(cycles) > 0, "cycle_count": len(cycles), "cycles": cycles}, indent=2))
+            return 0
+
+        divider = "=" * 60
+        print(divider)
+        print(" CodeMind - Circular Dependency Detection (Phase 4)")
+        print(divider)
+        print(f"Cycles Detected:     {len(cycles)}")
+        for idx, cycle in enumerate(cycles, 1):
+            print(f"  Cycle {idx}: {' -> '.join(cycle)} -> {cycle[0]}")
+        print(divider)
+        return 0
+
+    if as_json:
+        print(json.dumps(builder.to_dict(), indent=2))
+        return 0
+
+    divider = "=" * 60
+    print(divider)
+    print(" CodeMind - Software Knowledge Graph Summary (Phase 4)")
+    print(divider)
+    print(f"Repository:          {repo.repo_name}")
+    print(f"Total Graph Nodes:   {summary.total_nodes}")
+    print(f"Total Graph Edges:   {summary.total_edges}")
+    print(f"Node Type Breakdown: {summary.node_type_counts}")
+    print(f"Edge Type Breakdown: {summary.edge_type_counts}")
+    print(f"Circular Cycles:     {summary.cycle_count}")
+    print(divider)
+    return 0
 
 
 def serve_web(host: str = "127.0.0.1", port: int = 8000) -> int:
@@ -295,34 +524,132 @@ def main() -> int:
         help="Port number to listen on (default: 8000)",
     )
 
-    # ============================================================================
-    # Temporarily disabled for College Evaluation 1 — Technical Phases 1 and 2 only.
-    # ============================================================================
+    # 3. 'chunk' subcommand
     chunk_parser = subparsers.add_parser(
-        "chunk", help="[Disabled in Eval 1] Chunk codebase into semantic units"
+        "chunk", help="Chunk codebase files into AST-aware semantic code and doc chunks"
     )
-    chunk_parser.add_argument("path", nargs="?", default=".")
-    chunk_parser.add_argument("--json", "-j", action="store_true")
-    chunk_parser.add_argument("--max-samples", type=int, default=10)
+    chunk_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    chunk_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output chunks as structured JSON",
+    )
+    chunk_parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=10,
+        help="Maximum sample chunks to display (default: 10)",
+    )
 
+    # 4. 'search' subcommand
     search_parser = subparsers.add_parser(
-        "search", help="[Disabled in Eval 1] Semantic vector search"
+        "search", help="Perform semantic vector search over codebase chunks"
     )
-    search_parser.add_argument("path", nargs="?", default=".")
-    search_parser.add_argument("query", type=str, nargs="?", default="")
-    search_parser.add_argument("--top-k", "-k", type=int, default=5)
-    search_parser.add_argument("--json", "-j", action="store_true")
+    search_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    search_parser.add_argument(
+        "query",
+        type=str,
+        help="Natural language search query",
+    )
+    search_parser.add_argument(
+        "--top-k",
+        "-k",
+        type=int,
+        default=5,
+        help="Number of top search results to return (default: 5)",
+    )
+    search_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output search results as JSON",
+    )
 
+    # 5. 'ask' subcommand (Grounded RAG)
     ask_parser = subparsers.add_parser(
-        "ask", help="[Disabled in Eval 1] Grounded RAG Q&A"
+        "ask", help="Ask a question about the repository using Grounded RAG"
     )
-    ask_parser.add_argument("path", nargs="?", default=".")
-    ask_parser.add_argument("question", type=str, nargs="?", default="")
-    ask_parser.add_argument("--top-k", "-k", type=int, default=4)
-    ask_parser.add_argument("--mock", action="store_true")
-    ask_parser.add_argument("--model", "-m", type=str, default=None)
-    ask_parser.add_argument("--json", "-j", action="store_true")
-    # ============================================================================
+    ask_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    ask_parser.add_argument(
+        "question",
+        type=str,
+        help="Developer question to answer from codebase",
+    )
+    ask_parser.add_argument(
+        "--top-k",
+        "-k",
+        type=int,
+        default=4,
+        help="Number of evidence chunks to retrieve (default: 4)",
+    )
+    ask_parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Force use Mock LLM provider (offline mode without API key)",
+    )
+    ask_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="LLM model name (default: gemini-2.5-flash)",
+    )
+    ask_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output grounded response as JSON",
+    )
+
+    # 6. 'graph' subcommand (Software Knowledge Graph)
+    graph_parser = subparsers.add_parser(
+        "graph", help="Construct and query the Software Knowledge Graph (Phase 4)"
+    )
+    graph_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    graph_parser.add_argument(
+        "--impact",
+        type=str,
+        default=None,
+        help="Target node ID for structural reachability impact analysis",
+    )
+    graph_parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=3,
+        help="Maximum depth for impact tracing (default: 3)",
+    )
+    graph_parser.add_argument(
+        "--cycles",
+        action="store_true",
+        help="Detect and print circular dependency cycles",
+    )
+    graph_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output graph data or query as JSON",
+    )
 
     args = parser.parse_args()
 
@@ -359,6 +686,14 @@ def main() -> int:
             top_k=args.top_k,
             provider_type=provider_type,
             model_name=args.model,
+            as_json=args.json,
+        )
+    elif args.command == "graph":
+        return graph_repository(
+            repo_path=args.path,
+            impact_node=args.impact,
+            cycles_only=args.cycles,
+            max_depth=args.max_depth,
             as_json=args.json,
         )
     else:
