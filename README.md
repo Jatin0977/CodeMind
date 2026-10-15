@@ -429,19 +429,52 @@ omitted.
 
 ## Roadmap
 
--   [x] **Phase 1:** Repository ingestion
--   [x] **Phase 2:** Static code analysis and Python AST parsing
--   [x] **Phase 3:** AST-aware chunking, retrieval, and grounded
-    codebase Q&A
--   [x] **Phase 4:** Software Knowledge Graph and graph exploration UI
--   [ ] **Future:** Git evolution intelligence and commit/diff analysis
--   [ ] **Future:** Deeper change-impact analysis and testing
-    intelligence
--   [ ] **Future:** Multi-agent orchestration and autonomous code
-    investigation
+The project implementation follows the **10 technical phases** and **5 college evaluation milestones** specified in the CodeMind Master Project Documentation (Chapters 13 & 14):
 
-The roadmap describes the current project direction, not a claim that
-future items are implemented.
+### Evaluation 1 — Foundation & Static Analysis (Completed)
+- [x] **Phase 1: Foundation and Repository Ingestion**
+  - Multi-source repository intake (local directory, ZIP archive, Git clone URL)
+  - Multi-tier file filtering, binary detection, noise exclusion, and metadata extraction
+- [x] **Phase 2: Static Code Analysis**
+  - AST-based parsing using Python standard library `ast`
+  - Structural entity extraction (modules, classes, methods, functions, imports, decorators, calls)
+
+### Evaluation 2 — Repository Intelligence (Completed)
+- [x] **Phase 3: Semantic Intelligence**
+  - AST-aligned and Markdown header-based semantic chunking
+  - Vector embeddings and vector store (ChromaDB / In-Memory)
+  - Grounded RAG Q&A with exact source code citations
+- [x] **Phase 4: Software Knowledge Graph**
+  - Multi-relational directed graph construction (`CONTAINS`, `IMPORTS`, `CALLS`, `INHERITS`)
+  - Graph traversal (callers, callees, dependencies, dependents, dependency depth)
+  - Circular dependency detection and structural reachability blast-radius tracing
+  - Interactive force-directed canvas graph visualizer
+
+### Evaluation 3 — Hybrid & Agentic Intelligence
+- [ ] **Phase 5: Hybrid Graph-Aware Retrieval**
+  - Query-aware relationship expansion (forward expansion for flows, reverse expansion for impacts)
+  - Combined vector similarity + graph topology ranking
+- [ ] **Phase 6: Agentic Investigation Engine**
+  - Query intent classification (Understand, Structure, Impact, Evolution, Insights)
+  - Dynamic investigation planning and deterministic tool orchestration
+
+### Evaluation 4 — Advanced Software Intelligence
+- [ ] **Phase 7: Git Temporal Intelligence**
+  - Git history commit mining, author tracking, and code churn analysis
+  - Logical coupling discovery (Jaccard similarity, conditional probability, minimum-support filtering)
+  - Historical volatility and evolution timelines
+- [ ] **Phase 8: Change Impact and Test Intelligence**
+  - Explainable Multi-Signal Impact Score (combining reach, centrality, churn, coupling, tests)
+  - Test-aware impact analysis (direct and heuristically inferred test mapping)
+
+### Evaluation 5 — Complete System & Validation
+- [ ] **Phase 9: Advanced Architecture and Risk Insights**
+  - Layered architecture discovery and config-based architecture conformance checking
+  - Maintenance hotspot detection (churn × complexity × centrality)
+  - Repository health dashboard
+- [ ] **Phase 10: Evaluation, Optimization and Deployment**
+  - Systematic benchmark evaluation across target repositories (Precision, Recall, F1, MRR)
+  - Pipeline performance hardening, packaging, and final documentation
 
 ------------------------------------------------------------------------
 
