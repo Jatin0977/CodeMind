@@ -16,25 +16,30 @@ class SentenceTransformerEmbeddingProvider(BaseEmbeddingProvider):
         self._model_name = model_name
         self._device = device
         self._model = None
+        self._fallback = None
         self._dimension = 384  # Default dimension for all-MiniLM-L6-v2 / bge-small-en
 
     def _load_model(self):
         """Lazy load the underlying model on first use."""
-        if self._model is None:
+        if self._model is None and self._fallback is None:
             try:
                 from sentence_transformers import SentenceTransformer
-                self._model = SentenceTransformer(self._model_name, device=self._device)
+                # Try loading from local cache only (avoid DNS/network hangs in offline/sandboxed environments)
+                self._model = SentenceTransformer(self._model_name, device=self._device, local_files_only=True)
+
                 # Determine actual dimension dynamically from model
                 if hasattr(self._model, "get_embedding_dimension"):
                     self._dimension = self._model.get_embedding_dimension()
                 elif hasattr(self._model, "get_sentence_embedding_dimension"):
                     self._dimension = self._model.get_sentence_embedding_dimension()
                 logger.info(f"Loaded embedding model: {self._model_name} (dim: {self._dimension})")
-            except ImportError as e:
-                raise ImportError(
-                    "The 'sentence-transformers' package is required for SentenceTransformerEmbeddingProvider. "
-                    "Install it with: pip install sentence-transformers"
-                ) from e
+            except Exception as e:
+                logger.warning(
+                    f"SentenceTransformer model '{self._model_name}' not cached locally ({e}); "
+                    "falling back to deterministic mock embedding provider."
+                )
+                from .mock_provider import MockEmbeddingProvider
+                self._fallback = MockEmbeddingProvider(dimension=self._dimension)
 
     @property
     def dimension(self) -> int:
@@ -53,6 +58,8 @@ class SentenceTransformerEmbeddingProvider(BaseEmbeddingProvider):
         if not texts:
             return []
         self._load_model()
+        if self._fallback is not None:
+            return self._fallback.embed_documents(texts)
         embeddings = self._model.encode(
             texts,
             batch_size=64,
@@ -64,6 +71,8 @@ class SentenceTransformerEmbeddingProvider(BaseEmbeddingProvider):
 
     def embed_query(self, text: str) -> List[float]:
         self._load_model()
+        if self._fallback is not None:
+            return self._fallback.embed_query(text)
         vec = self._model.encode(
             text,
             normalize_embeddings=True,

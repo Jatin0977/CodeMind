@@ -507,6 +507,134 @@ class KnowledgeGraphBuilder:
 
         return None
 
+    def materialize_temporal_graph(
+        self,
+        commits: List[Any],
+        couplings: List[Any],
+        max_materialize_commits: int = 100,
+    ) -> nx.DiGraph:
+        """
+        Materialize temporal Git intelligence (commit history, file modifications,
+        and logical coupling) into the NetworkX knowledge graph.
+
+        Args:
+            commits: List of CommitRecord/GitCommit objects mined from repository history.
+            couplings: List of LogicalCoupling objects discovered from commit co-changes.
+            max_materialize_commits: Bound on commits to materialize into graph nodes (default: 100),
+                                     preserving decoupling from mining depth (e.g. W=1000).
+
+        Returns:
+            Updated NetworkX DiGraph instance with temporal nodes and edges.
+        """
+        # Step 1: Materialize commit nodes and CHANGED_IN edges up to max_materialize_commits
+        for commit in commits[:max_materialize_commits]:
+            commit_id = f"commit:{commit.full_hash}"
+
+            raw_date = commit.author_date
+            date_str = raw_date.isoformat() if hasattr(raw_date, "isoformat") else str(raw_date)
+
+            if commit_id not in self.nodes_by_id:
+                commit_node = Node(
+                    id=commit_id,
+                    name=commit.short_hash,
+                    node_type=NodeType.COMMIT,
+                    metadata={
+                        "full_hash": commit.full_hash,
+                        "short_hash": commit.short_hash,
+                        "author_name": commit.author_name,
+                        # author_email is intentionally omitted to avoid leaking PII in the graph
+                        "author_date": date_str,
+                        "subject": commit.subject,
+                        "parents": commit.parents,
+                        "is_merge": commit.is_merge,
+                    },
+                )
+                self._add_node(commit_node)
+
+            changes = getattr(commit, "files_changed", None)
+            if changes is None:
+                changes = getattr(commit, "file_changes", [])
+
+            for change in changes:
+                rel_path = change.path.replace("\\", "/")
+                file_id = f"file:{rel_path}"
+
+                # Ensure file node exists (may be a historical or non-AST file)
+                if file_id not in self.nodes_by_id:
+                    file_node = Node(
+                        id=file_id,
+                        name=Path(rel_path).name,
+                        node_type=NodeType.FILE,
+                        relative_path=rel_path,
+                        metadata={"is_historical": True},
+                    )
+                    self._add_node(file_node)
+
+                # Directed edge: File -> Commit (File CHANGED_IN Commit)
+                if not self.graph.has_edge(file_id, commit_id):
+                    raw_status = getattr(change, "status", None)
+                    if raw_status is None:
+                        raw_status = getattr(change, "change_type", "M")
+                    ctype = raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+
+                    additions = getattr(change, "additions", None)
+                    if additions is None:
+                        additions = getattr(change, "insertions", 0)
+                    deletions = getattr(change, "deletions", 0)
+
+                    self._add_edge(
+                        file_id,
+                        commit_id,
+                        EdgeType.CHANGED_IN,
+                        metadata={
+                            "change_type": ctype,
+                            "insertions": additions,
+                            "deletions": deletions,
+                            "old_path": getattr(change, "old_path", None),
+                            "is_temporal": True,
+                        },
+                    )
+
+        # Step 2: Materialize reciprocal CO_CHANGED_WITH edges between coupled files
+        for coupling in couplings:
+            norm_a = getattr(coupling, "canonical_file_a", None) or getattr(coupling, "file_a", "")
+            norm_b = getattr(coupling, "canonical_file_b", None) or getattr(coupling, "file_b", "")
+            norm_a = norm_a.replace("\\", "/")
+            norm_b = norm_b.replace("\\", "/")
+
+            file_a_id = f"file:{norm_a}"
+            file_b_id = f"file:{norm_b}"
+
+            for f_id, p_str in [(file_a_id, norm_a), (file_b_id, norm_b)]:
+                if f_id not in self.nodes_by_id:
+                    file_node = Node(
+                        id=f_id,
+                        name=Path(p_str).name,
+                        node_type=NodeType.FILE,
+                        relative_path=p_str,
+                        metadata={"is_historical": True},
+                    )
+                    self._add_node(file_node)
+
+            coupling_meta = {
+                "canonical_file_a": norm_a,
+                "canonical_file_b": norm_b,
+                "support_count": coupling.support_count,
+                "jaccard_similarity": coupling.jaccard_similarity,
+                "confidence_a_to_b": coupling.confidence_a_to_b,
+                "confidence_b_to_a": coupling.confidence_b_to_a,
+                "last_co_change_date": coupling.last_co_change_date,
+                "is_temporal": True,
+            }
+
+            if not self.graph.has_edge(file_a_id, file_b_id):
+                self._add_edge(file_a_id, file_b_id, EdgeType.CO_CHANGED_WITH, metadata=dict(coupling_meta))
+
+            if not self.graph.has_edge(file_b_id, file_a_id):
+                self._add_edge(file_b_id, file_a_id, EdgeType.CO_CHANGED_WITH, metadata=dict(coupling_meta))
+
+        return self.graph
+
     def _add_node(self, node: Node):
         """Add a Node instance to internal graph and lookup table."""
         self.nodes_by_id[node.id] = node

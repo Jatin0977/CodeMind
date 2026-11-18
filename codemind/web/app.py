@@ -17,12 +17,15 @@ from ..parsing.base_parser import ParsedFile
 from ..chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
 from ..chunking.models import CodeChunk
 from ..retrieval.retriever import SemanticRetriever
+from ..retrieval.hybrid_retriever import HybridGraphRetriever
 from ..rag.engine import RAGEngine
 from ..rag.models import RAGResponse
 from ..rag.providers.factory import get_llm_provider
 from ..graph.models import NodeType, EdgeType, Node, Edge, GraphSummary
 from ..graph.builder import KnowledgeGraphBuilder
 from ..graph.query import GraphQueryEngine
+from ..investigation.engine import InvestigationEngine
+from ..investigation.models import InvestigationResult
 
 
 class ScanRequest(BaseModel):
@@ -32,6 +35,13 @@ class ScanRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str = Field(..., description="Developer question")
     top_k: int = Field(default=4, ge=1, le=10, description="Top evidence chunks to retrieve")
+    mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
+    model: Optional[str] = Field(default=None, description="Optional LLM model name")
+    use_graph: bool = Field(default=True, description="Enable hybrid graph-aware retrieval")
+
+
+class InvestigateRequest(BaseModel):
+    query: str = Field(..., description="Developer investigation query")
     mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
     model: Optional[str] = Field(default=None, description="Optional LLM model name")
 
@@ -46,14 +56,33 @@ class CodebaseState:
         self.chunks: List[CodeChunk] = []
         self.chunk_breakdown: Dict[str, int] = {}
         self.retriever = SemanticRetriever()
+        self.hybrid_retriever: Optional[HybridGraphRetriever] = None
         self.graph_builder = KnowledgeGraphBuilder()
         self.graph_query_engine: Optional[GraphQueryEngine] = None
+        self.git_client: Optional[Any] = None
+        self.git_miner: Optional[Any] = None
+        self.git_churn_analyzer: Optional[Any] = None
+        self.git_coupling_analyzer: Optional[Any] = None
+        self.git_status: Optional[Dict[str, Any]] = None
+        self.git_commits: List[Any] = []
+        self.git_churn_summary: Optional[Dict[str, Any]] = None
+        self.git_couplings: List[Any] = []
 
     def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
         """
         Load repository (local, ZIP, or Git URL), extract AST symbols, and compute static metrics.
         Runs purely on Technical Phase 1 (Ingestion) and Phase 2 (Static Code Analysis).
         """
+        # Reset Git temporal intelligence state to prevent stale state bleed across scans
+        self.git_client = None
+        self.git_miner = None
+        self.git_churn_analyzer = None
+        self.git_coupling_analyzer = None
+        self.git_status = None
+        self.git_commits = []
+        self.git_churn_summary = None
+        self.git_couplings = []
+
         loader = RepositoryLoader()
         self.repo = loader.load_repository(repo_path)
         self.parsed_files.clear()
@@ -139,6 +168,47 @@ class CodebaseState:
         self.graph_query_engine = GraphQueryEngine(nx_graph, self.graph_builder.nodes_by_id)
         graph_summary = self.graph_builder.get_summary().to_dict()
 
+        # Initialize Hybrid Graph-Aware Retriever (Phase 5)
+        self.hybrid_retriever = HybridGraphRetriever(
+            retriever=self.retriever,
+            graph=nx_graph,
+            query_engine=self.graph_query_engine,
+        )
+        self.hybrid_retriever.index(self.chunks, nx_graph)
+
+        # Git Temporal Intelligence (Phase 7)
+        try:
+            from ..git.client import GitClient
+            from ..git.miner import GitMiner
+            from ..git.churn import CodeChurnAnalyzer
+            from ..git.coupling import LogicalCouplingAnalyzer
+
+            client = GitClient(self.repo.repo_path)
+            status = client.get_status()
+            self.git_status = status.to_dict()
+            if status.is_git_repo and not status.is_empty:
+                self.git_client = client
+                self.git_miner = GitMiner(client)
+                self.git_commits = self.git_miner.mine_commits(max_commits=1000)
+
+                self.git_churn_analyzer = CodeChurnAnalyzer()
+                churn_res = self.git_churn_analyzer.analyze(self.git_commits)
+                self.git_churn_summary = churn_res.to_dict()
+
+                self.git_coupling_analyzer = LogicalCouplingAnalyzer(min_support=3, min_confidence=0.5)
+                coupling_res = self.git_coupling_analyzer.analyze(self.git_commits)
+                self.git_couplings = coupling_res.couplings
+
+                # Materialize temporal knowledge graph into nx_graph
+                self.graph_builder.materialize_temporal_graph(
+                    self.git_commits,
+                    self.git_couplings,
+                    max_materialize_commits=100,
+                )
+                graph_summary = self.graph_builder.get_summary().to_dict()
+        except Exception as e:
+            self.git_status = {"is_git_repo": False, "error": str(e)}
+
         # Prepare file tree items
         files_data = [
             {
@@ -169,6 +239,10 @@ class CodebaseState:
             "chunk_breakdown": self.chunk_breakdown,
             "indexed_chunks": indexed_chunks_count,
             "graph_summary": graph_summary,
+            "git_status": self.git_status,
+            "git_commits_count": len(self.git_commits),
+            "git_churn_summary": self.git_churn_summary,
+            "git_couplings_count": len(self.git_couplings),
             "files": files_data,
         }
 
@@ -218,12 +292,13 @@ def create_app():
         return {
             "status": "healthy",
             "version": "0.1.0",
-            "evaluation_phase": "Evaluation 2: Technical Phases 1–4",
+            "evaluation_phase": "Evaluation 3: Technical Phases 1–5",
             "has_gemini_key": has_gemini,
             "embedding_model": GLOBAL_STATE.retriever.embedding_provider.model_name,
             "is_scanned": GLOBAL_STATE.repo is not None,
             "is_indexed": GLOBAL_STATE.repo is not None and len(GLOBAL_STATE.chunks) > 0,
             "has_graph": GLOBAL_STATE.graph_query_engine is not None,
+            "has_hybrid_retriever": GLOBAL_STATE.hybrid_retriever is not None,
             "total_graph_nodes": len(GLOBAL_STATE.graph_builder.nodes_by_id) if GLOBAL_STATE.graph_builder else 0,
             "total_graph_edges": len(GLOBAL_STATE.graph_builder.edges_list) if GLOBAL_STATE.graph_builder else 0,
             "repo_name": GLOBAL_STATE.repo.repo_name if GLOBAL_STATE.repo else None,
@@ -253,14 +328,105 @@ def create_app():
 
         provider_type = "mock" if request.mock else None
         llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
-        rag_engine = RAGEngine(retriever=GLOBAL_STATE.retriever, llm_provider=llm_provider)
+        rag_engine = RAGEngine(
+            retriever=GLOBAL_STATE.retriever,
+            hybrid_retriever=GLOBAL_STATE.hybrid_retriever,
+            llm_provider=llm_provider,
+        )
 
         response: RAGResponse = rag_engine.ask(
             query=request.question,
             top_k=request.top_k,
+            use_graph=request.use_graph,
         )
 
-        return response.to_dict(include_sources=True)
+        data = response.to_dict(include_sources=True)
+
+        # Augment with hybrid retrieval metadata
+        is_hybrid = request.use_graph and GLOBAL_STATE.hybrid_retriever is not None
+        data["retrieval_mode"] = "hybrid" if is_hybrid else "vector_only"
+        seed_count = sum(1 for s in response.sources if getattr(s, "provenance", "vector_seed") == "vector_seed")
+        expanded_count = sum(1 for s in response.sources if getattr(s, "provenance", None) == "graph_expanded")
+        rels_used = list({getattr(s, "relationship_type", None) for s in response.sources if getattr(s, "relationship_type", None)})
+
+        data["retrieval_metadata"] = {
+            "retrieval_mode": data["retrieval_mode"],
+            "final_evidence_count": len(response.sources),
+            "seed_chunks_count": seed_count,
+            "expanded_chunks_count": expanded_count,
+            "relationship_types_used": rels_used,
+        }
+
+        return data
+
+    @app.post("/api/investigate")
+    def investigate_codebase(request: InvestigateRequest):
+        """
+        Execute an agentic investigation for a developer query (Phase 6).
+        Classifies intent, builds a dynamic plan, executes tools deterministically,
+        and returns a grounded developer answer with citations.
+        """
+        if not request.query or not request.query.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Query cannot be empty.",
+            )
+
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No repository scanned yet. Please scan a repository first.",
+            )
+
+        provider_type = "mock" if request.mock else None
+        llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
+
+        # Fresh investigation engine instantiated with currently scanned repository components
+        engine = InvestigationEngine(
+            repo=GLOBAL_STATE.repo,
+            query_engine=GLOBAL_STATE.graph_query_engine,
+            retriever=GLOBAL_STATE.retriever,
+            hybrid_retriever=GLOBAL_STATE.hybrid_retriever,
+            git_miner=GLOBAL_STATE.git_miner,
+            git_client=GLOBAL_STATE.git_client,
+            git_churn_analyzer=GLOBAL_STATE.git_churn_analyzer,
+            git_coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+            llm_provider=llm_provider,
+        )
+
+        result: InvestigationResult = engine.investigate(request.query)
+
+        intent_val = (
+            result.intent.value
+            if hasattr(result.intent, "value")
+            else str(result.intent) if result.intent else None
+        )
+        status_val = (
+            result.overall_status.value
+            if hasattr(result.overall_status, "value")
+            else str(result.overall_status)
+        )
+        classification_data = result.metadata.get("engine", {}).get("classification", {})
+        entities_data = classification_data.get("extracted_entities", {})
+        raw_entities = entities_data.get("raw_entities", []) if isinstance(entities_data, dict) else []
+
+        return {
+            "query": result.query,
+            "intent": intent_val,
+            "confidence": classification_data.get("confidence", 0.0),
+            "confidence_category": classification_data.get("confidence_category", "LOW"),
+            "extracted_entities": raw_entities,
+            "entities_detail": entities_data,
+            "status": status_val,
+            "overall_status": status_val,
+            "plan": result.plan.to_dict() if result.plan else None,
+            "step_results": [r.to_dict() for r in result.step_results],
+            "answer": result.final_answer,
+            "final_answer": result.final_answer,
+            "evidence": result.evidence,
+            "citations": result.metadata.get("citations", []),
+            "metadata": result.metadata,
+        }
 
     @app.get("/api/file")
     def get_file_content(path: str):
@@ -389,5 +555,125 @@ def create_app():
             "cycle_count": len(cycles),
             "cycles": cycles,
         }
+
+    # =========================================================================
+    # Git Temporal Intelligence Endpoints (Phase 7)
+    # =========================================================================
+
+    @app.get("/api/git/status")
+    def get_git_status():
+        """Return Git repository status summary."""
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if GLOBAL_STATE.git_status:
+            return GLOBAL_STATE.git_status
+        if GLOBAL_STATE.git_client:
+            return GLOBAL_STATE.git_client.get_status().to_dict()
+        return {"is_git_repo": False, "error": "Not a Git repository"}
+
+    @app.get("/api/git/history")
+    def get_git_history(
+        path: Optional[str] = None,
+        limit: int = 50,
+        since: Optional[str] = None,
+        author: Optional[str] = None,
+    ):
+        """Retrieve mined Git commit history with file change diffs."""
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if not GLOBAL_STATE.git_miner:
+            if GLOBAL_STATE.graph_query_engine and path:
+                commits = GLOBAL_STATE.graph_query_engine.get_file_commits(path, limit=limit)
+                return {"commits": commits, "total_commits": len(commits), "filtered_path": path}
+            raise HTTPException(status_code=400, detail="Git repository history is not available.")
+
+        try:
+            commits = GLOBAL_STATE.git_miner.mine_commits(
+                max_commits=limit,
+                path=path,
+                since=since,
+                author=author,
+            )
+            serialized = [c.to_dict() for c in commits]
+            return {"commits": serialized, "total_commits": len(serialized), "filtered_path": path}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error mining commit history: {str(e)}")
+
+    @app.get("/api/git/churn")
+    def get_git_churn(
+        limit: int = 50,
+        sort_by: str = "commits",
+        path: Optional[str] = None,
+    ):
+        """Retrieve code churn metrics and revision hotspots."""
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if not GLOBAL_STATE.git_churn_analyzer:
+            raise HTTPException(status_code=400, detail="Git code churn is not available.")
+
+        try:
+            hotspots = GLOBAL_STATE.git_churn_analyzer.get_top_churn_files(
+                limit=limit if not path else 1000,
+                sort_by=sort_by,
+            )
+            if path:
+                norm_p = path.replace("\\", "/").lower()
+                hotspots = [h for h in hotspots if norm_p in h.path.lower()][:limit]
+
+            summary = GLOBAL_STATE.git_churn_analyzer.summary.to_dict() if GLOBAL_STATE.git_churn_analyzer.summary else {}
+            return {
+                "summary": summary,
+                "hotspots": [h.to_dict() for h in hotspots],
+                "total_returned": len(hotspots),
+                "filtered_path": path,
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving churn: {str(e)}")
+
+    @app.get("/api/git/coupling")
+    def get_git_coupling(
+        file_path: Optional[str] = None,
+        min_support: int = 3,
+        min_confidence: float = 0.5,
+        limit: int = 50,
+    ):
+        """Retrieve logical couplings discovered from commit co-change history."""
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if not GLOBAL_STATE.git_coupling_analyzer:
+            if GLOBAL_STATE.graph_query_engine and file_path:
+                couplings = GLOBAL_STATE.graph_query_engine.get_logically_coupled_files(file_path, limit=limit)
+                return {"focal_file": file_path, "couplings": couplings, "total_couplings": len(couplings)}
+            raise HTTPException(status_code=400, detail="Git logical coupling is not available.")
+
+        try:
+            analyzer = GLOBAL_STATE.git_coupling_analyzer
+            if min_support != analyzer.min_support or min_confidence != analyzer.min_confidence:
+                if GLOBAL_STATE.git_commits:
+                    res = analyzer.analyze(
+                        GLOBAL_STATE.git_commits,
+                        min_support=min_support,
+                        min_confidence=min_confidence,
+                    )
+            if file_path:
+                oriented = analyzer.get_couplings_for_file(
+                    file_path,
+                    min_support=min_support,
+                    min_confidence=min_confidence,
+                )[:limit]
+                return {
+                    "focal_file": file_path,
+                    "couplings": oriented,
+                    "total_couplings": len(oriented),
+                }
+            else:
+                top = analyzer.get_top_couplings(limit=limit)
+                return {
+                    "focal_file": None,
+                    "couplings": [c.to_dict() for c in top],
+                    "total_couplings": len(top),
+                }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving coupling: {str(e)}")
 
     return app

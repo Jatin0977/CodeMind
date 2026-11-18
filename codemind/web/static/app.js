@@ -34,6 +34,19 @@ function setupEventListeners() {
     });
   }
 
+  // Phase 6 Agentic Investigation listeners
+  const investigateBtn = document.getElementById("investigateBtn");
+  if (investigateBtn) investigateBtn.addEventListener("click", investigateCodebase);
+  const investigateQueryInput = document.getElementById("investigateQueryInput");
+  if (investigateQueryInput) {
+    investigateQueryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        investigateCodebase();
+      }
+    });
+  }
+
   // Phase 4 Knowledge Graph listeners
   setupGraphEventListeners();
 }
@@ -142,6 +155,20 @@ function renderScanResults(data) {
     loadKnowledgeGraph();
   }
 
+  // Update Git Temporal Intelligence Chip (Phase 7)
+  if (data.git_status) {
+    const gitStatusLabel = document.getElementById("gitStatusLabel");
+    if (gitStatusLabel) {
+      if (data.git_status.is_git_repo) {
+        gitStatusLabel.textContent = `Git (${data.git_commits_count || 0} commits)`;
+        gitStatusLabel.style.color = "#34d399";
+      } else {
+        gitStatusLabel.textContent = "Non-Git Repo";
+        gitStatusLabel.style.color = "#94a3b8";
+      }
+    }
+  }
+
   // Update File List in Left Explorer
   currentScannedFiles = data.files || [];
   document.getElementById("fileCountPill").textContent = `${currentScannedFiles.length} files`;
@@ -187,7 +214,7 @@ function renderFileList(files) {
 
 function filterFiles() {
   const query = document.getElementById("fileFilterInput").value.toLowerCase();
-  const filtered = currentScannedFiles.filter(f => 
+  const filtered = currentScannedFiles.filter(f =>
     f.relative_path.toLowerCase().includes(query) || f.file_name.toLowerCase().includes(query)
   );
   renderFileList(filtered);
@@ -431,24 +458,34 @@ function switchTab(tab) {
   const tabAnalysisBtn = document.getElementById("tabAnalysisBtn");
   const tabQABtn = document.getElementById("tabQABtn");
   const tabGraphBtn = document.getElementById("tabGraphBtn");
+  const tabInvestigateBtn = document.getElementById("tabInvestigateBtn");
+  const tabEvolutionBtn = document.getElementById("tabEvolutionBtn");
 
   const tabSymbols = document.getElementById("tabSymbols");
   const tabAnalysis = document.getElementById("tabAnalysis");
   const tabQA = document.getElementById("tabQA");
   const tabGraph = document.getElementById("tabGraph");
+  const tabInvestigate = document.getElementById("tabInvestigate");
+  const tabEvolution = document.getElementById("tabEvolution");
 
   if (tabSymbolsBtn) tabSymbolsBtn.classList.toggle("active", tab === "symbols");
   if (tabAnalysisBtn) tabAnalysisBtn.classList.toggle("active", tab === "analysis");
   if (tabQABtn) tabQABtn.classList.toggle("active", tab === "qa");
   if (tabGraphBtn) tabGraphBtn.classList.toggle("active", tab === "graph");
+  if (tabInvestigateBtn) tabInvestigateBtn.classList.toggle("active", tab === "investigate");
+  if (tabEvolutionBtn) tabEvolutionBtn.classList.toggle("active", tab === "evolution");
 
   if (tabSymbols) tabSymbols.classList.toggle("active", tab === "symbols");
   if (tabAnalysis) tabAnalysis.classList.toggle("active", tab === "analysis");
   if (tabQA) tabQA.classList.toggle("active", tab === "qa");
   if (tabGraph) tabGraph.classList.toggle("active", tab === "graph");
+  if (tabInvestigate) tabInvestigate.classList.toggle("active", tab === "investigate");
+  if (tabEvolution) tabEvolution.classList.toggle("active", tab === "evolution");
 
   if (tab === "graph") {
     onGraphTabActivated();
+  } else if (tab === "evolution") {
+    onEvolutionTabActivated();
   }
 }
 
@@ -464,6 +501,8 @@ async function askQuestion() {
   const topK = parseInt(topKSelect ? topKSelect.value : "4") || 4;
   const mockToggle = document.getElementById("mockModeToggle");
   const mockMode = mockToggle ? mockToggle.checked : false;
+  const hybridToggle = document.getElementById("hybridToggle");
+  const useGraph = hybridToggle ? hybridToggle.checked : true;
 
   const askBtn = document.getElementById("askBtn");
   const askSpinner = document.getElementById("askSpinner");
@@ -485,6 +524,7 @@ async function askQuestion() {
         question: question,
         top_k: topK,
         mock: mockMode,
+        use_graph: useGraph,
       }),
     });
 
@@ -510,15 +550,51 @@ function renderAnswer(data) {
   document.getElementById("answerModelBadge").textContent = data.model_name || "Grounded Answer";
   document.getElementById("answerLatencyBadge").textContent = `${Math.round(data.latency_ms)}ms`;
 
+  const modeBadge = document.getElementById("answerModeBadge");
+  if (modeBadge) {
+    modeBadge.style.display = "inline-flex";
+    if (data.retrieval_mode === "hybrid") {
+      const meta = data.retrieval_metadata || {};
+      const seeds = meta.seed_chunks_count ?? 0;
+      const expanded = meta.expanded_chunks_count ?? 0;
+      const rels = (meta.relationship_types_used || []).join(", ");
+      modeBadge.className = "retrieval-mode-badge";
+      modeBadge.textContent = expanded > 0
+        ? `⚡ Hybrid Graph (${seeds} seeds + ${expanded} expanded${rels ? ` via ${rels}` : ""})`
+        : `⚡ Hybrid Graph (${seeds} seeds)`;
+      modeBadge.title = "Retrieved using Vector Similarity + Software Knowledge Graph Expansion";
+    } else {
+      modeBadge.className = "retrieval-mode-badge vector-only";
+      modeBadge.textContent = "🔍 Vector-Only Mode";
+      modeBadge.title = "Standard semantic vector search without graph expansion";
+    }
+  }
+
   const answerBody = document.getElementById("answerBody");
   answerBody.innerHTML = formatMarkdownText(data.answer);
 
   const citationsList = document.getElementById("citationsList");
   if (data.citations && data.citations.length > 0) {
     citationsList.innerHTML = data.citations.map(cit => {
+      let provBadge = "";
+      if (data.sources && Array.isArray(data.sources)) {
+        const src = data.sources.find(s => {
+          if (!s.chunk) return false;
+          const ref = `${s.chunk.relative_path}:${s.chunk.start_line}-${s.chunk.end_line}`;
+          return ref === cit;
+        });
+        if (src) {
+          if (src.provenance === "graph_expanded") {
+            const rel = src.relationship_type ? `Graph: ${src.relationship_type}` : `Graph H${src.hop_distance || 1}`;
+            provBadge = `<span class="provenance-pill graph">${escapeHtml(rel)}</span>`;
+          } else if (src.provenance === "vector_seed") {
+            provBadge = `<span class="provenance-pill seed">Vector Seed</span>`;
+          }
+        }
+      }
       return `
         <button class="citation-badge" onclick="openCitation('${escapeHtml(cit)}')">
-          <span>📌</span> [${escapeHtml(cit)}]
+          <span>📌</span> [${escapeHtml(cit)}] ${provBadge}
         </button>`;
     }).join("");
   } else {
@@ -555,6 +631,224 @@ async function openCitation(citationStr) {
 function setExampleQuery(q) {
   document.getElementById("questionInput").value = q;
   document.getElementById("questionInput").focus();
+}
+
+function setInvestigateExample(q) {
+  const input = document.getElementById("investigateQueryInput");
+  if (input) {
+    input.value = q;
+    input.focus();
+  }
+}
+
+async function investigateCodebase() {
+  const queryInput = document.getElementById("investigateQueryInput");
+  const query = queryInput ? queryInput.value.trim() : "";
+  if (!query) {
+    showToast("Please enter an investigation question.", true);
+    return;
+  }
+
+  const mockToggle = document.getElementById("mockModeToggle");
+  const mockMode = mockToggle ? mockToggle.checked : false;
+
+  const investigateBtn = document.getElementById("investigateBtn");
+  const spinner = document.getElementById("investigateSpinner");
+  const icon = document.getElementById("investigateIcon");
+  const btnText = document.getElementById("investigateBtnText");
+
+  if (investigateBtn) investigateBtn.disabled = true;
+  if (spinner) spinner.classList.remove("hidden");
+  if (icon) icon.classList.add("hidden");
+  if (btnText) btnText.textContent = "Investigating...";
+
+  const resultContainer = document.getElementById("investigateResultContainer");
+
+  try {
+    const res = await fetch("/api/investigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: query,
+        mock: mockMode,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Investigation execution failed.");
+    }
+
+    const data = await res.json();
+    renderInvestigationResult(data);
+    if (resultContainer) resultContainer.classList.remove("hidden");
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    if (investigateBtn) investigateBtn.disabled = false;
+    if (spinner) spinner.classList.add("hidden");
+    if (icon) icon.classList.remove("hidden");
+    if (btnText) btnText.textContent = "Investigate";
+  }
+}
+
+function renderInvestigationResult(data) {
+  // Status Badge
+  const statusBadge = document.getElementById("investigateStatusBadge");
+  const overallStatus = data.overall_status || data.status || "SUCCESS";
+  if (statusBadge) {
+    statusBadge.textContent = overallStatus;
+    statusBadge.className = "status-badge";
+    if (overallStatus === "SUCCESS") {
+      statusBadge.classList.add("status-success");
+    } else if (overallStatus === "PARTIAL_SUCCESS") {
+      statusBadge.classList.add("status-partial");
+    } else if (overallStatus.includes("DEFERRED")) {
+      statusBadge.classList.add("status-deferred");
+    } else {
+      statusBadge.classList.add("status-failed");
+    }
+  }
+
+  // Intent Badge
+  const intentBadge = document.getElementById("investigateIntentBadge");
+  if (intentBadge) {
+    const confPct = data.confidence != null ? Math.round(data.confidence * 100) : 100;
+    intentBadge.textContent = `${data.intent || 'UNDERSTAND'} (${confPct}%)`;
+  }
+
+  // Extracted Entities Badge
+  const entitiesBadge = document.getElementById("investigateEntitiesBadge");
+  if (entitiesBadge) {
+    if (data.extracted_entities && data.extracted_entities.length > 0) {
+      entitiesBadge.textContent = `Target: ${data.extracted_entities.join(", ")}`;
+      entitiesBadge.style.display = "inline-flex";
+    } else {
+      entitiesBadge.style.display = "none";
+    }
+  }
+
+  // Latency Badge
+  const latencyBadge = document.getElementById("investigateLatencyBadge");
+  if (latencyBadge) {
+    const latency = data.metadata?.latency_ms != null ? Math.round(data.metadata.latency_ms) : 0;
+    latencyBadge.textContent = `${latency}ms`;
+  }
+
+  // Plan & Step Results List
+  const stepsList = document.getElementById("investigateStepsList");
+  if (stepsList) {
+    const stepResults = data.step_results || [];
+    const planSteps = (data.plan && data.plan.steps) ? data.plan.steps : [];
+
+    if (stepResults.length > 0) {
+      stepsList.innerHTML = stepResults.map((sr, idx) => {
+        const planStep = planSteps.find(s => s.step_id === sr.step_id) || {};
+        const toolName = sr.tool_name || planStep.tool_name || "tool";
+        const purpose = planStep.purpose || "Execute investigation step";
+        const status = sr.status || "UNKNOWN";
+        const timeMs = sr.execution_time_ms != null ? `${sr.execution_time_ms.toFixed(1)}ms` : "";
+
+        let pillClass = "pill-success";
+        if (status === "ERROR") pillClass = "pill-error";
+        else if (status.includes("DEFERRED")) pillClass = "pill-deferred";
+
+        let errorHtml = "";
+        if (sr.error_message) {
+          errorHtml = `<div class="step-error-msg">⚠️ ${escapeHtml(sr.error_message)}</div>`;
+        }
+
+        let evidenceCount = 0;
+        if (data.evidence && Array.isArray(data.evidence)) {
+          evidenceCount = data.evidence.filter(e => e.source_step_id === sr.step_id).length;
+        }
+        const evidencePill = evidenceCount > 0
+          ? `<span class="step-evidence-pill">${evidenceCount} evidence item${evidenceCount > 1 ? 's' : ''}</span>`
+          : "";
+
+        return `
+          <div class="investigate-step-card">
+            <div class="step-card-header">
+              <div class="step-header-left">
+                <span class="step-number">#${idx + 1}</span>
+                <span class="step-tool-name">${escapeHtml(toolName)}</span>
+                <span class="step-status-pill ${pillClass}">${escapeHtml(status)}</span>
+                ${evidencePill}
+              </div>
+              <span class="step-time">${escapeHtml(timeMs)}</span>
+            </div>
+            <div class="step-purpose-text">${escapeHtml(purpose)}</div>
+            ${errorHtml}
+          </div>
+        `;
+      }).join("");
+    } else {
+      stepsList.innerHTML = `<span style="font-size:12px; color: var(--text-muted);">No execution steps recorded.</span>`;
+    }
+  }
+
+  // Synthesized Answer Body
+  const answerBody = document.getElementById("investigateAnswerBody");
+  if (answerBody) {
+    answerBody.innerHTML = formatMarkdownText(data.final_answer || data.answer || "No synthesis generated.");
+  }
+
+  // Verified Citations List
+  const citationsList = document.getElementById("investigateCitationsList");
+  if (citationsList) {
+    if (data.citations && data.citations.length > 0) {
+      citationsList.innerHTML = data.citations.map(cit => `
+        <button class="citation-badge" onclick="openCitation('${escapeHtml(cit)}')">
+          <span>📌</span> [${escapeHtml(cit)}]
+        </button>
+      `).join("");
+    } else {
+      citationsList.innerHTML = `<span style="font-size:12px; color: var(--text-muted);">No direct source references attached.</span>`;
+    }
+  }
+
+  // Limitations & Deferred Capabilities
+  const limitationsSection = document.getElementById("investigateLimitationsSection");
+  const limitationsList = document.getElementById("investigateLimitationsList");
+  if (limitationsSection && limitationsList) {
+    const stepResults = data.step_results || [];
+    const deferredTools = data.metadata?.deferred_tools || [];
+    const deferredSteps = stepResults.filter(s => (s.status || "").includes("DEFERRED"));
+
+    if (deferredTools.length > 0 || deferredSteps.length > 0 || data.metadata?.has_deferred_tools) {
+      limitationsSection.classList.remove("hidden");
+      const deferredItems = [];
+
+      deferredSteps.forEach(ds => {
+        deferredItems.push({
+          tool: ds.tool_name,
+          message: ds.error_message || "Capability deferred to upcoming technical phase."
+        });
+      });
+
+      deferredTools.forEach(dt => {
+        if (!deferredItems.some(item => item.tool === dt)) {
+          deferredItems.push({
+            tool: dt,
+            message: "Scheduled for implementation in future milestone/phase."
+          });
+        }
+      });
+
+      if (deferredItems.length > 0) {
+        limitationsList.innerHTML = deferredItems.map(item => `
+          <div class="limitation-item">
+            <div class="limitation-tool">${escapeHtml(item.tool)}</div>
+            <div class="limitation-msg">${escapeHtml(item.message)}</div>
+          </div>
+        `).join("");
+      } else {
+        limitationsSection.classList.add("hidden");
+      }
+    } else {
+      limitationsSection.classList.add("hidden");
+    }
+  }
 }
 
 function formatMarkdownText(md) {
@@ -1578,5 +1872,199 @@ async function checkGraphCycles() {
   } catch (err) {
     showToast(err.message, true);
   }
+}
+
+// ============================================================================
+// Phase 7: Git Temporal Intelligence & Evolution Logic
+// ============================================================================
+
+let cachedEvolutionData = {
+  status: null,
+  churn: [],
+  coupling: [],
+  history: [],
+};
+
+async function onEvolutionTabActivated() {
+  await loadEvolutionData();
+}
+
+async function loadEvolutionData() {
+  const fileFilter = (document.getElementById("evoFileFilterInput")?.value || "").trim();
+  const sortBy = document.getElementById("evoSortSelect")?.value || "commits";
+
+  try {
+    // 1. Git Status
+    const statusRes = await fetch("/api/git/status");
+    if (statusRes.ok) {
+      const statusData = await statusRes.json();
+      cachedEvolutionData.status = statusData;
+      const statusText = document.getElementById("evoRepoStatusText");
+      if (statusText) {
+        statusText.textContent = statusData.is_git_repo
+          ? `Git: Active (HEAD: ${statusData.head_commit ? statusData.head_commit.slice(0, 7) : 'empty'})`
+          : "Not a Git Repo";
+      }
+    }
+
+    // 2. Churn
+    const churnUrl = `/api/git/churn?limit=25&sort_by=${encodeURIComponent(sortBy)}${fileFilter ? `&path=${encodeURIComponent(fileFilter)}` : ''}`;
+    const churnRes = await fetch(churnUrl);
+    if (churnRes.ok) {
+      const churnData = await churnRes.json();
+      cachedEvolutionData.churn = churnData.hotspots || [];
+      renderChurnTable(cachedEvolutionData.churn);
+      const churnPill = document.getElementById("churnCountPill");
+      if (churnPill) churnPill.textContent = `${churnData.total_returned || cachedEvolutionData.churn.length} files`;
+      const churnTotal = document.getElementById("evoChurnTotalText");
+      if (churnTotal && churnData.summary) {
+        churnTotal.textContent = `${(churnData.summary.total_lines_added || 0) + (churnData.summary.total_lines_deleted || 0)} Total Churn Lines`;
+      }
+    }
+
+    // 3. Logical Coupling
+    const coupUrl = `/api/git/coupling?limit=25${fileFilter ? `&file_path=${encodeURIComponent(fileFilter)}` : ''}`;
+    const coupRes = await fetch(coupUrl);
+    if (coupRes.ok) {
+      const coupData = await coupRes.json();
+      cachedEvolutionData.coupling = coupData.couplings || [];
+      renderCouplingTable(cachedEvolutionData.coupling, coupData.focal_file);
+      const coupPill = document.getElementById("couplingCountPill");
+      if (coupPill) coupPill.textContent = `${coupData.total_couplings || cachedEvolutionData.coupling.length} pairs`;
+      const coupCount = document.getElementById("evoCouplingCountText");
+      if (coupCount) coupCount.textContent = `${coupData.total_couplings || cachedEvolutionData.coupling.length} Logical Couplings`;
+    }
+
+    // 4. Commit History
+    const histUrl = `/api/git/history?limit=30${fileFilter ? `&path=${encodeURIComponent(fileFilter)}` : ''}`;
+    const histRes = await fetch(histUrl);
+    if (histRes.ok) {
+      const histData = await histRes.json();
+      cachedEvolutionData.history = histData.commits || [];
+      renderHistoryStream(cachedEvolutionData.history);
+      const histPill = document.getElementById("historyCountPill");
+      if (histPill) histPill.textContent = `${histData.total_commits || cachedEvolutionData.history.length} commits`;
+      const commCount = document.getElementById("evoCommitsCountText");
+      if (commCount) commCount.textContent = `${histData.total_commits || cachedEvolutionData.history.length} Commits Mined`;
+    }
+  } catch (err) {
+    console.error("Error loading evolution data:", err);
+  }
+}
+
+function onEvolutionFilterChanged() {
+  loadEvolutionData();
+}
+
+function renderChurnTable(hotspots) {
+  const container = document.getElementById("churnTableContainer");
+  if (!container) return;
+  if (!hotspots || hotspots.length === 0) {
+    container.innerHTML = `<div class="empty-state"><span class="empty-icon">📊</span><p>No code churn data available for filter.</p></div>`;
+    return;
+  }
+
+  let html = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>File Path</th>
+          <th style="text-align: right;">Commits</th>
+          <th style="text-align: right;">+Added</th>
+          <th style="text-align: right;">-Deleted</th>
+          <th style="text-align: right;">Authors</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  hotspots.forEach(h => {
+    html += `
+      <tr onclick="selectFile('${escapeHtml(h.path)}'); switchTab('symbols');" style="cursor: pointer;">
+        <td class="code-font highlight-cyan">${escapeHtml(h.path)}</td>
+        <td style="text-align: right;"><span class="metric-badge">${h.commits_count}</span></td>
+        <td style="text-align: right; color: #34d399;">+${h.additions}</td>
+        <td style="text-align: right; color: #f87171;">-${h.deletions}</td>
+        <td style="text-align: right;">${h.unique_authors}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+function renderCouplingTable(couplings, focalFile) {
+  const container = document.getElementById("couplingTableContainer");
+  if (!container) return;
+  if (!couplings || couplings.length === 0) {
+    container.innerHTML = `<div class="empty-state"><span class="empty-icon">🔗</span><p>No logical coupling detected above threshold (min_support >= 3).</p></div>`;
+    return;
+  }
+
+  let html = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>${focalFile ? 'Target Coupled File' : 'Coupled File Pair'}</th>
+          <th style="text-align: right;">Support</th>
+          <th style="text-align: right;">Jaccard</th>
+          <th style="text-align: right;">Confidence</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  couplings.forEach(c => {
+    const pairLabel = focalFile
+      ? escapeHtml(c.target_file || '')
+      : `${escapeHtml(c.canonical_file_a || '')} ↔ ${escapeHtml(c.canonical_file_b || '')}`;
+    const conf = c.confidence !== undefined ? c.confidence : (c.confidence_to_target !== undefined ? c.confidence_to_target : c.confidence_a_to_b);
+
+    html += `
+      <tr>
+        <td class="code-font highlight-purple">${pairLabel}</td>
+        <td style="text-align: right;"><span class="metric-badge">${c.support_count} co-changes</span></td>
+        <td style="text-align: right;">${(c.jaccard_similarity || 0).toFixed(2)}</td>
+        <td style="text-align: right; color: #60a5fa;">${(conf || 0).toFixed(2)}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+function renderHistoryStream(commits) {
+  const container = document.getElementById("historyStreamContainer");
+  if (!container) return;
+  if (!commits || commits.length === 0) {
+    container.innerHTML = `<div class="empty-state"><span class="empty-icon">📜</span><p>No commits found for criteria.</p></div>`;
+    return;
+  }
+
+  let html = `<div class="history-timeline">`;
+  commits.forEach(c => {
+    const dateStr = c.author_date ? c.author_date.replace("T", " ").slice(0, 19) : "";
+    const filesList = (c.files_changed || []).slice(0, 6).map(f => {
+      const stColor = f.status === "A" ? "#34d399" : (f.status === "D" ? "#f87171" : "#60a5fa");
+      return `<span class="hist-file-pill"><span style="color:${stColor}; font-weight:600;">${f.status}</span> ${escapeHtml(f.path)}</span>`;
+    }).join("");
+    const moreFiles = (c.files_changed || []).length > 6 ? `<span class="hist-more">+${(c.files_changed || []).length - 6} more files</span>` : "";
+
+    html += `
+      <div class="history-item">
+        <div class="hist-meta">
+          <span class="commit-hash">${escapeHtml(c.short_hash || c.full_hash?.slice(0, 7) || '')}</span>
+          <span class="commit-author">👤 ${escapeHtml(c.author_name || 'Author')}</span>
+          <span class="commit-date">🕒 ${escapeHtml(dateStr)}</span>
+        </div>
+        <div class="commit-subject">${escapeHtml(c.subject || 'No subject')}</div>
+        <div class="commit-files">${filesList}${moreFiles}</div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
 }
 

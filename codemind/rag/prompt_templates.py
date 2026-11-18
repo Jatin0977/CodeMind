@@ -29,9 +29,13 @@ def format_evidence_context(results: List[SearchResult]) -> str:
         chunk = res.chunk
         tag = f"[{chunk.relative_path}:{chunk.start_line}-{chunk.end_line}]"
         sym_info = f" ({chunk.chunk_type.upper()}: {chunk.symbol_name})" if chunk.symbol_name else ""
+        prov_info = ""
+        if getattr(res, "provenance", None) == "graph_expanded":
+            rel_label = getattr(res, "relationship_type", "RELATION")
+            prov_info = f" [Graph-Expanded via {rel_label}]"
         sig_info = f"\nSignature: {chunk.signature}" if chunk.signature else ""
 
-        block = f"--- Evidence #{idx} {tag}{sym_info} (Relevance Score: {res.score:.3f}) ---{sig_info}\n{chunk.content}\n"
+        block = f"--- Evidence #{idx} {tag}{sym_info}{prov_info} (Relevance Score: {res.score:.3f}) ---{sig_info}\n{chunk.content}\n"
         evidence_blocks.append(block)
 
     return "\n".join(evidence_blocks)

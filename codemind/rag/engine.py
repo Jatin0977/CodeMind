@@ -24,8 +24,10 @@ class RAGEngine:
         retriever: Optional[SemanticRetriever] = None,
         llm_provider: Optional[BaseLLMProvider] = None,
         min_relevance_threshold: float = 0.15,
+        hybrid_retriever: Optional[Any] = None,
     ):
         self.retriever = retriever or SemanticRetriever()
+        self.hybrid_retriever = hybrid_retriever
         self.llm_provider = llm_provider or get_llm_provider()
         self.min_relevance_threshold = min_relevance_threshold
 
@@ -35,6 +37,7 @@ class RAGEngine:
         repo: Optional[IngestedRepository] = None,
         top_k: int = 4,
         filter_dict: Optional[Dict[str, Any]] = None,
+        use_graph: bool = True,
     ) -> RAGResponse:
         """
         Answer a developer question using strictly grounded codebase evidence.
@@ -44,6 +47,7 @@ class RAGEngine:
             repo: Optional IngestedRepository (indexes if not already indexed).
             top_k: Number of evidence chunks to retrieve.
             filter_dict: Optional metadata filters.
+            use_graph: If True and hybrid_retriever is available, uses hybrid graph-aware retrieval.
 
         Returns:
             RAGResponse containing grounded answer and citations.
@@ -63,9 +67,23 @@ class RAGEngine:
         # Index repository if provided and vector store is empty
         if repo is not None and self.retriever.vector_store.count() == 0:
             self.retriever.index_repository(repo)
+            if self.hybrid_retriever is not None:
+                self.hybrid_retriever.index(self.retriever.chunks)
 
-        # 1. Retrieve top-k evidence chunks
-        results = self.retriever.search(query_clean, top_k=top_k, filter_dict=filter_dict)
+        # 1. Retrieve top-k evidence chunks (Hybrid or Vector-Only)
+        if use_graph and self.hybrid_retriever is not None:
+            results = self.hybrid_retriever.search(
+                query=query_clean,
+                top_k=top_k,
+                filter_dict=filter_dict,
+                use_graph=True,
+            )
+        else:
+            results = self.retriever.search(
+                query=query_clean,
+                top_k=top_k,
+                filter_dict=filter_dict,
+            )
 
         # Check if no chunks found or relevance is too low
         if not results or (results and results[0].score < self.min_relevance_threshold):

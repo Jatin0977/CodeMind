@@ -13,6 +13,7 @@ class NodeType:
     FUNCTION = "function"
     METHOD = "method"
     MODULE = "module"
+    COMMIT = "commit"
 
 
 class EdgeType:
@@ -21,6 +22,8 @@ class EdgeType:
     CALLS = "CALLS"          # Invocation relationship (Caller -> Callee)
     IMPORTS = "IMPORTS"      # Module/File import relationship (Importer -> Imported)
     INHERITS = "INHERITS"    # Object-oriented inheritance (Derived -> Base)
+    CHANGED_IN = "CHANGED_IN"          # Temporal: File modified in Commit (File -> Commit)
+    CO_CHANGED_WITH = "CO_CHANGED_WITH" # Temporal: File logically coupled with File (File <-> File)
 
 
 @dataclass

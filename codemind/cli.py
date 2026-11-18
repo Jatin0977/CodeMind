@@ -25,11 +25,13 @@ from .parsing.base_parser import ParsedFile, Symbol
 from .chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
 from .chunking.models import CodeChunk
 from .retrieval.retriever import SemanticRetriever
+from .retrieval.hybrid_retriever import HybridGraphRetriever
 from .embeddings.factory import get_embedding_provider
 from .rag.engine import RAGEngine
 from .rag.models import RAGResponse
 from .rag.providers.factory import get_llm_provider
 from .graph import KnowledgeGraphBuilder, GraphQueryEngine, NodeType, EdgeType
+from .investigation import InvestigationEngine, InvestigationResult, InvestigationStatus
 
 
 def inspect_repository(
@@ -242,9 +244,10 @@ def search_repository(
     repo_path: str,
     query: str,
     top_k: int = 5,
+    use_graph: bool = True,
     as_json: bool = False,
 ) -> int:
-    """Index codebase chunks and execute semantic similarity search for a query."""
+    """Index codebase chunks and execute semantic or hybrid graph-aware search for a query."""
     loader = RepositoryLoader()
 
     try:
@@ -253,19 +256,39 @@ def search_repository(
         print(f"Error loading repository: {e}", file=sys.stderr)
         return 1
 
-    retriever = SemanticRetriever()
+    embed_provider = get_embedding_provider(provider_type="mock" if "--mock" in sys.argv else None)
+    retriever = SemanticRetriever(embedding_provider=embed_provider)
     indexed_count = retriever.index_repository(repo)
 
     if indexed_count == 0:
         print("No indexable chunks found in repository.", file=sys.stderr)
         return 1
 
-    results = retriever.search(query, top_k=top_k)
+    if use_graph:
+        parsed_files = {}
+        for sf in repo.files:
+            pf = GLOBAL_PARSER_FACTORY.parse(sf)
+            if pf:
+                parsed_files[sf.relative_path] = pf
+        builder = KnowledgeGraphBuilder()
+        nx_graph = builder.build(repo, parsed_files)
+        query_engine = GraphQueryEngine(nx_graph, builder.nodes_by_id)
+        hybrid_retriever = HybridGraphRetriever(
+            retriever=retriever,
+            graph=nx_graph,
+            query_engine=query_engine,
+        )
+        results = hybrid_retriever.search(query, top_k=top_k, use_graph=True)
+        mode_label = "Hybrid Graph-Aware Search"
+    else:
+        results = retriever.search(query, top_k=top_k)
+        mode_label = "Vector-Only Semantic Search"
 
     if as_json:
         output_data = {
             "query": query,
             "repository": repo.repo_name,
+            "mode": "hybrid" if use_graph else "vector_only",
             "total_indexed_chunks": indexed_count,
             "results": [r.to_dict() for r in results],
         }
@@ -276,11 +299,12 @@ def search_repository(
     sub_divider = "-" * 65
 
     print(divider)
-    print(f" CodeMind - Semantic Code Search")
+    print(f" CodeMind - {mode_label}")
     print(f" Query: \"{query}\"")
     print(divider)
     print(f"Repository:     {repo.repo_name}")
     print(f"Indexed Chunks: {indexed_count}")
+    print(f"Retrieval Mode: {'Hybrid (Graph Expansion)' if use_graph else 'Vector-Only'}")
     print(f"Model:          {retriever.embedding_provider.model_name}")
     print(sub_divider)
 
@@ -290,7 +314,13 @@ def search_repository(
         for res in results:
             chunk = res.chunk
             sym_tag = f" ({chunk.chunk_type.upper()}: {chunk.symbol_name})" if chunk.symbol_name else ""
-            print(f"\n[Rank {res.rank}] Score: {res.score:.4f} - {chunk.relative_path}:{chunk.start_line}-{chunk.end_line}{sym_tag}")
+            prov_tag = ""
+            if getattr(res, "provenance", None) == "graph_expanded":
+                prov_tag = f" [Graph: {getattr(res, 'relationship_type', 'EXPANDED')}]"
+            elif getattr(res, "provenance", None) == "vector_seed":
+                prov_tag = " [Vector Seed]"
+
+            print(f"\n[Rank {res.rank}] Score: {res.score:.4f}{prov_tag} - {chunk.relative_path}:{chunk.start_line}-{chunk.end_line}{sym_tag}")
             if chunk.signature:
                 print(f"  Signature: {chunk.signature}")
             first_line = chunk.content.strip().splitlines()[0] if chunk.content.strip() else ""
@@ -305,6 +335,7 @@ def ask_repository(
     repo_path: str,
     question: str,
     top_k: int = 4,
+    use_graph: bool = True,
     provider_type: Optional[str] = None,
     model_name: Optional[str] = None,
     as_json: bool = False,
@@ -318,22 +349,50 @@ def ask_repository(
         print(f"Error loading repository: {e}", file=sys.stderr)
         return 1
 
-    llm_provider = get_llm_provider(provider_type=provider_type, model_name=model_name)
-    rag_engine = RAGEngine(llm_provider=llm_provider)
+    embed_provider = get_embedding_provider(provider_type=provider_type)
+    retriever = SemanticRetriever(embedding_provider=embed_provider)
+    retriever.index_repository(repo)
 
-    response: RAGResponse = rag_engine.ask(query=question, repo=repo, top_k=top_k)
+    hybrid_retriever = None
+    if use_graph:
+        parsed_files = {}
+        for sf in repo.files:
+            pf = GLOBAL_PARSER_FACTORY.parse(sf)
+            if pf:
+                parsed_files[sf.relative_path] = pf
+        builder = KnowledgeGraphBuilder()
+        nx_graph = builder.build(repo, parsed_files)
+        query_engine = GraphQueryEngine(nx_graph, builder.nodes_by_id)
+        hybrid_retriever = HybridGraphRetriever(
+            retriever=retriever,
+            graph=nx_graph,
+            query_engine=query_engine,
+        )
+
+    llm_provider = get_llm_provider(provider_type=provider_type, model_name=model_name)
+    rag_engine = RAGEngine(
+        retriever=retriever,
+        hybrid_retriever=hybrid_retriever,
+        llm_provider=llm_provider,
+    )
+
+    response: RAGResponse = rag_engine.ask(query=question, top_k=top_k, use_graph=use_graph)
 
     if as_json:
-        print(json.dumps(response.to_dict(), indent=2))
+        data = response.to_dict(include_sources=True)
+        data["retrieval_mode"] = "hybrid" if (use_graph and hybrid_retriever) else "vector_only"
+        print(json.dumps(data, indent=2))
         return 0
 
     divider = "=" * 65
     sub_divider = "-" * 65
 
     print(divider)
-    print(f" CodeMind - Grounded Codebase Q&A (RAG)")
+    mode_text = "Hybrid Graph-Aware RAG" if (use_graph and hybrid_retriever) else "Vector-Only RAG"
+    print(f" CodeMind - Grounded Codebase Q&A ({mode_text})")
     print(f" Question: \"{question}\"")
     print(f" Model:    {response.model_name} (Latency: {response.latency_ms:.1f}ms)")
+    print(f" Mode:     {mode_text}")
     print(divider)
 
     print("\nAnswer:")
@@ -343,12 +402,13 @@ def ask_repository(
     if response.citations:
         print(f"Cited Source References ({len(response.citations)}):")
         for idx, cit in enumerate(response.citations, start=1):
-            # Find matching chunk for symbol label
+            # Find matching chunk for symbol label & provenance
             sym_label = ""
             for s in response.sources:
                 if cit in f"{s.chunk.relative_path}:{s.chunk.start_line}-{s.chunk.end_line}":
                     if s.chunk.symbol_name:
-                        sym_label = f" ({s.chunk.chunk_type.upper()}: {s.chunk.symbol_name})"
+                        prov_tag = f" [{s.relationship_type}]" if getattr(s, "provenance", None) == "graph_expanded" and getattr(s, "relationship_type", None) else ""
+                        sym_label = f" ({s.chunk.chunk_type.upper()}: {s.chunk.symbol_name}){prov_tag}"
                     break
             print(f"  [{idx}] [{cit}]{sym_label}")
     else:
@@ -444,6 +504,180 @@ def graph_repository(
     return 0
 
 
+def investigate_repository(
+    repo_path: str,
+    query: str,
+    provider_type: Optional[str] = None,
+    model_name: Optional[str] = None,
+    as_json: bool = False,
+    mock: bool = False,
+) -> int:
+    """Execute an agentic investigation for a query across the codebase (Phase 6)."""
+    if mock:
+        provider_type = "mock"
+    if not query or not query.strip():
+        print("Error: Investigation query cannot be empty.", file=sys.stderr)
+        return 1
+
+    loader = RepositoryLoader()
+    try:
+        repo: IngestedRepository = loader.load_repository(repo_path)
+    except Exception as e:
+        print(f"Error loading repository: {e}", file=sys.stderr)
+        return 1
+
+    embed_provider = get_embedding_provider(provider_type=provider_type)
+    retriever = SemanticRetriever(embedding_provider=embed_provider)
+    retriever.index_repository(repo)
+
+    parsed_files = {}
+    for sf in repo.files:
+        pf = GLOBAL_PARSER_FACTORY.parse(sf)
+        if pf:
+            parsed_files[sf.relative_path] = pf
+
+    builder = KnowledgeGraphBuilder()
+    nx_graph = builder.build(repo, parsed_files)
+    query_engine = GraphQueryEngine(nx_graph, builder.nodes_by_id)
+
+    chunks = []
+    for sf in repo.files:
+        pf = parsed_files.get(sf.relative_path)
+        chunks.extend(GLOBAL_CHUNKER_FACTORY.chunk_file(sf, pf))
+
+    hybrid_retriever = HybridGraphRetriever(
+        retriever=retriever,
+        graph=nx_graph,
+        query_engine=query_engine,
+    )
+    hybrid_retriever.index(chunks, nx_graph)
+
+    llm_provider = get_llm_provider(provider_type=provider_type, model_name=model_name)
+
+    # Detect and mine Git temporal intelligence (Phase 7)
+    git_client = None
+    git_miner = None
+    git_churn_analyzer = None
+    git_coupling_analyzer = None
+    try:
+        from .git.client import GitClient
+        from .git.miner import GitMiner
+        from .git.churn import CodeChurnAnalyzer
+        from .git.coupling import LogicalCouplingAnalyzer
+
+        client = GitClient(repo.repo_path)
+        status = client.get_status()
+        if status.is_git_repo and not status.is_empty:
+            git_client = client
+            git_miner = GitMiner(client)
+            git_commits = git_miner.mine_commits(max_commits=1000)
+            git_churn_analyzer = CodeChurnAnalyzer()
+            git_churn_analyzer.analyze(git_commits)
+            git_coupling_analyzer = LogicalCouplingAnalyzer(min_support=3, min_confidence=0.5)
+            coupling_res = git_coupling_analyzer.analyze(git_commits)
+            builder.materialize_temporal_graph(git_commits, coupling_res.couplings, max_materialize_commits=100)
+    except Exception:
+        pass
+
+    engine = InvestigationEngine(
+        repo=repo,
+        query_engine=query_engine,
+        retriever=retriever,
+        hybrid_retriever=hybrid_retriever,
+        git_miner=git_miner,
+        git_client=git_client,
+        git_churn_analyzer=git_churn_analyzer,
+        git_coupling_analyzer=git_coupling_analyzer,
+        llm_provider=llm_provider,
+    )
+
+    result: InvestigationResult = engine.investigate(query)
+
+    if as_json:
+        data = result.to_dict()
+        status_val = (
+            result.overall_status.value
+            if hasattr(result.overall_status, "value")
+            else str(result.overall_status)
+        )
+        data["status"] = status_val
+        data["overall_status"] = status_val
+        data["intent"] = (
+            result.intent.value
+            if hasattr(result.intent, "value")
+            else str(result.intent) if result.intent else None
+        )
+        raw_citations = result.metadata.get("citations", [])
+        data["citations"] = [
+            c.get("tag", "") if isinstance(c, dict) else str(c)
+            for c in raw_citations
+        ]
+        print(json.dumps(data, indent=2))
+        return 0 if result.overall_status in (InvestigationStatus.SUCCESS, InvestigationStatus.PARTIAL_SUCCESS, InvestigationStatus.DEFERRED) else 1
+
+    divider = "=" * 65
+    sub_divider = "-" * 65
+
+    intent_str = (
+        result.intent.value.upper()
+        if hasattr(result.intent, "value")
+        else str(result.intent).upper() if result.intent else "UNKNOWN"
+    )
+    status_str = (
+        result.overall_status.value
+        if hasattr(result.overall_status, "value")
+        else str(result.overall_status)
+    )
+    classification = result.metadata.get("engine", {}).get("classification", {})
+    confidence_cat = classification.get("confidence_category", "N/A")
+    duration_ms = result.metadata.get("engine", {}).get("total_duration_ms", 0.0)
+
+    print(divider)
+    print(" CodeMind - Agentic Investigation Engine (Phase 6)")
+    print(f" Query:    \"{query}\"")
+    print(f" Intent:   {intent_str} (Confidence: {confidence_cat})")
+    print(f" Status:   {status_str} (Duration: {duration_ms:.1f}ms)")
+    print(divider)
+
+    print("\nAnswer:")
+    print(result.final_answer or "No answer synthesized.")
+
+    # Execution plan & step traces
+    if result.step_results:
+        print("\n" + sub_divider)
+        print(f"Execution Plan & Steps ({len(result.step_results)}):")
+        for idx, sr in enumerate(result.step_results, start=1):
+            timing = sr.execution_timing.get("latency_ms", 0.0) if sr.execution_timing else 0.0
+            st = sr.status.value if hasattr(sr.status, "value") else str(sr.status)
+            warn_str = f" - Warning: {sr.warning}" if sr.warning else ""
+            err_str = f" - Error: {sr.error_message}" if sr.error_message else ""
+            print(f"  [{idx}] {sr.tool_name:<24} [{st:<10}] {timing:>5.1f}ms{warn_str}{err_str}")
+
+    # Citations
+    citations = result.metadata.get("citations", [])
+    if citations:
+        print("\n" + sub_divider)
+        print(f"Cited Evidence ({len(citations)}):")
+        for idx, cit in enumerate(citations, start=1):
+            tag = cit.get("tag", "")
+            cat = cit.get("category", "")
+            src_tool = cit.get("source_tool", "")
+            print(f"  [{idx}] {tag:<40} [{cat} / {src_tool}]")
+
+    # Deferred capabilities
+    deferred = result.metadata.get("deferred_capabilities", [])
+    if deferred:
+        print("\n" + sub_divider)
+        print(f"Deferred Capabilities Disclosed ({len(deferred)}):")
+        for d in deferred:
+            tool = d.get("tool_name", "unknown")
+            phase = d.get("target_phase", "future phase")
+            print(f"  - {tool}: Scheduled for {phase} (not executed)")
+
+    print(divider)
+    return 0 if result.overall_status in (InvestigationStatus.SUCCESS, InvestigationStatus.PARTIAL_SUCCESS, InvestigationStatus.DEFERRED) else 1
+
+
 def serve_web(host: str = "127.0.0.1", port: int = 8000) -> int:
     """Launch the CodeMind Visual Code Explorer and Interactive Web UI."""
     try:
@@ -466,6 +700,171 @@ def serve_web(host: str = "127.0.0.1", port: int = 8000) -> int:
 
     app = create_app()
     uvicorn.run(app, host=host, port=port, log_level="info")
+    return 0
+
+
+def git_history_cli(
+    repo_path: str = ".",
+    path: Optional[str] = None,
+    limit: int = 50,
+    since: Optional[str] = None,
+    author: Optional[str] = None,
+    as_json: bool = False,
+) -> int:
+    """CLI handler for mining commit history."""
+    from .git.client import GitClient
+    from .git.miner import GitMiner
+
+    client = GitClient(repo_path)
+    status = client.get_status()
+    if not status.is_git_repo:
+        print(f"Error: '{repo_path}' is not a Git repository.", file=sys.stderr)
+        return 1
+
+    miner = GitMiner(client)
+    try:
+        commits = miner.mine_commits(max_commits=limit, path=path, since=since, author=author)
+    except Exception as e:
+        print(f"Error mining commit history: {e}", file=sys.stderr)
+        return 1
+
+    if as_json:
+        print(json.dumps([c.to_dict() for c in commits], indent=2))
+        return 0
+
+    divider = "=" * 65
+    print(divider)
+    print(f" CodeMind - Git Commit History ({len(commits)} commits)")
+    if path:
+        print(f" Filter path: {path}")
+    print(divider)
+    for c in commits:
+        date_str = c.author_date.strftime("%Y-%m-%d %H:%M") if hasattr(c.author_date, "strftime") else str(c.author_date)
+        print(f"[{c.short_hash}] {date_str} | {c.author_name}: {c.subject}")
+        for fc in c.files_changed[:5]:
+            print(f"    {fc.status} {fc.path} (+{fc.additions}/-{fc.deletions})")
+        if len(c.files_changed) > 5:
+            print(f"    ... and {len(c.files_changed) - 5} more files")
+    print(divider)
+    return 0
+
+
+def git_churn_cli(
+    repo_path: str = ".",
+    limit: int = 20,
+    sort_by: str = "commits",
+    path: Optional[str] = None,
+    as_json: bool = False,
+) -> int:
+    """CLI handler for computing code churn hotspots."""
+    from .git.client import GitClient
+    from .git.miner import GitMiner
+    from .git.churn import CodeChurnAnalyzer
+
+    client = GitClient(repo_path)
+    status = client.get_status()
+    if not status.is_git_repo:
+        print(f"Error: '{repo_path}' is not a Git repository.", file=sys.stderr)
+        return 1
+
+    miner = GitMiner(client)
+    try:
+        commits = miner.mine_commits(max_commits=1000)
+        analyzer = CodeChurnAnalyzer()
+        res = analyzer.analyze(commits)
+    except Exception as e:
+        print(f"Error analyzing code churn: {e}", file=sys.stderr)
+        return 1
+
+    hotspots = analyzer.get_top_churn_files(limit=limit if not path else 1000, sort_by=sort_by)
+    if path:
+        norm_p = path.replace("\\", "/").lower()
+        hotspots = [h for h in hotspots if norm_p in h.path.lower()][:limit]
+
+    if as_json:
+        out = {
+            "summary": res.to_dict(),
+            "hotspots": [h.to_dict() for h in hotspots],
+        }
+        print(json.dumps(out, indent=2))
+        return 0
+
+    divider = "=" * 65
+    print(divider)
+    print(f" CodeMind - Code Churn Hotspots (Ranked by: {sort_by})")
+    print(f" Total commits analyzed: {res.total_commits_analyzed} | Files tracked: {res.total_files_analyzed}")
+    print(f" Total lines added: +{res.total_additions} | Total deleted: -{res.total_deletions}")
+    print(divider)
+    print(f"{'Path':<40} {'Commits':>8} {'+Lines':>8} {'-Lines':>8} {'Authors':>8}")
+    print("-" * 65)
+    for h in hotspots:
+        p_disp = h.path if len(h.path) <= 39 else "..." + h.path[-36:]
+        print(f"{p_disp:<40} {h.commits_count:>8} {h.additions:>8} {h.deletions:>8} {h.unique_authors:>8}")
+    print(divider)
+    return 0
+
+
+def git_coupling_cli(
+    repo_path: str = ".",
+    file_path: Optional[str] = None,
+    min_support: int = 3,
+    min_confidence: float = 0.5,
+    limit: int = 20,
+    as_json: bool = False,
+) -> int:
+    """CLI handler for discovering logical couplings."""
+    from .git.client import GitClient
+    from .git.miner import GitMiner
+    from .git.coupling import LogicalCouplingAnalyzer
+
+    client = GitClient(repo_path)
+    status = client.get_status()
+    if not status.is_git_repo:
+        print(f"Error: '{repo_path}' is not a Git repository.", file=sys.stderr)
+        return 1
+
+    miner = GitMiner(client)
+    try:
+        commits = miner.mine_commits(max_commits=1000)
+        analyzer = LogicalCouplingAnalyzer(min_support=min_support, min_confidence=min_confidence)
+        analyzer.analyze(commits)
+    except Exception as e:
+        print(f"Error analyzing logical coupling: {e}", file=sys.stderr)
+        return 1
+
+    if file_path:
+        couplings = analyzer.get_couplings_for_file(file_path, min_support=min_support, min_confidence=min_confidence)[:limit]
+    else:
+        top = analyzer.get_top_couplings(limit=limit)
+        couplings = [c.to_dict() for c in top]
+
+    if as_json:
+        print(json.dumps(couplings, indent=2))
+        return 0
+
+    divider = "=" * 65
+    print(divider)
+    print(f" CodeMind - Logical Coupling Discovery (min_support={min_support}, min_confidence={min_confidence})")
+    if file_path:
+        print(f" Focal file: {file_path}")
+    print(divider)
+    if file_path:
+        print(f"{'Target File':<40} {'Support':>8} {'Jaccard':>8} {'Confidence':>10}")
+        print("-" * 65)
+        for c in couplings:
+            tf = c['target_file']
+            if len(tf) > 39: tf = "..." + tf[-36:]
+            print(f"{tf:<40} {c['support_count']:>8} {c['jaccard_similarity']:>8.2f} {c['confidence_to_target']:>10.2f}")
+    else:
+        print(f"{'File A':<26} {'File B':<26} {'Supp':>5} {'Jacc':>5}")
+        print("-" * 65)
+        for c in couplings:
+            fa = c.get('canonical_file_a', '')
+            fb = c.get('canonical_file_b', '')
+            if len(fa) > 25: fa = '...' + fa[-22:]
+            if len(fb) > 25: fb = '...' + fb[-22:]
+            print(f"{fa:<26} {fb:<26} {c.get('support_count', 0):>5} {c.get('jaccard_similarity', 0):>5.2f}")
+    print(divider)
     return 0
 
 
@@ -570,6 +969,17 @@ def main() -> int:
         help="Number of top search results to return (default: 5)",
     )
     search_parser.add_argument(
+        "--hybrid",
+        action="store_true",
+        default=True,
+        help="Use hybrid graph-aware retrieval (default: True)",
+    )
+    search_parser.add_argument(
+        "--no-graph",
+        action="store_true",
+        help="Disable graph expansion and force vector-only retrieval",
+    )
+    search_parser.add_argument(
         "--json",
         "-j",
         action="store_true",
@@ -609,6 +1019,17 @@ def main() -> int:
         type=str,
         default=None,
         help="LLM model name (default: gemini-2.5-flash)",
+    )
+    ask_parser.add_argument(
+        "--hybrid",
+        action="store_true",
+        default=True,
+        help="Use hybrid graph-aware retrieval (default: True)",
+    )
+    ask_parser.add_argument(
+        "--no-graph",
+        action="store_true",
+        help="Disable graph expansion and force vector-only retrieval",
     )
     ask_parser.add_argument(
         "--json",
@@ -651,6 +1072,165 @@ def main() -> int:
         help="Output graph data or query as JSON",
     )
 
+    # 7. 'investigate' subcommand (Agentic Investigation Engine - Phase 6)
+    investigate_parser = subparsers.add_parser(
+        "investigate", help="Investigate a question across the codebase using the Agentic Engine (Phase 6)"
+    )
+    investigate_parser.add_argument(
+        "target",
+        type=str,
+        help="Developer investigation query, or repository path if query is passed as second argument",
+    )
+    investigate_parser.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        help="Optional developer investigation query (when first argument is path)",
+    )
+    investigate_parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Force use Mock LLM provider (offline mode without API key)",
+    )
+    investigate_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="LLM model name (default: gemini-2.5-flash)",
+    )
+    investigate_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output investigation result as JSON",
+    )
+
+    # 8. 'git-history' subcommand (Git Temporal Intelligence - Phase 7)
+    git_history_parser = subparsers.add_parser(
+        "git-history", help="Mine Git commit log to analyze chronological evolution (Phase 7)"
+    )
+    git_history_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    git_history_parser.add_argument(
+        "--file",
+        "-f",
+        type=str,
+        default=None,
+        help="Filter commit history by file path",
+    )
+    git_history_parser.add_argument(
+        "--limit",
+        "-l",
+        type=int,
+        default=50,
+        help="Maximum commits to retrieve (default: 50)",
+    )
+    git_history_parser.add_argument(
+        "--since",
+        type=str,
+        default=None,
+        help="Filter commits since date (ISO format or git date)",
+    )
+    git_history_parser.add_argument(
+        "--author",
+        type=str,
+        default=None,
+        help="Filter commits by author name or email",
+    )
+    git_history_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output commits as JSON",
+    )
+
+    # 9. 'git-churn' subcommand (Code Churn Analytics - Phase 7)
+    git_churn_parser = subparsers.add_parser(
+        "git-churn", help="Calculate historical file code churn hotspots (Phase 7)"
+    )
+    git_churn_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    git_churn_parser.add_argument(
+        "--file",
+        "-f",
+        type=str,
+        default=None,
+        help="Filter churn to a specific file or directory prefix",
+    )
+    git_churn_parser.add_argument(
+        "--limit",
+        "-l",
+        type=int,
+        default=20,
+        help="Maximum hotspot files to display (default: 20)",
+    )
+    git_churn_parser.add_argument(
+        "--sort-by",
+        "-s",
+        type=str,
+        choices=["commits", "additions", "deletions", "total_churn", "authors"],
+        default="commits",
+        help="Metric to rank churn hotspots (default: commits)",
+    )
+    git_churn_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output churn metrics as JSON",
+    )
+
+    # 10. 'git-coupling' subcommand (Logical Coupling Discovery - Phase 7)
+    git_coupling_parser = subparsers.add_parser(
+        "git-coupling", help="Discover hidden architectural dependencies via commit co-changes (Phase 7)"
+    )
+    git_coupling_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    git_coupling_parser.add_argument(
+        "--file",
+        "-f",
+        type=str,
+        default=None,
+        help="Focal file to inspect co-change couplings for",
+    )
+    git_coupling_parser.add_argument(
+        "--min-support",
+        type=int,
+        default=3,
+        help="Minimum co-change commits required (default: 3)",
+    )
+    git_coupling_parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.5,
+        help="Minimum directional confidence threshold (default: 0.5)",
+    )
+    git_coupling_parser.add_argument(
+        "--limit",
+        "-l",
+        type=int,
+        default=20,
+        help="Maximum couplings to display (default: 20)",
+    )
+    git_coupling_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output couplings as JSON",
+    )
+
     args = parser.parse_args()
 
     if args.command == "inspect":
@@ -672,18 +1252,22 @@ def main() -> int:
             max_samples=args.max_samples,
         )
     elif args.command == "search":
+        use_graph = not args.no_graph
         return search_repository(
             repo_path=args.path,
             query=args.query,
             top_k=args.top_k,
+            use_graph=use_graph,
             as_json=args.json,
         )
     elif args.command == "ask":
         provider_type = "mock" if args.mock else None
+        use_graph = not args.no_graph
         return ask_repository(
             repo_path=args.path,
             question=args.question,
             top_k=args.top_k,
+            use_graph=use_graph,
             provider_type=provider_type,
             model_name=args.model,
             as_json=args.json,
@@ -694,6 +1278,48 @@ def main() -> int:
             impact_node=args.impact,
             cycles_only=args.cycles,
             max_depth=args.max_depth,
+            as_json=args.json,
+        )
+    elif args.command == "investigate":
+        if args.query is not None:
+            repo_path = args.target
+            query_str = args.query
+        else:
+            repo_path = "."
+            query_str = args.target
+
+        provider_type = "mock" if args.mock else None
+        return investigate_repository(
+            repo_path=repo_path,
+            query=query_str,
+            provider_type=provider_type,
+            model_name=args.model,
+            as_json=args.json,
+        )
+    elif args.command == "git-history":
+        return git_history_cli(
+            repo_path=args.path,
+            path=args.file,
+            limit=args.limit,
+            since=args.since,
+            author=args.author,
+            as_json=args.json,
+        )
+    elif args.command == "git-churn":
+        return git_churn_cli(
+            repo_path=args.path,
+            limit=args.limit,
+            sort_by=args.sort_by,
+            path=args.file,
+            as_json=args.json,
+        )
+    elif args.command == "git-coupling":
+        return git_coupling_cli(
+            repo_path=args.path,
+            file_path=args.file,
+            min_support=args.min_support,
+            min_confidence=args.min_confidence,
+            limit=args.limit,
             as_json=args.json,
         )
     else:

@@ -414,3 +414,172 @@ class GraphQueryEngine:
                 "edges": subgraph_edges,
             },
         }
+
+    def get_file_commits(self, file_path: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Retrieve commits modifying the given file via CHANGED_IN edges (File -> Commit).
+
+        Args:
+            file_path: Relative path or node ID of the file.
+            limit: Maximum commits to return.
+
+        Returns:
+            List of commit dictionaries with change metadata, sorted chronologically descending.
+        """
+        norm_path = file_path.replace("\\", "/")
+        if norm_path.startswith("file:"):
+            file_id = norm_path
+            rel_path = norm_path[5:]
+        else:
+            file_id = f"file:{norm_path}"
+            rel_path = norm_path
+
+        target_id = file_id if file_id in self.graph else None
+        if not target_id:
+            for n_id, data in self.graph.nodes(data=True):
+                if data.get("node_type") == NodeType.FILE:
+                    if data.get("relative_path") == rel_path or n_id == file_id:
+                        target_id = n_id
+                        break
+
+        if not target_id or target_id not in self.graph:
+            return []
+
+        commits = []
+        for succ in self.graph.successors(target_id):
+            edge_data = self.graph.get_edge_data(target_id, succ) or {}
+            if edge_data.get("edge_type") == EdgeType.CHANGED_IN:
+                commit_node = self.get_node(succ) or {}
+                meta = commit_node.get("metadata", {})
+                edge_meta = edge_data.get("metadata", {})
+                commits.append({
+                    "commit_id": succ,
+                    "full_hash": meta.get("full_hash", commit_node.get("name", "")),
+                    "short_hash": meta.get("short_hash", commit_node.get("name", "")),
+                    "author_name": meta.get("author_name", ""),
+                    "author_date": meta.get("author_date", ""),
+                    "subject": meta.get("subject", ""),
+                    "change_type": edge_meta.get("change_type", "M"),
+                    "insertions": edge_meta.get("insertions", 0),
+                    "deletions": edge_meta.get("deletions", 0),
+                    "old_path": edge_meta.get("old_path"),
+                })
+
+        commits.sort(key=lambda c: c["author_date"], reverse=True)
+        return commits[:limit]
+
+    def get_commit_files(self, commit_hash: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve all files changed in a specific commit via incoming CHANGED_IN edges.
+
+        Args:
+            commit_hash: Full hash, short hash, or node ID (commit:<hash>).
+
+        Returns:
+            List of file change dictionaries.
+        """
+        clean_hash = commit_hash.strip()
+        commit_id = None
+        if clean_hash.startswith("commit:") and clean_hash in self.graph:
+            commit_id = clean_hash
+        else:
+            raw_hash = clean_hash.replace("commit:", "")
+            candidate_id = f"commit:{raw_hash}"
+            if candidate_id in self.graph:
+                commit_id = candidate_id
+            else:
+                for n_id, data in self.graph.nodes(data=True):
+                    if data.get("node_type") == NodeType.COMMIT:
+                        meta = data.get("metadata", {})
+                        if (
+                            meta.get("full_hash", "").startswith(raw_hash)
+                            or meta.get("short_hash") == raw_hash
+                            or data.get("name") == raw_hash
+                        ):
+                            commit_id = n_id
+                            break
+
+        if not commit_id or commit_id not in self.graph:
+            return []
+
+        files = []
+        for pred in self.graph.predecessors(commit_id):
+            edge_data = self.graph.get_edge_data(pred, commit_id) or {}
+            if edge_data.get("edge_type") == EdgeType.CHANGED_IN:
+                file_node = self.get_node(pred) or {}
+                rel_path = file_node.get("relative_path") or pred.replace("file:", "")
+                edge_meta = edge_data.get("metadata", {})
+                files.append({
+                    "file_id": pred,
+                    "path": rel_path,
+                    "change_type": edge_meta.get("change_type", "M"),
+                    "insertions": edge_meta.get("insertions", 0),
+                    "deletions": edge_meta.get("deletions", 0),
+                    "old_path": edge_meta.get("old_path"),
+                })
+
+        files.sort(key=lambda f: f["path"])
+        return files
+
+    def get_logically_coupled_files(self, file_path: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Retrieve files logically coupled with the given file via CO_CHANGED_WITH edges.
+        Properly orients confidence (confidence_a_to_b vs confidence_b_to_a) from the perspective of file_path.
+
+        Args:
+            file_path: Relative path or node ID of the file.
+            limit: Maximum coupled files to return.
+
+        Returns:
+            List of coupled file records sorted by Jaccard similarity and support count descending.
+        """
+        norm_path = file_path.replace("\\", "/")
+        if norm_path.startswith("file:"):
+            file_id = norm_path
+            rel_path = norm_path[5:]
+        else:
+            file_id = f"file:{norm_path}"
+            rel_path = norm_path
+
+        target_id = file_id if file_id in self.graph else None
+        if not target_id:
+            for n_id, data in self.graph.nodes(data=True):
+                if data.get("node_type") == NodeType.FILE:
+                    if data.get("relative_path") == rel_path or n_id == file_id:
+                        target_id = n_id
+                        break
+
+        if not target_id or target_id not in self.graph:
+            return []
+
+        coupled = []
+        for succ in self.graph.successors(target_id):
+            edge_data = self.graph.get_edge_data(target_id, succ) or {}
+            if edge_data.get("edge_type") == EdgeType.CO_CHANGED_WITH:
+                meta = edge_data.get("metadata", {})
+                succ_node = self.get_node(succ) or {}
+                target_file = succ_node.get("relative_path") or succ.replace("file:", "")
+
+                canonical_a = meta.get("canonical_file_a", "")
+                canonical_b = meta.get("canonical_file_b", "")
+
+                # Orient confidence: P(Target | Source)
+                if rel_path == canonical_a:
+                    oriented_conf = meta.get("confidence_a_to_b", 0.0)
+                else:
+                    oriented_conf = meta.get("confidence_b_to_a", 0.0)
+
+                coupled.append({
+                    "source_file": rel_path,
+                    "target_file": target_file,
+                    "target_node_id": succ,
+                    "support_count": meta.get("support_count", 0),
+                    "jaccard_similarity": meta.get("jaccard_similarity", 0.0),
+                    "confidence": oriented_conf,
+                    "last_co_change_date": meta.get("last_co_change_date"),
+                    "canonical_file_a": canonical_a,
+                    "canonical_file_b": canonical_b,
+                })
+
+        coupled.sort(key=lambda c: (c["jaccard_similarity"], c["support_count"]), reverse=True)
+        return coupled[:limit]

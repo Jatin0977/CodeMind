@@ -1,0 +1,581 @@
+{
+  "evaluation_a_end_to_end": [
+    {
+      "query_id": "Q1_FLOW",
+      "query": "How does RepositoryLoader filter ignored directories and binary files?",
+      "classified_intent": "flow",
+      "vector_only": {
+        "retrieval_latency_ms": 0.89,
+        "total_rag_latency_ms": 2.54,
+        "citations_count": 2,
+        "citations": [
+          "graph/query.py:315-416",
+          "ingestion/file_filter.py:54-96"
+        ],
+        "covered_symbols": [
+          "RepositoryLoader",
+          "FileFilter",
+          "should_ignore_dir",
+          "is_binary_by_extension",
+          "should_ignore_file"
+        ],
+        "symbol_coverage_pct": 100.0,
+        "sources": [
+          {
+            "chunk_id": "387f499a9946535c",
+            "file": "graph/query.py",
+            "lines": "315-416",
+            "symbol": "GraphQueryEngine.trace_impact",
+            "score": 0.5155
+          },
+          {
+            "chunk_id": "199079361afbdf35",
+            "file": "ingestion/file_filter.py",
+            "lines": "54-96",
+            "symbol": "FileFilter.should_ignore_file",
+            "score": 0.4802
+          },
+          {
+            "chunk_id": "7e06e05b1b89ce8c",
+            "file": "ingestion/repo_loader.py",
+            "lines": "104-150",
+            "symbol": "RepositoryLoader._scan_directory",
+            "score": 0.4796
+          },
+          {
+            "chunk_id": "75f0510a487ede2d",
+            "file": "ingestion/file_filter.py",
+            "lines": "17-29",
+            "symbol": "FileFilter.should_ignore_dir",
+            "score": 0.468
+          }
+        ]
+      },
+      "hybrid": {
+        "retrieval_latency_ms": 1.44,
+        "total_rag_latency_ms": 1.14,
+        "seed_count": 2,
+        "expanded_count": 2,
+        "graph_enhancement_rate_pct": 50.0,
+        "relationships_used": [
+          "CALLS"
+        ],
+        "citations_count": 2,
+        "citations": [
+          "graph/query.py:315-416",
+          "ingestion/file_filter.py:54-96"
+        ],
+        "covered_symbols": [
+          "FileFilter",
+          "should_ignore_dir",
+          "is_binary_by_extension",
+          "should_ignore_file"
+        ],
+        "symbol_coverage_pct": 80.0,
+        "sources": [
+          {
+            "chunk_id": "387f499a9946535c",
+            "file": "graph/query.py",
+            "lines": "315-416",
+            "symbol": "GraphQueryEngine.trace_impact",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.5155,
+            "vec_score": 0.5155,
+            "graph_score": 0.5155
+          },
+          {
+            "chunk_id": "199079361afbdf35",
+            "file": "ingestion/file_filter.py",
+            "lines": "54-96",
+            "symbol": "FileFilter.should_ignore_file",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.4802,
+            "vec_score": 0.4802,
+            "graph_score": 0.4802
+          },
+          {
+            "chunk_id": "10e1fbc7eb0e6d45",
+            "file": "graph/query.py",
+            "lines": "29-35",
+            "symbol": "GraphQueryEngine.get_node",
+            "provenance": "graph_expanded",
+            "rel": "CALLS",
+            "hop": 1,
+            "hybrid_score": 0.3609,
+            "vec_score": null,
+            "graph_score": 0.3609
+          },
+          {
+            "chunk_id": "9cb5d836bec47bc2",
+            "file": "ingestion/file_filter.py",
+            "lines": "31-34",
+            "symbol": "FileFilter.is_binary_by_extension",
+            "provenance": "graph_expanded",
+            "rel": "CALLS",
+            "hop": 1,
+            "hybrid_score": 0.3362,
+            "vec_score": null,
+            "graph_score": 0.3362
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "Q2_FLOW",
+      "query": "Explain how the AST chunker builds signatures for classes and functions.",
+      "classified_intent": "flow",
+      "vector_only": {
+        "retrieval_latency_ms": 0.85,
+        "total_rag_latency_ms": 0.87,
+        "citations_count": 0,
+        "citations": [],
+        "covered_symbols": [],
+        "symbol_coverage_pct": 0.0,
+        "sources": [
+          {
+            "chunk_id": "df8ebfc986b0f825",
+            "file": "parsing/base_parser.py",
+            "lines": "90-99",
+            "symbol": "ParsedFile.metrics",
+            "score": 0.5722
+          },
+          {
+            "chunk_id": "9285303bc3017d3b",
+            "file": "parsing/base_parser.py",
+            "lines": "101-115",
+            "symbol": "ParsedFile.to_dict",
+            "score": 0.5632
+          },
+          {
+            "chunk_id": "ce3d04d5f3620f72",
+            "file": "graph/builder.py",
+            "lines": "522-556",
+            "symbol": "KnowledgeGraphBuilder.get_summary",
+            "score": 0.5305
+          },
+          {
+            "chunk_id": "e45bd5e422fa7ec0",
+            "file": "rag/providers/mock_provider.py",
+            "lines": "25-84",
+            "symbol": "MockLLMProvider.generate",
+            "score": 0.5299
+          }
+        ]
+      },
+      "hybrid": {
+        "retrieval_latency_ms": 1.13,
+        "total_rag_latency_ms": 1.02,
+        "seed_count": 3,
+        "expanded_count": 1,
+        "graph_enhancement_rate_pct": 25.0,
+        "relationships_used": [
+          "CALLS"
+        ],
+        "citations_count": 2,
+        "citations": [
+          "parsing/base_parser.py:90-99",
+          "parsing/base_parser.py:101-115"
+        ],
+        "covered_symbols": [],
+        "symbol_coverage_pct": 0.0,
+        "sources": [
+          {
+            "chunk_id": "df8ebfc986b0f825",
+            "file": "parsing/base_parser.py",
+            "lines": "90-99",
+            "symbol": "ParsedFile.metrics",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.5722,
+            "vec_score": 0.5722,
+            "graph_score": 0.5722
+          },
+          {
+            "chunk_id": "9285303bc3017d3b",
+            "file": "parsing/base_parser.py",
+            "lines": "101-115",
+            "symbol": "ParsedFile.to_dict",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.5632,
+            "vec_score": 0.5632,
+            "graph_score": 0.5632
+          },
+          {
+            "chunk_id": "ce3d04d5f3620f72",
+            "file": "graph/builder.py",
+            "lines": "522-556",
+            "symbol": "KnowledgeGraphBuilder.get_summary",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.5305,
+            "vec_score": 0.5305,
+            "graph_score": 0.5305
+          },
+          {
+            "chunk_id": "58d463a7376051c4",
+            "file": "graph/models.py",
+            "lines": "73-82",
+            "symbol": "GraphSummary",
+            "provenance": "graph_expanded",
+            "rel": "CALLS",
+            "hop": 1,
+            "hybrid_score": 0.3713,
+            "vec_score": null,
+            "graph_score": 0.3713
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "Q3_INHERIT",
+      "query": "What base class does ASTCodeChunker inherit and what contract does it implement?",
+      "classified_intent": "flow",
+      "vector_only": {
+        "retrieval_latency_ms": 0.89,
+        "total_rag_latency_ms": 0.95,
+        "citations_count": 2,
+        "citations": [
+          "parsing/python_parser.py:18-19",
+          "config.py:1-9"
+        ],
+        "covered_symbols": [],
+        "symbol_coverage_pct": 0.0,
+        "sources": [
+          {
+            "chunk_id": "c03c1c046f11ee7c",
+            "file": "parsing/python_parser.py",
+            "lines": "18-19",
+            "symbol": "PythonParser.supported_language",
+            "score": 0.4887
+          },
+          {
+            "chunk_id": "266e318893c7402e",
+            "file": "config.py",
+            "lines": "1-9",
+            "symbol": "module:config.py",
+            "score": 0.452
+          },
+          {
+            "chunk_id": "a2ea39d1a09a0e8a",
+            "file": "retrieval/retriever.py",
+            "lines": "20-22",
+            "symbol": "SemanticRetriever",
+            "score": 0.4104
+          },
+          {
+            "chunk_id": "a7fbd0c562d573e8",
+            "file": "web/app.py",
+            "lines": "41-43",
+            "symbol": "CodebaseState",
+            "score": 0.4083
+          }
+        ]
+      },
+      "hybrid": {
+        "retrieval_latency_ms": 0.92,
+        "total_rag_latency_ms": 1.06,
+        "seed_count": 2,
+        "expanded_count": 2,
+        "graph_enhancement_rate_pct": 50.0,
+        "relationships_used": [
+          "CONTAINS"
+        ],
+        "citations_count": 2,
+        "citations": [
+          "parsing/python_parser.py:18-19",
+          "config.py:1-9"
+        ],
+        "covered_symbols": [],
+        "symbol_coverage_pct": 0.0,
+        "sources": [
+          {
+            "chunk_id": "c03c1c046f11ee7c",
+            "file": "parsing/python_parser.py",
+            "lines": "18-19",
+            "symbol": "PythonParser.supported_language",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.4887,
+            "vec_score": 0.4887,
+            "graph_score": 0.4887
+          },
+          {
+            "chunk_id": "266e318893c7402e",
+            "file": "config.py",
+            "lines": "1-9",
+            "symbol": "module:config.py",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.452,
+            "vec_score": 0.452,
+            "graph_score": 0.452
+          },
+          {
+            "chunk_id": "ac31c7f9fcf8822e",
+            "file": "retrieval/retriever.py",
+            "lines": "33-35",
+            "symbol": "SemanticRetriever.chunks",
+            "provenance": "graph_expanded",
+            "rel": "CONTAINS",
+            "hop": 1,
+            "hybrid_score": 0.2722,
+            "vec_score": 0.377,
+            "graph_score": 0.1149
+          },
+          {
+            "chunk_id": "983858078fa96635",
+            "file": "config.py",
+            "lines": "41-154",
+            "symbol": "IngestionConfig",
+            "provenance": "graph_expanded",
+            "rel": "CONTAINS",
+            "hop": 1,
+            "hybrid_score": 0.1266,
+            "vec_score": null,
+            "graph_score": 0.1266
+          }
+        ]
+      }
+    },
+    {
+      "query_id": "Q4_IMPACT",
+      "query": "What components invoke or depend on file_filter.py?",
+      "classified_intent": "impact",
+      "vector_only": {
+        "retrieval_latency_ms": 0.85,
+        "total_rag_latency_ms": 1.09,
+        "citations_count": 2,
+        "citations": [
+          "retrieval/hybrid_retriever.py:140-152",
+          "retrieval/hybrid_retriever.py:259-264"
+        ],
+        "covered_symbols": [],
+        "symbol_coverage_pct": 0.0,
+        "sources": [
+          {
+            "chunk_id": "e7d27b5993339eab",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "140-152",
+            "symbol": "ChunkGraphMapper.index",
+            "score": 0.445
+          },
+          {
+            "chunk_id": "cc1ae2b78f647f4c",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "259-264",
+            "symbol": "HybridGraphRetriever.set_graph",
+            "score": 0.3997
+          },
+          {
+            "chunk_id": "152b381284392725",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "425-541",
+            "symbol": "HybridGraphRetriever._expand_node",
+            "score": 0.3985
+          },
+          {
+            "chunk_id": "6c7f04888ec1814b",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "167-217",
+            "symbol": "classify_query_intent",
+            "score": 0.3936
+          }
+        ]
+      },
+      "hybrid": {
+        "retrieval_latency_ms": 0.94,
+        "total_rag_latency_ms": 2.08,
+        "seed_count": 3,
+        "expanded_count": 1,
+        "graph_enhancement_rate_pct": 25.0,
+        "relationships_used": [
+          "CALLS"
+        ],
+        "citations_count": 2,
+        "citations": [
+          "retrieval/hybrid_retriever.py:140-152",
+          "retrieval/hybrid_retriever.py:259-264"
+        ],
+        "covered_symbols": [],
+        "symbol_coverage_pct": 0.0,
+        "sources": [
+          {
+            "chunk_id": "e7d27b5993339eab",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "140-152",
+            "symbol": "ChunkGraphMapper.index",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.445,
+            "vec_score": 0.445,
+            "graph_score": 0.445
+          },
+          {
+            "chunk_id": "cc1ae2b78f647f4c",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "259-264",
+            "symbol": "HybridGraphRetriever.set_graph",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.3997,
+            "vec_score": 0.3997,
+            "graph_score": 0.3997
+          },
+          {
+            "chunk_id": "152b381284392725",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "425-541",
+            "symbol": "HybridGraphRetriever._expand_node",
+            "provenance": "vector_seed",
+            "rel": null,
+            "hop": 0,
+            "hybrid_score": 0.3985,
+            "vec_score": 0.3985,
+            "graph_score": 0.3985
+          },
+          {
+            "chunk_id": "9441ce1d1af24ce4",
+            "file": "retrieval/hybrid_retriever.py",
+            "lines": "274-423",
+            "symbol": "HybridGraphRetriever.search",
+            "provenance": "graph_expanded",
+            "rel": "CALLS",
+            "hop": 1,
+            "hybrid_score": 0.279,
+            "vec_score": null,
+            "graph_score": 0.279
+          }
+        ]
+      }
+    }
+  ],
+  "evaluation_b_controlled_graph": {
+    "q1_repository_loader_flow": {
+      "filter_seed": "method:ingestion/file_filter.py:FileFilter.should_ignore_file",
+      "has_should_ignore_dir": true,
+      "has_is_binary_by_extension": true,
+      "has_is_binary_content": true,
+      "discovered": [
+        {
+          "node_id": "method:ingestion/file_filter.py:FileFilter.is_binary_by_extension",
+          "relationship": "CALLS",
+          "hop": 1,
+          "graph_score": 0.5599999999999999
+        },
+        {
+          "node_id": "method:ingestion/file_filter.py:FileFilter.is_binary_content",
+          "relationship": "CALLS",
+          "hop": 1,
+          "graph_score": 0.5599999999999999
+        },
+        {
+          "node_id": "method:ingestion/file_filter.py:FileFilter.should_ignore_dir",
+          "relationship": "CALLS",
+          "hop": 1,
+          "graph_score": 0.5599999999999999
+        }
+      ]
+    },
+    "q2_ast_chunker_signatures": {
+      "seed": "class:chunking/ast_chunker.py:ASTCodeChunker",
+      "has_build_class_signature": true,
+      "has_build_func_signature": true,
+      "discovered": [
+        {
+          "node_id": "class:chunking/base_chunker.py:BaseChunker",
+          "relationship": "INHERITS",
+          "hop": 1,
+          "graph_score": 0.476
+        },
+        {
+          "node_id": "method:chunking/ast_chunker.py:ASTCodeChunker.supported_language",
+          "relationship": "CONTAINS",
+          "hop": 1,
+          "graph_score": 0.22400000000000003
+        },
+        {
+          "node_id": "method:chunking/ast_chunker.py:ASTCodeChunker.chunk",
+          "relationship": "CONTAINS",
+          "hop": 1,
+          "graph_score": 0.22400000000000003
+        },
+        {
+          "node_id": "method:chunking/ast_chunker.py:ASTCodeChunker._get_lines",
+          "relationship": "CONTAINS",
+          "hop": 1,
+          "graph_score": 0.22400000000000003
+        },
+        {
+          "node_id": "method:chunking/ast_chunker.py:ASTCodeChunker._find_module_header_end",
+          "relationship": "CONTAINS",
+          "hop": 1,
+          "graph_score": 0.22400000000000003
+        },
+        {
+          "node_id": "method:chunking/ast_chunker.py:ASTCodeChunker._build_class_signature",
+          "relationship": "CONTAINS",
+          "hop": 1,
+          "graph_score": 0.22400000000000003
+        },
+        {
+          "node_id": "method:chunking/ast_chunker.py:ASTCodeChunker._build_func_signature",
+          "relationship": "CONTAINS",
+          "hop": 1,
+          "graph_score": 0.22400000000000003
+        }
+      ]
+    },
+    "q3_ast_chunker_inheritance": {
+      "seed": "class:chunking/ast_chunker.py:ASTCodeChunker",
+      "has_base_chunker": true,
+      "discovered": [
+        {
+          "node_id": "class:chunking/base_chunker.py:BaseChunker",
+          "relationship": "INHERITS",
+          "hop": 1,
+          "graph_score": 0.476
+        }
+      ]
+    },
+    "q4_file_filter_impact": {
+      "class_seed": "class:ingestion/file_filter.py:FileFilter",
+      "file_seed": "file:ingestion/file_filter.py",
+      "has_repo_loader_call": true,
+      "has_repo_loader_import": true,
+      "discovered_class_deps": [
+        {
+          "node_id": "method:ingestion/repo_loader.py:RepositoryLoader.__init__",
+          "relationship": "CALLS",
+          "hop": 1,
+          "graph_score": 0.5599999999999999
+        }
+      ],
+      "discovered_file_deps": [
+        {
+          "node_id": "file:ingestion/__init__.py",
+          "relationship": "IMPORTS",
+          "hop": 1,
+          "graph_score": 0.27999999999999997
+        },
+        {
+          "node_id": "file:ingestion/repo_loader.py",
+          "relationship": "IMPORTS",
+          "hop": 1,
+          "graph_score": 0.27999999999999997
+        }
+      ]
+    }
+  }
+}

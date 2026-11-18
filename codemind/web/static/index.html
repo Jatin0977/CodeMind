@@ -24,7 +24,7 @@
       </div>
       <div class="milestone-badge">
         <span class="badge-dot"></span>
-        <span>College Evaluation 2 (Phases 1–4)</span>
+        <span>Phase 7 Active: Git Temporal Intelligence</span>
       </div>
     </div>
 
@@ -43,6 +43,11 @@
         <span class="chip-icon">🕸️</span>
         <span class="chip-label">Graph:</span>
         <span class="chip-val highlight-purple" id="graphStatusLabel">Active</span>
+      </div>
+      <div class="status-chip" id="gitEngineChip">
+        <span class="chip-icon">⏳</span>
+        <span class="chip-label">Temporal:</span>
+        <span class="chip-val highlight-green" id="gitStatusLabel">Git Mining</span>
       </div>
       <div class="status-chip" id="embeddingStatus">
         <span class="chip-icon">🧠</span>
@@ -68,11 +73,11 @@
         </label>
         <div class="input-with-action">
           <span class="input-icon">📁</span>
-          <input 
-            type="text" 
-            id="repoPathInput" 
-            class="glow-input" 
-            value="." 
+          <input
+            type="text"
+            id="repoPathInput"
+            class="glow-input"
+            value="."
             placeholder="Enter local folder path (e.g. .), .zip archive, or Git clone URL (e.g. https://github.com/...)"
           />
           <button id="scanBtn" class="btn btn-primary">
@@ -186,6 +191,12 @@
           <button class="tab-btn" id="tabGraphBtn" onclick="switchTab('graph')">
             <span>🕸️</span> Software Knowledge Graph
           </button>
+          <button class="tab-btn" id="tabInvestigateBtn" onclick="switchTab('investigate')">
+            <span>🕵️</span> Agentic Investigation
+          </button>
+          <button class="tab-btn" id="tabEvolutionBtn" onclick="switchTab('evolution')">
+            <span>⏳</span> Evolution & Git Intelligence
+          </button>
         </div>
 
         <!-- Tab 1: AST Symbol Inspector -->
@@ -219,10 +230,10 @@
             </div>
 
             <div class="qa-textarea-wrapper">
-              <textarea 
-                id="questionInput" 
-                class="glow-textarea" 
-                rows="3" 
+              <textarea
+                id="questionInput"
+                class="glow-textarea"
+                rows="3"
                 placeholder="Ask any question about this codebase..."
               ></textarea>
               <div class="qa-action-row">
@@ -233,6 +244,10 @@
                     <option value="4" selected>4 Chunks</option>
                     <option value="6">6 Chunks</option>
                   </select>
+                </div>
+                <div class="hybrid-toggle-wrapper" style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text-muted);margin-left:8px;">
+                  <input type="checkbox" id="hybridToggle" checked style="accent-color:var(--accent-color);cursor:pointer;" />
+                  <label for="hybridToggle" style="cursor:pointer;" title="Combine vector similarity search with Knowledge Graph relationship expansion">Hybrid Graph Retrieval</label>
                 </div>
                 <button id="askBtn" class="btn btn-accent">
                   <span class="btn-spinner hidden" id="askSpinner"></span>
@@ -250,6 +265,7 @@
                   <span class="badge-dot green"></span>
                   <span id="answerModelBadge">Grounded Answer</span>
                 </div>
+                <div class="retrieval-mode-badge" id="answerModeBadge" style="display:none;"></div>
                 <div class="latency-badge" id="answerLatencyBadge">0ms</div>
               </div>
 
@@ -272,10 +288,10 @@
             <div class="graph-toolbar-row">
               <div class="graph-search-box">
                 <span class="search-icon">🔍</span>
-                <input 
-                  type="text" 
-                  id="graphSearchInput" 
-                  class="compact-input" 
+                <input
+                  type="text"
+                  id="graphSearchInput"
+                  class="compact-input"
                   placeholder="Filter nodes by name, ID, or file path..."
                 />
               </div>
@@ -440,6 +456,176 @@
 
                 <div class="impact-entities-title">Structurally Reachable Entities:</div>
                 <div class="impact-entities-list" id="impactEntitiesList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Agentic Investigation Engine -->
+        <div class="tab-content" id="tabInvestigate">
+          <div class="qa-input-card">
+            <div class="example-chips">
+              <span class="chip-hint">Try:</span>
+              <button class="chip-btn" onclick="setInvestigateExample('Where is FileFilter defined?')">Where is FileFilter?</button>
+              <button class="chip-btn" onclick="setInvestigateExample('Who calls verify_token in the codebase?')">Who calls verify_token?</button>
+              <button class="chip-btn" onclick="setInvestigateExample('What depends on IngestedRepository?')">IngestedRepository Impact</button>
+              <button class="chip-btn" onclick="setInvestigateExample('Show Git commit history for file_filter.py')">Git History (Deferred)</button>
+              <button class="chip-btn" onclick="setInvestigateExample('Check architecture conformance of web module')">Architecture Conformance (Deferred)</button>
+            </div>
+
+            <div class="investigate-textarea-wrapper">
+              <textarea
+                id="investigateQueryInput"
+                class="glow-textarea"
+                rows="3"
+                placeholder="Ask an investigative question (e.g. 'Where is FileFilter defined?', 'Who calls verify_token?', 'What depends on IngestedRepository?')..."
+              ></textarea>
+              <div class="investigate-action-row">
+                <div class="investigate-status-info">
+                  <span class="info-label">⚡ Multi-step investigation with tool execution, reference resolution & structured evidence</span>
+                </div>
+                <button id="investigateBtn" class="btn btn-accent">
+                  <span class="btn-spinner hidden" id="investigateSpinner"></span>
+                  <span class="btn-icon" id="investigateIcon">🕵️</span>
+                  <span class="btn-text" id="investigateBtnText">Investigate</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="investigate-result-container hidden" id="investigateResultContainer">
+            <div class="investigate-result-card">
+              <div class="investigate-meta-row">
+                <div class="meta-left-badges">
+                  <div class="status-badge" id="investigateStatusBadge">SUCCESS</div>
+                  <div class="intent-badge" id="investigateIntentBadge">UNDERSTAND (0.95)</div>
+                  <div class="entities-badge" id="investigateEntitiesBadge"></div>
+                </div>
+                <div class="latency-badge" id="investigateLatencyBadge">0ms</div>
+              </div>
+
+              <!-- Execution Plan & Provenance Section -->
+              <div class="investigate-plan-section" id="investigatePlanSection">
+                <div class="section-title">
+                  <span>📋</span> Investigation Plan & Tool Execution Provenance:
+                </div>
+                <div class="investigate-steps-list" id="investigateStepsList"></div>
+              </div>
+
+              <!-- Synthesized Answer Body -->
+              <div class="investigate-answer-section">
+                <div class="section-title">
+                  <span>💡</span> Synthesized Investigation Findings:
+                </div>
+                <div class="markdown-body" id="investigateAnswerBody"></div>
+              </div>
+
+              <!-- Verified Citations -->
+              <div class="citations-section" id="investigateCitationsSection">
+                <div class="citations-title">
+                  <span>📌</span> Verified Grounded Citations (Click to view code):
+                </div>
+                <div class="citations-list" id="investigateCitationsList"></div>
+              </div>
+
+              <!-- Limitations & Deferred Capabilities Section -->
+              <div class="investigate-limitations-section hidden" id="investigateLimitationsSection">
+                <div class="limitations-title">
+                  <span>⚠️</span> Deferred Capabilities & Investigation Limitations:
+                </div>
+                <div class="limitations-list" id="investigateLimitationsList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 6: Git Temporal Intelligence & Evolution (Phase 7) -->
+        <div class="tab-content" id="tabEvolution">
+          <div class="evolution-container">
+            <!-- Evolution Top Controls & Summary -->
+            <div class="evolution-header-card glass-card">
+              <div class="evolution-status-row">
+                <div class="evo-stat-badge" id="evoRepoStatusBadge">
+                  <span class="badge-dot"></span>
+                  <span id="evoRepoStatusText">Git: Ready</span>
+                </div>
+                <div class="evo-stat-badge">
+                  <span class="stat-icon">📅</span>
+                  <span id="evoCommitsCountText">0 Commits Mined</span>
+                </div>
+                <div class="evo-stat-badge">
+                  <span class="stat-icon">🔥</span>
+                  <span id="evoChurnTotalText">0 Total Churn Lines</span>
+                </div>
+                <div class="evo-stat-badge">
+                  <span class="stat-icon">🔗</span>
+                  <span id="evoCouplingCountText">0 Logical Couplings</span>
+                </div>
+                <button class="btn btn-secondary btn-sm" id="refreshEvolutionBtn" onclick="loadEvolutionData()">
+                  <span>🔄</span> Refresh Analytics
+                </button>
+              </div>
+
+              <div class="evolution-filter-row">
+                <input
+                  type="text"
+                  id="evoFileFilterInput"
+                  class="compact-input"
+                  placeholder="Filter by file path (e.g. src/ or specific file)..."
+                  oninput="onEvolutionFilterChanged()"
+                />
+                <select id="evoSortSelect" class="compact-select" onchange="onEvolutionFilterChanged()">
+                  <option value="commits">Rank Churn by Commits</option>
+                  <option value="total_churn">Rank Churn by Total Churn</option>
+                  <option value="additions">Rank Churn by Additions</option>
+                  <option value="deletions">Rank Churn by Deletions</option>
+                  <option value="authors">Rank Churn by Author Diversity</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Evolution Sub-Views Grid -->
+            <div class="evolution-sections-grid">
+              <!-- Section 1: Code Churn Hotspots -->
+              <div class="evolution-card glass-card">
+                <div class="card-title-row">
+                  <div class="card-title"><span>🔥</span> Code Churn Hotspots</div>
+                  <span class="count-pill" id="churnCountPill">0 files</span>
+                </div>
+                <div class="table-scroll-container" id="churnTableContainer">
+                  <div class="empty-state">
+                    <span class="empty-icon">⏳</span>
+                    <p>Scan a Git repository to calculate code churn hotspots.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 2: Logical Coupling Discovery -->
+              <div class="evolution-card glass-card">
+                <div class="card-title-row">
+                  <div class="card-title"><span>🔗</span> Logical Coupling (Co-Changes)</div>
+                  <span class="count-pill" id="couplingCountPill">0 pairs</span>
+                </div>
+                <div class="table-scroll-container" id="couplingTableContainer">
+                  <div class="empty-state">
+                    <span class="empty-icon">⏳</span>
+                    <p>Scan a Git repository to discover files that co-change together.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 3: Recent Commit History Stream -->
+              <div class="evolution-card glass-card full-width">
+                <div class="card-title-row">
+                  <div class="card-title"><span>📜</span> Git Commit History Stream</div>
+                  <span class="count-pill" id="historyCountPill">0 commits</span>
+                </div>
+                <div class="history-stream-container" id="historyStreamContainer">
+                  <div class="empty-state">
+                    <span class="empty-icon">⏳</span>
+                    <p>Scan a Git repository to stream commit history.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
