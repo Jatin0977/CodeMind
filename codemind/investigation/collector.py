@@ -488,6 +488,69 @@ class EvidenceCollector:
                     )
                 )
 
+        # 7. Impact & Test Intelligence tools (Phase 8 Active)
+        elif tool_name == "multi_signal_impact" and isinstance(data, dict):
+            target_info = data.get("target") or {}
+            comp_score = data.get("composite_score")
+            risk_level = data.get("risk_level")
+            self.add_item(
+                EvidenceItem(
+                    category="impact",
+                    source_tool=tool_name,
+                    source_step_id=step_id,
+                    relative_path=target_info.get("relative_path") or target_info.get("file_path"),
+                    symbol_name=target_info.get("name"),
+                    score=comp_score,
+                    provenance="multi_signal_impact",
+                    metadata={
+                        "target_node_id": target_info.get("node_id"),
+                        "risk_level": risk_level,
+                        "confidence": data.get("confidence"),
+                        "signals": data.get("signals", {}),
+                        "total_impacted": (data.get("blast_radius") or {}).get("total_impacted", 0),
+                    },
+                )
+            )
+            br = data.get("blast_radius") or {}
+            for inode in (br.get("impacted_nodes") or [])[:10]:
+                self.add_item(
+                    EvidenceItem(
+                        category="impact",
+                        source_tool=tool_name,
+                        source_step_id=step_id,
+                        relative_path=inode.get("file_path"),
+                        symbol_name=inode.get("name"),
+                        relationship_type=inode.get("direct_relationship"),
+                        provenance="blast_radius_node",
+                        metadata={
+                            "node_id": inode.get("node_id"),
+                            "depth": inode.get("depth"),
+                            "tags": inode.get("tags", []),
+                        },
+                    )
+                )
+
+        elif tool_name == "get_test_coverage" and isinstance(data, dict):
+            recs = data.get("recommendations", [])
+            for rec in recs:
+                self.add_item(
+                    EvidenceItem(
+                        category="test_intelligence",
+                        source_tool=tool_name,
+                        source_step_id=step_id,
+                        relative_path=rec.get("test_file"),
+                        symbol_name=rec.get("test_target"),
+                        score=rec.get("rank_score"),
+                        relationship_type=rec.get("evidence_type"),
+                        provenance="test_recommendation",
+                        metadata={
+                            "tier": rec.get("tier"),
+                            "associated_source_entity": rec.get("associated_source_entity"),
+                            "description": rec.get("description"),
+                        },
+                    )
+                )
+
         return len(self._items) - initial_count
 
     # Alias for convenience

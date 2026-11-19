@@ -868,6 +868,143 @@ def git_coupling_cli(
     return 0
 
 
+def impact_cli(
+    target: str,
+    repo_path: str = ".",
+    max_depth: int = 3,
+    include_temporal: bool = True,
+    show_tests: bool = True,
+    as_json: bool = False,
+) -> int:
+    """CLI handler for Phase 8 Change Impact & Test Intelligence."""
+    from .ingestion.repo_loader import RepositoryLoader
+    from .parsing.parser_factory import GLOBAL_PARSER_FACTORY
+    from .graph.builder import KnowledgeGraphBuilder
+    from .git.client import GitClient
+    from .git.miner import GitMiner
+    from .git.churn import CodeChurnAnalyzer
+    from .git.coupling import LogicalCouplingAnalyzer
+    from .impact.resolver import ChangeTargetResolver
+    from .impact.engine import ChangeImpactEngine
+    from .impact.scorer import MultiSignalImpactScorer
+    from .impact.test_intelligence import TestIntelligenceEngine
+    from .impact.models import AmbiguousTargetError, TargetNotFoundError
+
+    loader = RepositoryLoader()
+    try:
+        repo = loader.load_repository(repo_path)
+    except Exception as e:
+        print(f"Error loading repository '{repo_path}': {e}", file=sys.stderr)
+        return 1
+
+    builder = KnowledgeGraphBuilder()
+    parsed_files = {}
+    for sf in repo.files:
+        if sf.is_python:
+            try:
+                parsed = GLOBAL_PARSER_FACTORY.parse(sf)
+                if parsed:
+                    parsed_files[sf.relative_path] = parsed
+            except Exception:
+                pass
+    builder.build(repo, parsed_files)
+
+    git_client = GitClient(repo_path)
+    churn_analyzer = None
+    coupling_analyzer = None
+    commits = []
+    has_git = False
+
+    try:
+        if git_client.is_git_repository:
+            has_git = True
+            miner = GitMiner(git_client)
+            commits = miner.mine_commits(max_commits=500)
+            if commits:
+                churn_analyzer = CodeChurnAnalyzer()
+                churn_analyzer.analyze(commits)
+                coupling_analyzer = LogicalCouplingAnalyzer(min_support=3, min_confidence=0.5)
+                c_res = coupling_analyzer.analyze(commits)
+                builder.materialize_temporal_graph(commits, c_res.couplings, max_materialize_commits=100)
+    except Exception:
+        has_git = False
+
+    resolver = ChangeTargetResolver(builder.graph)
+    try:
+        resolved_target = resolver.resolve(target)
+    except AmbiguousTargetError as err:
+        print(f"Error: Symbol '{target}' is ambiguous ({len(err.candidates)} candidates found):", file=sys.stderr)
+        for c in err.candidates:
+            print(f"  - {c['node_id']} (in {c['file_path']}:{c.get('start_line') or 1})", file=sys.stderr)
+        print("Please specify qualified path: '<file>::<symbol>'", file=sys.stderr)
+        return 1
+    except TargetNotFoundError as err:
+        print(f"Error: Target '{target}' could not be resolved.", file=sys.stderr)
+        if err.suggestions:
+            print(f"Did you mean: {', '.join(err.suggestions)}?", file=sys.stderr)
+        return 1
+
+    has_tests = any("test" in (f.relative_path or "").lower() for f in repo.files)
+    impact_engine = ChangeImpactEngine(builder.graph, coupling_analyzer=coupling_analyzer)
+    test_engine = TestIntelligenceEngine(builder.graph, coupling_analyzer=coupling_analyzer, repo=repo)
+    scorer = MultiSignalImpactScorer(
+        churn_analyzer=churn_analyzer,
+        coupling_analyzer=coupling_analyzer,
+        has_git=has_git,
+        total_repo_commits=len(commits),
+        has_tests=has_tests,
+    )
+
+    blast_radius = impact_engine.analyze_blast_radius(resolved_target, max_depth=max_depth, include_temporal=include_temporal)
+    centrality = impact_engine.compute_centrality(resolved_target.node_id)
+    test_report = test_engine.analyze_tests(resolved_target, blast_radius)
+    impact_report = scorer.compute_impact(resolved_target, blast_radius, centrality, test_report)
+
+    if as_json:
+        print(json.dumps(impact_report.to_dict(), indent=2))
+        return 0
+
+    divider = "=" * 75
+    print(divider)
+    print(" CodeMind - Change Impact & Test Intelligence (Phase 8)")
+    print(divider)
+    print(f" Target: {resolved_target.name} (Type: {resolved_target.entity_type}, File: {resolved_target.relative_path or resolved_target.file_path})")
+    print(f" Composite Impact Score: {impact_report.composite_score:.2f} | Risk Level: {impact_report.risk_level}")
+    print(f" Confidence: {impact_report.confidence:.2f} ({impact_report.confidence_level}) | Blast Radius: {blast_radius.total_impacted} dependents")
+    print(divider)
+
+    print("\n--- Multi-Signal Score Breakdown ---")
+    print(f"{'Signal Name':<28} {'Raw Val':>8} {'Score':>8} {'Weight':>8} {'Available':>10}")
+    print("-" * 75)
+    for sig in impact_report.signals.values():
+        avail_str = "Yes" if sig.available else "No"
+        print(f"{sig.name:<28} {sig.raw_value:>8.1f} {sig.normalized_score:>8.2f} {sig.effective_weight:>8.2f} {avail_str:>10}")
+
+    print("\n--- Blast Radius Distribution ---")
+    depth_str = ", ".join(f"Depth {d}: {cnt}" for d, cnt in sorted(blast_radius.counts_by_depth.items()))
+    type_str = ", ".join(f"{t}: {cnt}" for t, cnt in sorted(blast_radius.counts_by_type.items()))
+    print(f" Total Reachable Dependents: {blast_radius.total_impacted} (max_depth={max_depth})")
+    if depth_str:
+        print(f" By Depth: {depth_str}")
+    if type_str:
+        print(f" By Entity Type: {type_str}")
+
+    if show_tests and test_report.total_tests > 0:
+        print(f"\n--- Prioritized Regression Test Recommendations ({test_report.total_tests} candidate(s)) ---")
+        print(f"{'Rank':<5} {'Tier':<5} {'Evidence Type':<22} {'Score':>6}  {'Test Target':<22} {'Test File'}")
+        print("-" * 75)
+        for idx, rec in enumerate(test_report.recommendations[:15], start=1):
+            tf = rec.test_file
+            if len(tf) > 28: tf = "..." + tf[-25:]
+            tt = rec.test_target
+            if len(tt) > 21: tt = tt[:18] + "..."
+            print(f"{idx:<5} {rec.tier:<5} {rec.evidence_type:<22} {rec.rank_score:>6.2f}  {tt:<22} {tf}")
+
+    print(f"\nNotice: {impact_report.blast_radius.disclaimer}")
+    print(divider)
+    return 0
+
+
 def main() -> int:
     """CLI entrypoint."""
     parser = argparse.ArgumentParser(
@@ -1231,6 +1368,45 @@ def main() -> int:
         help="Output couplings as JSON",
     )
 
+    # 11. 'impact' subcommand (Change Impact & Test Intelligence - Phase 8)
+    impact_parser = subparsers.add_parser(
+        "impact", help="Analyze reverse dependency blast radius and test intelligence (Phase 8)"
+    )
+    impact_parser.add_argument(
+        "target",
+        type=str,
+        help="Target entity: canonical node ID, file path, or symbol name (e.g. 'verify_token' or 'auth.py')",
+    )
+    impact_parser.add_argument(
+        "--path",
+        "-p",
+        default=".",
+        help="Path to repository (default: current directory)",
+    )
+    impact_parser.add_argument(
+        "--max-depth",
+        "-d",
+        type=int,
+        default=3,
+        help="Maximum reverse dependency traversal depth (default: 3)",
+    )
+    impact_parser.add_argument(
+        "--no-temporal",
+        action="store_true",
+        help="Disable strictly 1-hop logical co-change temporal expansion",
+    )
+    impact_parser.add_argument(
+        "--no-tests",
+        action="store_true",
+        help="Disable test recommendation discovery",
+    )
+    impact_parser.add_argument(
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output full impact report as JSON",
+    )
+
     args = parser.parse_args()
 
     if args.command == "inspect":
@@ -1320,6 +1496,15 @@ def main() -> int:
             min_support=args.min_support,
             min_confidence=args.min_confidence,
             limit=args.limit,
+            as_json=args.json,
+        )
+    elif args.command == "impact":
+        return impact_cli(
+            target=args.target,
+            repo_path=args.path,
+            max_depth=args.max_depth,
+            include_temporal=not args.no_temporal,
+            show_tests=not args.no_tests,
             as_json=args.json,
         )
     else:

@@ -12,7 +12,7 @@ from typing import List
 from .base import DeferredTool
 
 
-def create_deferred_tools(include_git: bool = True) -> List[DeferredTool]:
+def create_deferred_tools(include_git: bool = True, include_impact: bool = True) -> List[DeferredTool]:
     """
     Construct and return all formal DeferredTool instances for future/uninitialized phases.
     Preserves strict phase boundaries without fabricating analytical outputs.
@@ -21,6 +21,8 @@ def create_deferred_tools(include_git: bool = True) -> List[DeferredTool]:
         include_git: If True, includes Phase 7 Git Temporal deferred placeholders
                      (for Phase 6 backward compatibility / non-git environments).
                      If False, only includes Phase 8 and Phase 9 deferred tools.
+        include_impact: If True, includes Phase 8 Change Impact & Test Intelligence deferred placeholders.
+                        If False, omits Phase 8 (when active impact tools are registered).
     """
     tools = []
     if include_git:
@@ -52,34 +54,38 @@ def create_deferred_tools(include_git: bool = True) -> List[DeferredTool]:
             ),
         ])
 
+    if include_impact:
+        tools.extend([
+            # Phase 8 — Change Impact and Test Intelligence
+            DeferredTool(
+                name="multi_signal_impact",
+                description="Calculate explainable Multi-Signal Impact Score combining structural reach, churn, and logical coupling.",
+                target_phase="Phase 8: Change Impact and Test Intelligence",
+                required_capabilities=["coupling_miner", "centrality_scorer", "multi_signal_ranker"],
+                input_schema={
+                    "type": "object",
+                    "required": ["node_id"],
+                    "properties": {
+                        "node_id": {"type": "string", "description": "Target entity node ID"},
+                    },
+                },
+            ),
+            DeferredTool(
+                name="get_test_coverage",
+                description="Map code entities to direct and heuristically inferred automated test suites and regression paths.",
+                target_phase="Phase 8: Change Impact and Test Intelligence",
+                required_capabilities=["test_mapper", "coverage_analyzer"],
+                input_schema={
+                    "type": "object",
+                    "required": ["node_id"],
+                    "properties": {
+                        "node_id": {"type": "string", "description": "Target entity node ID"},
+                    },
+                },
+            ),
+        ])
+
     tools.extend([
-        # Phase 8 — Change Impact and Test Intelligence
-        DeferredTool(
-            name="multi_signal_impact",
-            description="Calculate explainable Multi-Signal Impact Score combining structural reach, churn, and logical coupling.",
-            target_phase="Phase 8: Change Impact and Test Intelligence",
-            required_capabilities=["coupling_miner", "centrality_scorer", "multi_signal_ranker"],
-            input_schema={
-                "type": "object",
-                "required": ["node_id"],
-                "properties": {
-                    "node_id": {"type": "string", "description": "Target entity node ID"},
-                },
-            },
-        ),
-        DeferredTool(
-            name="get_test_coverage",
-            description="Map code entities to direct and heuristically inferred automated test suites and regression paths.",
-            target_phase="Phase 8: Change Impact and Test Intelligence",
-            required_capabilities=["test_mapper", "coverage_analyzer"],
-            input_schema={
-                "type": "object",
-                "required": ["node_id"],
-                "properties": {
-                    "node_id": {"type": "string", "description": "Target entity node ID"},
-                },
-            },
-        ),
         # Phase 9 — Advanced Architecture and Risk Insights
         DeferredTool(
             name="detect_maintenance_hotspots",

@@ -26,6 +26,16 @@ from ..graph.builder import KnowledgeGraphBuilder
 from ..graph.query import GraphQueryEngine
 from ..investigation.engine import InvestigationEngine
 from ..investigation.models import InvestigationResult
+from ..impact.models import (
+    AmbiguousTargetError,
+    TargetNotFoundError,
+    TargetResolutionError,
+    ImpactAnalysisConfig,
+)
+from ..impact.resolver import ChangeTargetResolver
+from ..impact.engine import ChangeImpactEngine
+from ..impact.scorer import MultiSignalImpactScorer
+from ..impact.test_intelligence import TestIntelligenceEngine
 
 
 class ScanRequest(BaseModel):
@@ -44,6 +54,17 @@ class InvestigateRequest(BaseModel):
     query: str = Field(..., description="Developer investigation query")
     mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
     model: Optional[str] = Field(default=None, description="Optional LLM model name")
+
+
+class ImpactAnalyzeRequest(BaseModel):
+    target: str = Field(..., description="Target entity: canonical node ID, file path, or symbol name")
+    max_depth: int = Field(default=3, ge=1, le=10, description="Maximum traversal depth for blast radius")
+    include_temporal: bool = Field(default=True, description="Include strictly 1-hop logical co-change coupling")
+
+
+class ImpactTestsRequest(BaseModel):
+    target: str = Field(..., description="Target entity: canonical node ID, file path, or symbol name")
+    max_depth: int = Field(default=3, ge=1, le=10, description="Maximum traversal depth for blast radius")
 
 
 class CodebaseState:
@@ -67,6 +88,9 @@ class CodebaseState:
         self.git_commits: List[Any] = []
         self.git_churn_summary: Optional[Dict[str, Any]] = None
         self.git_couplings: List[Any] = []
+        self.impact_engine: Optional[ChangeImpactEngine] = None
+        self.impact_scorer: Optional[MultiSignalImpactScorer] = None
+        self.test_engine: Optional[TestIntelligenceEngine] = None
 
     def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
         """
@@ -82,6 +106,11 @@ class CodebaseState:
         self.git_commits = []
         self.git_churn_summary = None
         self.git_couplings = []
+
+        # Reset Phase 8 Impact state
+        self.impact_engine = None
+        self.impact_scorer = None
+        self.test_engine = None
 
         loader = RepositoryLoader()
         self.repo = loader.load_repository(repo_path)
@@ -208,6 +237,35 @@ class CodebaseState:
                 graph_summary = self.graph_builder.get_summary().to_dict()
         except Exception as e:
             self.git_status = {"is_git_repo": False, "error": str(e)}
+
+        # Initialize Phase 8: Change Impact and Test Intelligence
+        try:
+            if self.graph_builder and self.graph_builder.graph:
+                has_tests = any(
+                    "test" in (f.relative_path or "").lower() for f in self.repo.files
+                ) if self.repo else False
+                commits_count = len(self.git_commits) if self.git_commits else 0
+
+                self.impact_engine = ChangeImpactEngine(
+                    graph=self.graph_builder.graph,
+                    coupling_analyzer=self.git_coupling_analyzer,
+                )
+                self.impact_scorer = MultiSignalImpactScorer(
+                    churn_analyzer=self.git_churn_analyzer,
+                    coupling_analyzer=self.git_coupling_analyzer,
+                    has_git=bool(self.git_client and getattr(self.git_client, "is_git_repository", False)),
+                    total_repo_commits=commits_count,
+                    has_tests=has_tests,
+                )
+                self.test_engine = TestIntelligenceEngine(
+                    graph=self.graph_builder.graph,
+                    coupling_analyzer=self.git_coupling_analyzer,
+                    repo=self.repo,
+                )
+        except Exception:
+            self.impact_engine = None
+            self.impact_scorer = None
+            self.test_engine = None
 
         # Prepare file tree items
         files_data = [
@@ -391,6 +449,10 @@ def create_app():
             git_client=GLOBAL_STATE.git_client,
             git_churn_analyzer=GLOBAL_STATE.git_churn_analyzer,
             git_coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+            impact_engine=GLOBAL_STATE.impact_engine,
+            impact_scorer=GLOBAL_STATE.impact_scorer,
+            test_engine=GLOBAL_STATE.test_engine,
+            enable_impact=bool(GLOBAL_STATE.impact_engine is not None),
             llm_provider=llm_provider,
         )
 
@@ -675,5 +737,140 @@ def create_app():
                 }
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error retrieving coupling: {str(e)}")
+
+    # =========================================================================
+    # Change Impact and Test Intelligence Endpoints (Phase 8)
+    # =========================================================================
+
+    def _handle_impact_analysis(target: str, max_depth: int, include_temporal: bool):
+        if GLOBAL_STATE.repo is None or GLOBAL_STATE.graph_builder is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if not target or not target.strip():
+            raise HTTPException(status_code=400, detail="Target cannot be empty.")
+
+        g = GLOBAL_STATE.graph_builder.graph
+        if not g or g.number_of_nodes() == 0:
+            raise HTTPException(status_code=400, detail="Knowledge graph is empty or uninitialized.")
+
+        resolver = ChangeTargetResolver(g)
+        try:
+            resolved_target = resolver.resolve(target)
+        except AmbiguousTargetError as err:
+            raise HTTPException(
+                status_code=400,
+                detail=err.to_dict(),
+            )
+        except TargetNotFoundError as err:
+            raise HTTPException(
+                status_code=404,
+                detail=err.to_dict(),
+            )
+        except Exception as ex:
+            raise HTTPException(status_code=400, detail=f"Target resolution error: {str(ex)}")
+
+        impact_engine = GLOBAL_STATE.impact_engine or ChangeImpactEngine(
+            graph=g,
+            coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+        )
+        test_engine = GLOBAL_STATE.test_engine or TestIntelligenceEngine(
+            graph=g,
+            coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+            repo=GLOBAL_STATE.repo,
+        )
+        has_tests = any("test" in (f.relative_path or "").lower() for f in GLOBAL_STATE.repo.files) if GLOBAL_STATE.repo else False
+        commits_count = len(GLOBAL_STATE.git_commits) if GLOBAL_STATE.git_commits else 0
+
+        scorer = GLOBAL_STATE.impact_scorer or MultiSignalImpactScorer(
+            churn_analyzer=GLOBAL_STATE.git_churn_analyzer,
+            coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+            has_git=bool(GLOBAL_STATE.git_client and getattr(GLOBAL_STATE.git_client, "is_git_repository", False)),
+            total_repo_commits=commits_count,
+            has_tests=has_tests,
+        )
+
+        blast_radius = impact_engine.analyze_blast_radius(
+            target=resolved_target,
+            max_depth=max_depth,
+            include_temporal=include_temporal,
+        )
+        centrality = impact_engine.compute_centrality(resolved_target.node_id)
+        test_report = test_engine.analyze_tests(resolved_target, blast_radius)
+
+        report = scorer.compute_impact(
+            target=resolved_target,
+            blast_radius=blast_radius,
+            centrality=centrality,
+            test_report=test_report,
+        )
+        return report.to_dict()
+
+    @app.post("/api/impact/analyze")
+    def analyze_change_impact_post(request: ImpactAnalyzeRequest):
+        """Analyze multi-signal change impact and blast radius for target entity (POST)."""
+        return _handle_impact_analysis(
+            target=request.target,
+            max_depth=request.max_depth,
+            include_temporal=request.include_temporal,
+        )
+
+    @app.get("/api/impact/analyze")
+    def analyze_change_impact_get(
+        target: str,
+        max_depth: int = 3,
+        include_temporal: bool = True,
+    ):
+        """Analyze multi-signal change impact and blast radius for target entity (GET)."""
+        return _handle_impact_analysis(
+            target=target,
+            max_depth=max_depth,
+            include_temporal=include_temporal,
+        )
+
+    def _handle_impact_tests(target: str, max_depth: int):
+        if GLOBAL_STATE.repo is None or GLOBAL_STATE.graph_builder is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if not target or not target.strip():
+            raise HTTPException(status_code=400, detail="Target cannot be empty.")
+
+        g = GLOBAL_STATE.graph_builder.graph
+        if not g or g.number_of_nodes() == 0:
+            raise HTTPException(status_code=400, detail="Knowledge graph is empty or uninitialized.")
+
+        resolver = ChangeTargetResolver(g)
+        try:
+            resolved_target = resolver.resolve(target)
+        except AmbiguousTargetError as err:
+            raise HTTPException(status_code=400, detail=err.to_dict())
+        except TargetNotFoundError as err:
+            raise HTTPException(status_code=404, detail=err.to_dict())
+        except Exception as ex:
+            raise HTTPException(status_code=400, detail=f"Target resolution error: {str(ex)}")
+
+        impact_engine = GLOBAL_STATE.impact_engine or ChangeImpactEngine(
+            graph=g,
+            coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+        )
+        test_engine = GLOBAL_STATE.test_engine or TestIntelligenceEngine(
+            graph=g,
+            coupling_analyzer=GLOBAL_STATE.git_coupling_analyzer,
+            repo=GLOBAL_STATE.repo,
+        )
+
+        blast_radius = impact_engine.analyze_blast_radius(
+            target=resolved_target,
+            max_depth=max_depth,
+        )
+        test_report = test_engine.analyze_tests(resolved_target, blast_radius)
+        return test_report.to_dict()
+
+    @app.post("/api/impact/tests")
+    def analyze_impact_tests_post(request: ImpactTestsRequest):
+        """Discover and rank candidate regression tests across blast radius (POST)."""
+        return _handle_impact_tests(target=request.target, max_depth=request.max_depth)
+
+    @app.get("/api/impact/tests")
+    def analyze_impact_tests_get(target: str, max_depth: int = 3):
+        """Discover and rank candidate regression tests across blast radius (GET)."""
+        return _handle_impact_tests(target=target, max_depth=max_depth)
 
     return app

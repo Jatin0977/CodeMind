@@ -460,6 +460,7 @@ function switchTab(tab) {
   const tabGraphBtn = document.getElementById("tabGraphBtn");
   const tabInvestigateBtn = document.getElementById("tabInvestigateBtn");
   const tabEvolutionBtn = document.getElementById("tabEvolutionBtn");
+  const tabImpactBtn = document.getElementById("tabImpactBtn");
 
   const tabSymbols = document.getElementById("tabSymbols");
   const tabAnalysis = document.getElementById("tabAnalysis");
@@ -467,6 +468,7 @@ function switchTab(tab) {
   const tabGraph = document.getElementById("tabGraph");
   const tabInvestigate = document.getElementById("tabInvestigate");
   const tabEvolution = document.getElementById("tabEvolution");
+  const tabImpact = document.getElementById("tabImpact");
 
   if (tabSymbolsBtn) tabSymbolsBtn.classList.toggle("active", tab === "symbols");
   if (tabAnalysisBtn) tabAnalysisBtn.classList.toggle("active", tab === "analysis");
@@ -474,6 +476,7 @@ function switchTab(tab) {
   if (tabGraphBtn) tabGraphBtn.classList.toggle("active", tab === "graph");
   if (tabInvestigateBtn) tabInvestigateBtn.classList.toggle("active", tab === "investigate");
   if (tabEvolutionBtn) tabEvolutionBtn.classList.toggle("active", tab === "evolution");
+  if (tabImpactBtn) tabImpactBtn.classList.toggle("active", tab === "impact");
 
   if (tabSymbols) tabSymbols.classList.toggle("active", tab === "symbols");
   if (tabAnalysis) tabAnalysis.classList.toggle("active", tab === "analysis");
@@ -481,6 +484,7 @@ function switchTab(tab) {
   if (tabGraph) tabGraph.classList.toggle("active", tab === "graph");
   if (tabInvestigate) tabInvestigate.classList.toggle("active", tab === "investigate");
   if (tabEvolution) tabEvolution.classList.toggle("active", tab === "evolution");
+  if (tabImpact) tabImpact.classList.toggle("active", tab === "impact");
 
   if (tab === "graph") {
     onGraphTabActivated();
@@ -2066,5 +2070,203 @@ function renderHistoryStream(commits) {
   });
   html += `</div>`;
   container.innerHTML = html;
+}
+
+// =============================================================================
+// Phase 8: Change Impact & Test Intelligence UI Handlers
+// =============================================================================
+
+async function runImpactAnalysis() {
+  const targetInput = document.getElementById("impactTargetInput");
+  const depthSelect = document.getElementById("impactDepthSelect");
+  const temporalCheck = document.getElementById("impactTemporalCheck");
+  const runBtn = document.getElementById("runImpactBtn");
+
+  const target = (targetInput?.value || "").trim();
+  if (!target) {
+    showToast("Please enter a target symbol or file name to analyze.", true);
+    return;
+  }
+
+  const maxDepth = parseInt(depthSelect?.value || "3", 10);
+  const includeTemporal = temporalCheck ? temporalCheck.checked : true;
+
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.innerHTML = `<span>⏳</span> Analyzing...`;
+  }
+
+  try {
+    const res = await fetch(`/api/impact/analyze?target=${encodeURIComponent(target)}&max_depth=${maxDepth}&include_temporal=${includeTemporal}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ detail: "Analysis failed" }));
+      const detail = errData.detail;
+      if (typeof detail === "object" && detail.error_type === "AmbiguousTargetError") {
+        let msg = `Ambiguous symbol '${target}' matches ${detail.candidate_count} candidates:\n`;
+        (detail.candidates || []).forEach(c => {
+          msg += `• ${c.node_id} (${c.file_path})\n`;
+        });
+        showToast("Symbol is ambiguous. See candidate list in console.", true);
+        console.warn(msg, detail.candidates);
+        alert(msg + "\nPlease specify a qualified path.");
+      } else if (typeof detail === "object" && detail.error_type === "TargetNotFoundError") {
+        let msg = `Target '${target}' not found.`;
+        if (detail.suggestions && detail.suggestions.length > 0) {
+          msg += ` Did you mean: ${detail.suggestions.join(", ")}?`;
+        }
+        showToast(msg, true);
+      } else {
+        showToast(typeof detail === "string" ? detail : "Failed to analyze impact.", true);
+      }
+      return;
+    }
+
+    const report = await res.json();
+    renderImpactReport(report);
+
+    // Also fetch test recommendations
+    const testRes = await fetch(`/api/impact/tests?target=${encodeURIComponent(target)}&max_depth=${maxDepth}`);
+    if (testRes.ok) {
+      const testReport = await testRes.json();
+      renderImpactTestRecommendations(testReport);
+    }
+  } catch (err) {
+    showToast(`Network error analyzing impact: ${err.message}`, true);
+  } finally {
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.innerHTML = `<span>⚡</span> Analyze Impact`;
+    }
+  }
+}
+
+function renderImpactReport(report) {
+  const emptyState = document.getElementById("impactEmptyState");
+  const resultsDiv = document.getElementById("impactResults");
+  if (emptyState) emptyState.style.display = "none";
+  if (resultsDiv) resultsDiv.style.display = "block";
+
+  // 1. Metric Badges
+  const riskBadge = document.getElementById("impactRiskBadge");
+  const scoreText = document.getElementById("impactScoreText");
+  const blastCount = document.getElementById("impactBlastCount");
+  const blastBreakdown = document.getElementById("impactBlastBreakdown");
+  const confVal = document.getElementById("impactConfidence");
+  const confCat = document.getElementById("impactConfidenceCategory");
+
+  const riskColors = {
+    CRITICAL: "#ef4444",
+    HIGH: "#f97316",
+    MEDIUM: "#eab308",
+    LOW: "#22c55e",
+  };
+
+  if (riskBadge) {
+    riskBadge.textContent = report.risk_level || "UNKNOWN";
+    riskBadge.style.color = riskColors[report.risk_level] || "#60a5fa";
+  }
+  if (scoreText) scoreText.textContent = `Composite: ${(report.composite_score || 0).toFixed(2)}`;
+  if (blastCount) blastCount.textContent = (report.blast_radius?.total_impacted || 0);
+
+  if (blastBreakdown) {
+    const depths = report.blast_radius?.counts_by_depth || {};
+    const dStr = Object.entries(depths).map(([d, c]) => `D${d}:${c}`).join(" | ");
+    blastBreakdown.textContent = dStr || "None";
+  }
+
+  if (confVal) confVal.textContent = (report.confidence || 0).toFixed(2);
+  if (confCat) confCat.textContent = report.confidence_level || "MEDIUM";
+
+  // 2. Diagnostics
+  const diagAlert = document.getElementById("impactDiagnosticAlert");
+  if (diagAlert) {
+    if (report.diagnostics && report.diagnostics.length > 0) {
+      diagAlert.classList.remove("hidden");
+      diagAlert.innerHTML = `<strong>Analysis Notes:</strong><ul style="margin: 0.25rem 0 0 1.25rem; padding: 0;">${report.diagnostics.map(d => `<li>${escapeHtml(d)}</li>`).join("")}</ul>`;
+    } else {
+      diagAlert.classList.add("hidden");
+    }
+  }
+
+  // 3. Signals Table
+  const signalsTbody = document.getElementById("impactSignalsTableBody");
+  if (signalsTbody && report.signals) {
+    let rowsHtml = "";
+    Object.values(report.signals).forEach(sig => {
+      const availBadge = sig.available
+        ? `<span class="badge badge-success" style="background:#065f46; color:#34d399; padding:2px 8px; border-radius:4px; font-size:0.75rem;">Active</span>`
+        : `<span class="badge badge-secondary" style="background:#374151; color:#9ca3af; padding:2px 8px; border-radius:4px; font-size:0.75rem;">Omitted</span>`;
+
+      rowsHtml += `
+        <tr>
+          <td><strong>${escapeHtml(sig.name.replace(/_/g, " "))}</strong></td>
+          <td>${sig.raw_value.toFixed(1)}</td>
+          <td><strong>${sig.normalized_score.toFixed(2)}</strong></td>
+          <td>${sig.effective_weight.toFixed(2)}</td>
+          <td>${availBadge}</td>
+          <td style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(sig.description)}</td>
+        </tr>
+      `;
+    });
+    signalsTbody.innerHTML = rowsHtml;
+  }
+
+  // 4. Blast Radius Table
+  const blastTbody = document.getElementById("impactBlastTableBody");
+  if (blastTbody && report.blast_radius?.impacted_nodes) {
+    let bHtml = "";
+    report.blast_radius.impacted_nodes.forEach(node => {
+      const tagPills = (node.tags || []).map(t =>
+        `<span style="background:rgba(99,102,241,0.2); color:#a5b4fc; padding:1px 6px; border-radius:3px; font-size:0.7rem; margin-right:4px;">${escapeHtml(t)}</span>`
+      ).join("");
+
+      bHtml += `
+        <tr>
+          <td><span style="font-weight:600; color:#38bdf8;">Depth ${node.depth}</span></td>
+          <td><strong>${escapeHtml(node.name)}</strong></td>
+          <td><span class="badge" style="font-size:0.75rem;">${escapeHtml(node.entity_type)}</span></td>
+          <td>${escapeHtml(node.direct_relationship || 'DIRECT')}</td>
+          <td>${tagPills || '-'}</td>
+          <td style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(node.file_path || '-')}</td>
+        </tr>
+      `;
+    });
+    blastTbody.innerHTML = bHtml || `<tr><td colspan="6" style="text-align:center; color:var(--text-tertiary);">No reverse dependents found in blast radius.</td></tr>`;
+  }
+}
+
+function renderImpactTestRecommendations(testReport) {
+  const testCountBadge = document.getElementById("impactTestCount");
+  if (testCountBadge) testCountBadge.textContent = testReport.total_tests || 0;
+
+  const testTbody = document.getElementById("impactTestsTableBody");
+  const disclaimerP = document.getElementById("impactTestDisclaimer");
+
+  if (disclaimerP) {
+    disclaimerP.textContent = testReport.disclaimer || "";
+  }
+
+  if (testTbody && testReport.recommendations) {
+    let tHtml = "";
+    testReport.recommendations.forEach((rec, idx) => {
+      const tierBadge = rec.tier === 0
+        ? `<span style="background:#065f46; color:#34d399; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600;">Tier 0 (Target)</span>`
+        : (rec.tier === 1
+          ? `<span style="background:#1e3a8a; color:#93c5fd; padding:2px 8px; border-radius:4px; font-size:0.75rem;">Tier 1 (Direct)</span>`
+          : `<span style="background:#374151; color:#d1d5db; padding:2px 8px; border-radius:4px; font-size:0.75rem;">Tier 2 (Transitive)</span>`);
+
+      tHtml += `
+        <tr>
+          <td>${tierBadge}</td>
+          <td><code>${escapeHtml(rec.evidence_type)}</code></td>
+          <td><strong>${rec.rank_score.toFixed(2)}</strong></td>
+          <td><strong>${escapeHtml(rec.test_target)}</strong></td>
+          <td style="font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(rec.test_file)}</td>
+          <td style="font-size:0.8rem; color:var(--text-tertiary);">${escapeHtml(rec.description)}</td>
+        </tr>
+      `;
+    });
+    testTbody.innerHTML = tHtml || `<tr><td colspan="6" style="text-align:center; color:var(--text-tertiary);">No candidate regression tests discovered for target blast radius.</td></tr>`;
+  }
 }
 

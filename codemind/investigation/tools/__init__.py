@@ -19,6 +19,7 @@ from .graph_tools import (
 )
 from .retrieval_tools import SemanticSearchTool, HybridSearchTool
 from .git_tools import GitCommitHistoryTool, GitCodeChurnTool, GitLogicalCouplingTool
+from .impact_tools import MultiSignalImpactTool, GetTestCoverageTool
 from .deferred_tools import create_deferred_tools
 
 from ...ingestion.models import IngestedRepository
@@ -37,6 +38,12 @@ def create_tool_registry(
     git_churn_analyzer: Optional[Any] = None,
     git_coupling_analyzer: Optional[Any] = None,
     enable_git: bool = False,
+    impact_engine: Optional[Any] = None,
+    impact_scorer: Optional[Any] = None,
+    test_engine: Optional[Any] = None,
+    enable_impact: bool = False,
+    has_tests: bool = False,
+    total_repo_commits: int = 0,
 ) -> ToolRegistry:
     """
     Construct and return a deterministic ToolRegistry populated with all
@@ -48,27 +55,20 @@ def create_tool_registry(
                    trace_structural_impact, detect_cycles
     3. Retrieval tools: semantic_search, hybrid_search
     4. Git Temporal tools (Phase 7): git_commit_history, git_code_churn, git_logical_coupling (if Git enabled)
-    5. Deferred tools (Phases 8, 9, or Phases 7-9 when Git uninitialized/disabled):
+    5. Impact tools (Phase 8): multi_signal_impact, get_test_coverage (if Impact enabled)
+    6. Deferred tools (Phases 9, or uninitialized Phases 7/8):
        - Phase 7: git_commit_history, git_code_churn (when Git uninitialized)
-       - Phase 8: multi_signal_impact, get_test_coverage
+       - Phase 8: multi_signal_impact, get_test_coverage (when Impact uninitialized)
        - Phase 9: detect_maintenance_hotspots, check_architecture_conformance
-
-    Args:
-        repo: Optional IngestedRepository instance for file reading.
-        query_engine: Optional GraphQueryEngine instance for AST graph queries.
-        retriever: Optional SemanticRetriever instance for vector search.
-        hybrid_retriever: Optional HybridGraphRetriever instance for hybrid search.
-        git_miner: Optional GitMiner instance for commit history & mining.
-        git_client: Optional GitClient instance.
-        git_churn_analyzer: Optional CodeChurnAnalyzer instance for churn analytics.
-        git_coupling_analyzer: Optional LogicalCouplingAnalyzer instance.
-        enable_git: Explicit flag to force active Git tool registration even if analyzers are not yet passed.
 
     Returns:
         Populated ToolRegistry with deterministic ordering.
     """
     has_git = enable_git or any(
         x is not None for x in (git_miner, git_client, git_churn_analyzer, git_coupling_analyzer)
+    )
+    has_impact = enable_impact or any(
+        x is not None for x in (impact_engine, impact_scorer, test_engine)
     )
     registry = ToolRegistry()
 
@@ -89,8 +89,8 @@ def create_tool_registry(
     registry.register(SemanticSearchTool(retriever=retriever))
     registry.register(HybridSearchTool(hybrid_retriever=hybrid_retriever))
 
+    # 4. Git Temporal Tools (Phase 7 Active)
     if has_git:
-        # 4. Git Temporal Tools (Phase 7 Active)
         registry.register(
             GitCommitHistoryTool(
                 git_miner=git_miner,
@@ -112,13 +112,37 @@ def create_tool_registry(
             )
         )
 
-        # 5. Deferred Tools (Phases 8, 9 only)
-        for def_tool in create_deferred_tools(include_git=False):
-            registry.register(def_tool)
-    else:
-        # 5. Deferred Tools (Phases 7, 8, 9 for uninitialized / non-git mode)
-        for def_tool in create_deferred_tools(include_git=True):
-            registry.register(def_tool)
+    # 5. Impact Tools (Phase 8 Active)
+    if has_impact:
+        registry.register(
+            MultiSignalImpactTool(
+                query_engine=query_engine,
+                impact_engine=impact_engine,
+                scorer=impact_scorer,
+                test_engine=test_engine,
+                coupling_analyzer=git_coupling_analyzer,
+                churn_analyzer=git_churn_analyzer,
+                has_git=has_git,
+                total_repo_commits=total_repo_commits,
+                has_tests=has_tests,
+            )
+        )
+        registry.register(
+            GetTestCoverageTool(
+                query_engine=query_engine,
+                impact_engine=impact_engine,
+                test_engine=test_engine,
+                coupling_analyzer=git_coupling_analyzer,
+            )
+        )
+
+    # 6. Deferred Tools (Phases 9 and any inactive future phases)
+    deferred_tools = create_deferred_tools(
+        include_git=not has_git,
+        include_impact=not has_impact,
+    )
+    for def_tool in deferred_tools:
+        registry.register(def_tool)
 
     return registry
 
@@ -142,6 +166,8 @@ __all__ = [
     "GitCommitHistoryTool",
     "GitCodeChurnTool",
     "GitLogicalCouplingTool",
+    "MultiSignalImpactTool",
+    "GetTestCoverageTool",
     "create_deferred_tools",
     "create_tool_registry",
 ]

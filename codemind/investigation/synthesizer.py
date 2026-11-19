@@ -312,6 +312,8 @@ class InvestigationSynthesizer:
         graph_cites = [c for c in citations if c.category == "graph"]
         retrieval_cites = [c for c in citations if c.category == "retrieval"]
         temporal_cites = [c for c in citations if c.category == "temporal"]
+        impact_cites = [c for c in citations if c.category == "impact"]
+        test_cites = [c for c in citations if c.category == "test_intelligence"]
         deferred_cites = [c for c in citations if c.category == "deferred"]
 
         # Check for ambiguity and failure warnings in steps
@@ -333,7 +335,14 @@ class InvestigationSynthesizer:
         # ---------------------------------------------------------------------
         # 1. Direct Answer & Status Assessment
         # ---------------------------------------------------------------------
-        has_evidence = len(code_cites) > 0 or len(graph_cites) > 0 or len(retrieval_cites) > 0 or len(temporal_cites) > 0
+        has_evidence = (
+            len(code_cites) > 0
+            or len(graph_cites) > 0
+            or len(retrieval_cites) > 0
+            or len(temporal_cites) > 0
+            or len(impact_cites) > 0
+            or len(test_cites) > 0
+        )
 
         if not has_evidence:
             if deferred_cites and not failure_warnings:
@@ -372,6 +381,22 @@ class InvestigationSynthesizer:
         if temporal_cites:
             direct_answer_parts.append(
                 f"Mined {len(temporal_cites)} temporal Git revision, code churn, or logical coupling record(s)."
+            )
+
+        if impact_cites:
+            top_imp = impact_cites[0]
+            meta = top_imp.metadata or {}
+            risk = meta.get("risk_level", "UNKNOWN")
+            tot = meta.get("total_impacted", 0)
+            score_val = f"{top_imp.score:.2f}" if top_imp.score is not None else "N/A"
+            direct_answer_parts.append(
+                f"Calculated change impact for `{top_imp.symbol_name or 'target'}`: Risk Level **{risk}** "
+                f"(Impact Score: {score_val}, Reachable Dependents: {tot})."
+            )
+
+        if test_cites:
+            direct_answer_parts.append(
+                f"Identified {len(test_cites)} candidate regression test(s) across the blast radius."
             )
 
         if retrieval_cites and not code_cites:
@@ -440,6 +465,29 @@ class InvestigationSynthesizer:
             score_str = f" (Score: {r.score:.3f})" if r.score is not None else ""
             prov_str = f" [{r.provenance}]" if r.provenance else ""
             findings.append(f"- **Retrieved Context**: Relevant chunk in `{r.to_citation_tag()}`{prov_str}{score_str}.")
+
+        # Impact findings
+        for im in impact_cites:
+            meta = im.metadata or {}
+            loc = im.to_citation_tag()
+            if im.provenance == "multi_signal_impact":
+                risk = meta.get("risk_level", "UNKNOWN")
+                tot = meta.get("total_impacted", 0)
+                conf = meta.get("confidence", 1.0)
+                score_str = f"{im.score:.2f}" if im.score is not None else "N/A"
+                findings.append(f"- **Change Impact Assessment**: `{im.symbol_name}` is classified as **{risk}** risk (Score: {score_str}, Confidence: {conf:.2f}, Dependents: {tot}) via `{loc}`.")
+            elif im.provenance == "blast_radius_node":
+                depth = meta.get("depth", 1)
+                tags = ", ".join(meta.get("tags", []))
+                findings.append(f"- **Impacted Dependent (Depth {depth})**: `{im.symbol_name}` ({tags}) at `{loc}`.")
+
+        # Test Intelligence findings
+        for tc in test_cites:
+            meta = tc.metadata or {}
+            tier = meta.get("tier", 0)
+            score_str = f" (Score: {tc.score:.2f})" if tc.score is not None else ""
+            ev_type = tc.relationship_type or "HEURISTIC"
+            findings.append(f"- **Recommended Test (Tier {tier}, {ev_type})**: `{tc.symbol_name}` in `{tc.to_citation_tag()}`{score_str}.")
 
         if findings:
             sections.append("### Key Findings\n" + "\n".join(findings))

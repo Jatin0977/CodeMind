@@ -197,6 +197,9 @@
           <button class="tab-btn" id="tabEvolutionBtn" onclick="switchTab('evolution')">
             <span>⏳</span> Evolution & Git Intelligence
           </button>
+          <button class="tab-btn" id="tabImpactBtn" onclick="switchTab('impact')">
+            <span>🎯</span> Change Impact & Tests
+          </button>
         </div>
 
         <!-- Tab 1: AST Symbol Inspector -->
@@ -627,6 +630,131 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 7: Change Impact & Test Intelligence (Phase 8) -->
+        <div class="tab-content" id="tabImpact">
+          <div class="impact-container" style="padding: 1rem;">
+            <div class="impact-query-bar" style="display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;">
+              <input
+                type="text"
+                class="input-box"
+                id="impactTargetInput"
+                style="flex: 1; min-width: 250px;"
+                placeholder="Target symbol, class, function, or file (e.g. verify_token, auth.py, UserService)..."
+              />
+              <select class="input-box" id="impactDepthSelect" style="max-width: 140px;">
+                <option value="1">Depth 1</option>
+                <option value="2">Depth 2</option>
+                <option value="3" selected>Depth 3</option>
+                <option value="4">Depth 4</option>
+                <option value="5">Depth 5</option>
+              </select>
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+                <input type="checkbox" id="impactTemporalCheck" checked /> Co-Change
+              </label>
+              <button class="btn btn-primary" id="runImpactBtn" onclick="runImpactAnalysis()">
+                <span>⚡</span> Analyze Impact
+              </button>
+            </div>
+
+            <!-- Impact Results View -->
+            <div class="impact-results" id="impactResults" style="display: none;">
+              <!-- Summary Score Cards -->
+              <div class="metrics-grid" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
+                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Impact Risk Level</div>
+                  <div class="metric-value" id="impactRiskBadge" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">-</div>
+                  <div class="metric-subtext" id="impactScoreText" style="font-size: 0.8rem; color: var(--text-tertiary);">Composite: -</div>
+                </div>
+                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
+                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Reachable Blast Radius</div>
+                  <div class="metric-value" id="impactBlastCount" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">0</div>
+                  <div class="metric-subtext" id="impactBlastBreakdown" style="font-size: 0.8rem; color: var(--text-tertiary);">-</div>
+                </div>
+                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
+                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Confidence Score</div>
+                  <div class="metric-value" id="impactConfidence" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">1.00</div>
+                  <div class="metric-subtext" id="impactConfidenceCategory" style="font-size: 0.8rem; color: var(--text-tertiary);">HIGH</div>
+                </div>
+                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
+                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Recommended Tests</div>
+                  <div class="metric-value" id="impactTestCount" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">0</div>
+                  <div class="metric-subtext" style="font-size: 0.8rem; color: var(--text-tertiary);">Regression candidates</div>
+                </div>
+              </div>
+
+              <!-- Diagnostic callout -->
+              <div class="alert alert-info hidden" id="impactDiagnosticAlert" style="margin-bottom: 1.5rem; padding: 0.75rem; border-radius: 6px; background: rgba(59,130,246,0.1); border-left: 3px solid #3b82f6;"></div>
+
+              <!-- Multi-Signal Breakdown -->
+              <div class="glass-card" style="padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
+                <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: var(--text-primary);">📊 Multi-Signal Impact Breakdown</h4>
+                <div class="table-scroll-container">
+                  <table class="data-table" style="width: 100%;">
+                    <thead>
+                      <tr>
+                        <th>Signal</th>
+                        <th>Raw Value</th>
+                        <th>Normalized</th>
+                        <th>Effective Weight</th>
+                        <th>Status</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody id="impactSignalsTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Blast Radius Table -->
+              <div class="glass-card" style="padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
+                <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: var(--text-primary);">💥 Reverse Dependency Blast Radius</h4>
+                <div class="table-scroll-container">
+                  <table class="data-table" style="width: 100%;">
+                    <thead>
+                      <tr>
+                        <th>Depth</th>
+                        <th>Entity</th>
+                        <th>Type</th>
+                        <th>Relationship</th>
+                        <th>Tags</th>
+                        <th>File Location</th>
+                      </tr>
+                    </thead>
+                    <tbody id="impactBlastTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Prioritized Tests Table -->
+              <div class="glass-card" style="padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
+                <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: var(--text-primary);">🧪 Prioritized Regression Test Recommendations</h4>
+                <div class="table-scroll-container">
+                  <table class="data-table" style="width: 100%;">
+                    <thead>
+                      <tr>
+                        <th>Tier</th>
+                        <th>Evidence Type</th>
+                        <th>Priority Score</th>
+                        <th>Test Target</th>
+                        <th>Test File</th>
+                        <th>Evidence Description</th>
+                      </tr>
+                    </thead>
+                    <tbody id="impactTestsTableBody"></tbody>
+                  </table>
+                </div>
+                <p class="disclaimer-text" style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.5rem;" id="impactTestDisclaimer"></p>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="impactEmptyState" style="text-align: center; padding: 3rem 1rem;">
+              <span class="empty-icon" style="font-size: 2.5rem;">🎯</span>
+              <p style="color: var(--text-secondary); margin-top: 0.5rem;">Enter any symbol name, class, function, or file path above to calculate its multi-signal blast radius and prioritized test candidates.</p>
             </div>
           </div>
         </div>

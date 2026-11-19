@@ -50,6 +50,10 @@ class InvestigationEngine:
         git_client: Optional[Any] = None,
         git_churn_analyzer: Optional[Any] = None,
         git_coupling_analyzer: Optional[Any] = None,
+        impact_engine: Optional[Any] = None,
+        impact_scorer: Optional[Any] = None,
+        test_engine: Optional[Any] = None,
+        enable_impact: bool = False,
     ):
         """
         Initialize the investigation engine with explicit dependencies.
@@ -63,6 +67,9 @@ class InvestigationEngine:
         self.git_client = git_client
         self.git_churn_analyzer = git_churn_analyzer
         self.git_coupling_analyzer = git_coupling_analyzer
+        self.impact_engine = impact_engine
+        self.impact_scorer = impact_scorer
+        self.test_engine = test_engine
 
         # 1. Tool registry
         if registry is not None:
@@ -77,6 +84,10 @@ class InvestigationEngine:
                 git_client=git_client,
                 git_churn_analyzer=git_churn_analyzer,
                 git_coupling_analyzer=git_coupling_analyzer,
+                impact_engine=impact_engine,
+                impact_scorer=impact_scorer,
+                test_engine=test_engine,
+                enable_impact=enable_impact,
             )
 
         # 2. Intent classifier
