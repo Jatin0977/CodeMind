@@ -34,6 +34,22 @@ class TestInvestigationAPI(unittest.TestCase):
             encoding="utf-8",
         )
 
+        core_dir = cls.repo_path / "core"
+        core_dir.mkdir(parents=True, exist_ok=True)
+        (core_dir / "__init__.py").write_text("", encoding="utf-8")
+        (core_dir / "service.py").write_text(
+            "import os\nfrom util.logger import log\n\ndef process():\n    log('processing')\n",
+            encoding="utf-8",
+        )
+
+        util_dir = cls.repo_path / "util"
+        util_dir.mkdir(parents=True, exist_ok=True)
+        (util_dir / "__init__.py").write_text("", encoding="utf-8")
+        (util_dir / "logger.py").write_text(
+            "def log(msg):\n    print(msg)\n",
+            encoding="utf-8",
+        )
+
     @classmethod
     def tearDownClass(cls):
         cls.temp_dir.cleanup()
@@ -141,3 +157,95 @@ class TestInvestigationAPI(unittest.TestCase):
         self.assertEqual(data1["intent"].lower(), "understand")
         self.assertEqual(data2["intent"].lower(), "structure")
         self.assertNotEqual(data1["query"], data2["query"])
+
+    def test_investigate_architecture_overview(self):
+        scan_resp = self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
+        self.assertEqual(scan_resp.status_code, 200)
+
+        resp = self.client.post(
+            "/api/investigate",
+            json={"query": "Show the architecture overview and module hierarchy", "mock": True},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(data["intent"].lower(), "insights")
+        self.assertIn(data["overall_status"], ["SUCCESS", "PARTIAL_SUCCESS"])
+        self.assertTrue(any(sr["tool_name"] == "get_architecture_overview" for sr in data["step_results"]))
+        self.assertTrue(any(e["category"] == "architecture" for e in data["evidence"]))
+        self.assertTrue(len(data["final_answer"]) > 0)
+
+    def test_investigate_architecture_conformance(self):
+        scan_resp = self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
+        self.assertEqual(scan_resp.status_code, 200)
+
+        resp = self.client.post(
+            "/api/investigate",
+            json={"query": "Check architecture conformance and rule violations", "mock": True},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(data["intent"].lower(), "insights")
+        self.assertTrue(any(sr["tool_name"] == "check_architecture_conformance" for sr in data["step_results"]))
+        self.assertTrue(any(e["category"] == "architecture" for e in data["evidence"]))
+
+    def test_investigate_package_cycles(self):
+        scan_resp = self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
+        self.assertEqual(scan_resp.status_code, 200)
+
+        resp = self.client.post(
+            "/api/investigate",
+            json={"query": "Detect circular package dependencies", "mock": True},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(data["intent"].lower(), "insights")
+        self.assertTrue(any(sr["tool_name"] == "detect_package_cycles" for sr in data["step_results"]))
+
+    def test_investigate_maintenance_hotspots(self):
+        scan_resp = self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
+        self.assertEqual(scan_resp.status_code, 200)
+
+        resp = self.client.post(
+            "/api/investigate",
+            json={"query": "Detect maintenance hotspots and risk", "mock": True},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(data["intent"].lower(), "insights")
+        self.assertTrue(any(sr["tool_name"] == "detect_maintenance_hotspots" for sr in data["step_results"]))
+
+    def test_architecture_rest_endpoints(self):
+        scan_resp = self.client.post("/api/scan", json={"repo_path": str(self.repo_path)})
+        self.assertEqual(scan_resp.status_code, 200)
+
+        # 1. Overview
+        resp_overview = self.client.get("/api/architecture/overview")
+        self.assertEqual(resp_overview.status_code, 200)
+        data_overview = resp_overview.json()
+        self.assertIn("modules", data_overview)
+        self.assertIn("quotient_graph", data_overview)
+
+        # 2. Conformance
+        resp_conf = self.client.get("/api/architecture/conformance")
+        self.assertEqual(resp_conf.status_code, 200)
+        data_conf = resp_conf.json()
+        self.assertIn("conformance_index", data_conf)
+        self.assertIn("violations", data_conf)
+
+        # 3. Cycles
+        resp_cycles = self.client.get("/api/architecture/cycles")
+        self.assertEqual(resp_cycles.status_code, 200)
+        data_cycles = resp_cycles.json()
+        self.assertIn("has_cycles", data_cycles)
+        self.assertIn("cycles", data_cycles)
+
+        # 4. Hotspots
+        resp_hotspots = self.client.get("/api/architecture/hotspots")
+        self.assertEqual(resp_hotspots.status_code, 200)
+        data_hotspots = resp_hotspots.json()
+        self.assertIn("repository_risk_score", data_hotspots)
+        self.assertIn("hotspots", data_hotspots)

@@ -181,13 +181,19 @@ class InvestigationSynthesizer:
         if self.llm_provider is not None and not self.use_fallback_only:
             try:
                 answer = self._synthesize_with_llm(result, citations)
-                if answer and answer.strip():
+                is_insufficient = (
+                    "insufficient context" in (answer or "").lower()
+                    and any(c.category == "architecture" for c in citations)
+                )
+                if answer and answer.strip() and not is_insufficient:
                     result.final_answer = answer
                     result.metadata["synthesizer"] = {
                         "provider": self.llm_provider.model_name,
                         "fallback_used": False,
                     }
                     return answer
+                elif is_insufficient:
+                    logger.info("LLM reported insufficient context despite architecture evidence. Using deterministic fallback.")
             except Exception as exc:
                 logger.warning(
                     f"LLM provider '{self.llm_provider.model_name}' failed during synthesis: {exc}. "
@@ -265,6 +271,10 @@ class InvestigationSynthesizer:
                 # Truncate large code excerpts to 400 chars per item
                 trimmed_content = content[:400] + ("..." if len(content) > 400 else "")
                 body = f"\nExcerpt:\n```\n{trimmed_content}\n```"
+            elif category == "architecture":
+                meta_items = [f"{k}: {v}" for k, v in (ev.get("metadata") or {}).items() if v is not None]
+                if meta_items:
+                    body = f"\nArchitecture Metrics: {', '.join(meta_items)}"
 
             block = (
                 f"--- Evidence #{idx} {tag}{sym_tag} [{category.upper()} from {tool}/{step}]{rel_str}{score_str}{phase_str} ---"

@@ -610,6 +610,70 @@ class TestInvestigationEngineEndToEnd(unittest.TestCase):
         self.assertEqual(res_cov.data["analysis_state"], "DEGRADED_ANALYSIS")
         self.assertAlmostEqual(res_cov.data["overall_coverage"], 0.35, places=2)
 
+    def test_03_engine_empty_repo_investigation(self):
+        """Engine investigates an empty repository without crashing."""
+        engine = InvestigationEngine(
+            enable_architecture=True,
+            modules={},
+            layers={},
+            quotient_graph=nx.DiGraph(),
+        )
+        result = engine.investigate("Show the architecture overview and module hierarchy")
+        self.assertIn(result.overall_status, [InvestigationStatus.SUCCESS, InvestigationStatus.PARTIAL_SUCCESS])
+        self.assertEqual(result.intent, InvestigationIntent.INSIGHTS)
+        self.assertTrue(len(result.final_answer) > 0)
+
+    def test_04_engine_no_git_hotspot_investigation(self):
+        """Engine investigates hotspots in a repository with no Git temporal data."""
+        mod = ModuleEntity(
+            name="core",
+            relative_dir="core",
+            files=["core/app.py"],
+            inferred_layer="domain",
+            total_loc=50,
+            total_complexity=3,
+        )
+        qg = nx.DiGraph()
+        qg.add_node("core")
+
+        engine = InvestigationEngine(
+            enable_architecture=True,
+            modules={"core": mod},
+            quotient_graph=qg,
+            git_client=None,
+            git_churn_analyzer=None,
+            git_coupling_analyzer=None,
+        )
+        result = engine.investigate("Find high risk maintenance hotspots and risk score")
+        self.assertIn(result.overall_status, [InvestigationStatus.SUCCESS, InvestigationStatus.PARTIAL_SUCCESS])
+        self.assertEqual(result.intent, InvestigationIntent.INSIGHTS)
+        # Hotspot tool executed successfully
+        self.assertTrue(any(sr.tool_name == "detect_maintenance_hotspots" for sr in result.step_results))
+        self.assertTrue(any(e.get("category") == "architecture" for e in result.evidence))
+
+    def test_05_engine_unclassified_module_conformance(self):
+        """Engine investigates conformance where a module is UNCLASSIFIED."""
+        mod_unclass = ModuleEntity(
+            name="scripts",
+            relative_dir="scripts",
+            files=["scripts/run.py"],
+            inferred_layer="UNCLASSIFIED",
+            total_loc=20,
+        )
+        qg = nx.DiGraph()
+        qg.add_node("scripts")
+
+        engine = InvestigationEngine(
+            enable_architecture=True,
+            modules={"scripts": mod_unclass},
+            layers={},
+            quotient_graph=qg,
+        )
+        result = engine.investigate("Check architecture conformance and rule violations")
+        self.assertIn(result.overall_status, [InvestigationStatus.SUCCESS, InvestigationStatus.PARTIAL_SUCCESS])
+        self.assertEqual(result.intent, InvestigationIntent.INSIGHTS)
+        self.assertTrue(any(sr.tool_name == "check_architecture_conformance" for sr in result.step_results))
+
 
 if __name__ == "__main__":
     unittest.main()

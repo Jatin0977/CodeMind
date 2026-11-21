@@ -94,6 +94,9 @@ class CodebaseState:
         self.architecture_discovery: Optional[Any] = None
         self.architecture_conformance: Optional[Any] = None
         self.hotspot_detector: Optional[Any] = None
+        self.architecture_modules: Optional[Any] = None
+        self.architecture_layers: Optional[Any] = None
+        self.quotient_graph: Optional[Any] = None
 
     def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
         """
@@ -273,13 +276,29 @@ class CodebaseState:
         # Initialize Phase 9: Architecture Intelligence
         try:
             from ..architecture import ArchitectureDiscoveryEngine, ArchitectureConformanceEngine, MaintenanceHotspotDetector
-            self.architecture_discovery = ArchitectureDiscoveryEngine()
-            self.architecture_conformance = ArchitectureConformanceEngine()
+            self.architecture_discovery = ArchitectureDiscoveryEngine(repo_root=self.repo.repo_path)
+            self.architecture_modules = self.architecture_discovery.discover_modules(
+                files=self.repo.files,
+                parsed_files=self.parsed_files,
+            )
+            self.quotient_graph, _ = self.architecture_discovery.build_quotient_graph(
+                modules_map=self.architecture_modules,
+                parsed_files=self.parsed_files,
+            )
+            self.architecture_layers = self.architecture_discovery.layers
+            self.architecture_conformance = ArchitectureConformanceEngine(
+                layers=self.architecture_layers,
+                modules_map=self.architecture_modules,
+                quotient_graph=self.quotient_graph,
+            )
             self.hotspot_detector = MaintenanceHotspotDetector()
         except Exception:
             self.architecture_discovery = None
             self.architecture_conformance = None
             self.hotspot_detector = None
+            self.architecture_modules = None
+            self.architecture_layers = None
+            self.quotient_graph = None
 
         # Prepare file tree items
         files_data = [
@@ -471,6 +490,9 @@ def create_app():
             conformance_engine=getattr(GLOBAL_STATE, "architecture_conformance", None),
             hotspot_detector=getattr(GLOBAL_STATE, "hotspot_detector", None),
             enable_architecture=bool(getattr(GLOBAL_STATE, "architecture_discovery", None) is not None),
+            modules=getattr(GLOBAL_STATE, "architecture_modules", None),
+            layers=getattr(GLOBAL_STATE, "architecture_layers", None),
+            quotient_graph=getattr(GLOBAL_STATE, "quotient_graph", None),
             parsed_files=GLOBAL_STATE.parsed_files,
             llm_provider=llm_provider,
         )

@@ -55,12 +55,12 @@ class GraphQueryEngine:
         matches = []
 
         for node_id, data in self.graph.nodes(data=True):
-            if node_type and data.get("node_type") != node_type:
+            if node_type and (data.get("node_type") or "").lower() != node_type.lower():
                 continue
 
-            name = data.get("name", "").lower()
-            rel_path = data.get("relative_path", "").lower()
-            n_id = node_id.lower()
+            name = str(data.get("name") or "").lower()
+            rel_path = str(data.get("relative_path") or "").lower()
+            n_id = str(node_id or "").lower()
 
             if not q or (q in name or q in rel_path or q in n_id):
                 matches.append(dict(data))

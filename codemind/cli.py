@@ -582,10 +582,26 @@ def investigate_repository(
     discovery_engine = None
     conformance_engine = None
     hotspot_detector = None
+    modules = None
+    layers = None
+    quotient_graph = None
     try:
         from .architecture import ArchitectureDiscoveryEngine, ArchitectureConformanceEngine, MaintenanceHotspotDetector
-        discovery_engine = ArchitectureDiscoveryEngine()
-        conformance_engine = ArchitectureConformanceEngine()
+        discovery_engine = ArchitectureDiscoveryEngine(repo_root=repo.repo_path)
+        modules = discovery_engine.discover_modules(
+            files=repo.files,
+            parsed_files=parsed_files,
+        )
+        quotient_graph, _ = discovery_engine.build_quotient_graph(
+            modules_map=modules,
+            parsed_files=parsed_files,
+        )
+        layers = discovery_engine.layers
+        conformance_engine = ArchitectureConformanceEngine(
+            layers=layers,
+            modules_map=modules,
+            quotient_graph=quotient_graph,
+        )
         hotspot_detector = MaintenanceHotspotDetector()
     except Exception:
         pass
@@ -603,6 +619,9 @@ def investigate_repository(
         conformance_engine=conformance_engine,
         hotspot_detector=hotspot_detector,
         enable_architecture=bool(discovery_engine is not None),
+        modules=modules,
+        layers=layers,
+        quotient_graph=quotient_graph,
         parsed_files=parsed_files,
         llm_provider=llm_provider,
     )

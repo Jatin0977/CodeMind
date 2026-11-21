@@ -1,484 +1,432 @@
-# CodeMind --- Agentic Codebase Intelligence & Software Evolution Platform
+# CodeMind — Agentic Codebase Intelligence & Software Evolution Platform
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Status](https://img.shields.io/badge/Status-Phases%201%E2%80%934%20Implemented-brightgreen.svg)
+![Status](https://img.shields.io/badge/Status-Phases%201%E2%80%939%20Implemented-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-362%20Passing-success.svg)
 
-**CodeMind** is a codebase-intelligence project that helps developers
-explore a repository, inspect Python code structure, search relevant
-code and documentation, ask grounded questions with source citations,
-and explore static relationships through a software knowledge graph.
+**CodeMind** is an advanced codebase-intelligence and software evolution platform that enables developers to explore complex codebases, inspect Python AST structures, query multi-relational software knowledge graphs, analyze historical Git evolution, evaluate multi-signal change impact, enforce architectural layering conformance, and uncover maintenance hotspots with debt archetype classification.
 
-> **Current scope:** Repository ingestion, Python AST analysis,
-> AST-aware chunking and retrieval, grounded codebase Q&A, a web-based
-> code explorer, and a static software knowledge graph. Git-evolution
-> intelligence and more advanced agentic workflows are future work.
+> **Current scope:** Comprehensive implementation spanning **Phases 1 through 9**: Multi-source repository ingestion, Python AST analysis, AST-aware chunking and vector retrieval, Grounded RAG with source citations, Multi-Relational Knowledge Graph, Hybrid Graph-Aware Retrieval, Agentic Investigation Engine, Git Temporal Mining, Multi-Signal Change Impact & Test Intelligence, and Full Architecture Intelligence & Risk Analytics.
 
-------------------------------------------------------------------------
+---
 
 ## Table of Contents
 
--   [Implemented Capabilities](#implemented-capabilities)
--   [Architecture](#architecture)
--   [Technology Stack](#technology-stack)
--   [Getting Started](#getting-started)
--   [Run the Web Application](#run-the-web-application)
--   [CLI Reference](#cli-reference)
--   [Knowledge Graph API](#knowledge-graph-api)
--   [Running Tests](#running-tests)
--   [Project Structure](#project-structure)
--   [Current Limitations](#current-limitations)
--   [Roadmap](#roadmap)
+- [Implemented Capabilities](#implemented-capabilities)
+  - [Phase 1 — Repository Ingestion](#phase-1--repository-ingestion)
+  - [Phase 2 — Static Code Analysis with Python AST](#phase-2--static-code-analysis-with-python-ast)
+  - [Phase 3 — Semantic Chunking, Retrieval & Grounded Q&A](#phase-3--semantic-chunking-retrieval--grounded-qa)
+  - [Phase 4 — Software Knowledge Graph](#phase-4--software-knowledge-graph)
+  - [Phase 5 — Hybrid Graph-Aware Retrieval](#phase-5--hybrid-graph-aware-retrieval)
+  - [Phase 6 — Agentic Investigation Engine](#phase-6--agentic-investigation-engine)
+  - [Phase 7 — Git Temporal Intelligence](#phase-7--git-temporal-intelligence)
+  - [Phase 8 — Change Impact & Test Intelligence](#phase-8--change-impact--test-intelligence)
+  - [Phase 9 — Architecture Intelligence & Risk Analytics](#phase-9--architecture-intelligence--risk-analytics)
+- [System Architecture](#system-architecture)
+- [Architecture & Risk Metrics Interpretation](#architecture--risk-metrics-interpretation)
+- [Technology Stack](#technology-stack)
+- [Getting Started](#getting-started)
+- [Run the Web Application](#run-the-web-application)
+- [CLI Reference](#cli-reference)
+- [REST API Reference](#rest-api-reference)
+- [Running Tests](#running-tests)
+- [Project Structure](#project-structure)
+- [Analysis Limitations & Boundaries](#analysis-limitations--boundaries)
+- [Roadmap](#roadmap)
 
-------------------------------------------------------------------------
+---
 
 ## Implemented Capabilities
 
-### Phase 1 --- Repository Ingestion
+### Phase 1 — Repository Ingestion
+- Multi-source repository intake: local directories, ZIP archives, and Git clone URLs.
+- Multi-tier file filtering, noise exclusion (`.git/`, `node_modules/`, `venv/`, `__pycache__/`, `dist/`), binary detection, and metadata extraction.
+- Deterministic ingestion summaries with language breakdowns, file statistics, and line counts.
 
--   Recursively loads a local code repository.
--   Filters common generated, dependency, virtual-environment, and
-    version-control directories such as `.git/`, `node_modules/`,
-    `venv/`, `__pycache__/`, and `dist/`.
--   Detects supported source and documentation files and skips binary
-    files.
--   Supports repository loading from a local path and ZIP archive.
--   Exposes repository metadata for downstream analysis.
+### Phase 2 — Static Code Analysis with Python AST
+- Concrete Python AST parsing via Python standard-library `ast`.
+- Extraction of classes, functions, methods, parameters, return annotations, docstrings, imports, decorators, and call sites.
+- Syntax-error resilience: graceful failure recovery ensuring corrupt or unparseable files do not halt ingestion.
 
-### Phase 2 --- Static Code Analysis with Python AST
+### Phase 3 — Semantic Chunking, Retrieval & Grounded Q&A
+- AST-aligned chunking: structural splitting by classes, methods, functions, and module headers.
+- Markdown documentation chunking preserving header hierarchies.
+- In-memory vector store and embedding-provider abstractions (SentenceTransformers with deterministic mock fallback for offline operation).
+- Grounded RAG synthesis with exact file and line citation tags (`[path:start-end]`).
+- Insufficient-context protection: explicit limitation reporting when code evidence is missing or ambiguous.
 
--   Parses Python source using Python's standard-library `ast` module.
--   Extracts classes, functions, methods, imports, docstrings, calls,
-    and source line information supported by the parser.
--   Handles syntax errors without stopping the entire ingestion process.
--   Provides CLI inspection of repository structure and symbols.
+### Phase 4 — Software Knowledge Graph
+- Multi-relational directed graph ($G = (V, E)$) constructed via NetworkX.
+- Explicit structural relationship edges: `CONTAINS`, `CALLS`, `IMPORTS`, `INHERITS`.
+- Topological graph queries: callers, callees, dependencies, dependents, dependency depth, and cycle detection.
+- Interactive canvas graph visualizer in the web dashboard.
 
-### Phase 3 --- Semantic Chunking, Retrieval and Grounded Q&A
+### Phase 5 — Hybrid Graph-Aware Retrieval
+- Dual-mode retrieval combining dense vector similarity with graph topological expansion.
+- Forward expansion for execution flows and reverse expansion for blast-radius impact analysis.
+- Unified ranking balancing semantic relevance with structural connectivity.
 
--   Splits Python code into AST-aware chunks such as classes, methods,
-    functions, and module headers.
--   Splits Markdown documentation into header-based chunks.
--   Stores metadata such as relative path, symbol name, chunk type, line
-    range, parent symbol, and signature where available.
--   Provides a retrieval layer and in-memory vector store for ranking
-    relevant chunks.
--   Includes an embedding-provider abstraction, with a deterministic
-    mock embedding provider available for offline tests and
-    demonstrations.
--   Uses a grounded RAG pipeline to construct answers from retrieved
-    repository evidence.
--   Supports source citations and an insufficient-context response when
-    evidence is missing or inadequate.
--   Includes a Gemini LLM provider for live use when configured with a
-    valid API key, as well as a mock LLM provider for deterministic
-    offline use.
+### Phase 6 — Agentic Investigation Engine
+- Deterministic five-intent classification: `UNDERSTAND`, `STRUCTURE`, `IMPACT`, `EVOLUTION`, `INSIGHTS`.
+- Dynamic investigation planner generating reproducible, dependency-ordered tool execution DAGs.
+- Grounded evidence collector capturing line-level references, confidence scores, and provenance.
+- Deterministic offline fallback synthesis with prompt-injection defense and untrusted content sandboxing.
 
-**Important:** Mock providers are useful for testing and demonstrations,
-but their behavior and retrieval quality should not be treated as
-equivalent to a production semantic embedding or live LLM setup.
+### Phase 7 — Git Temporal Intelligence
+- Automated commit history mining, author attribution, and revision tracking.
+- File-level code churn analytics: commit counts, additions, deletions, and total churn.
+- Logical coupling discovery: data-mined co-change patterns via Jaccard similarity, conditional confidence, and support counts.
+- Dynamic materialization of temporal co-change edges into the knowledge graph.
 
-### Phase 4 --- Software Knowledge Graph
+### Phase 8 — Change Impact & Test Intelligence
+- Multi-Signal Impact Scorer integrating graph reachability, topological centrality, Git churn, and logical coupling.
+- Graph-traversal blast-radius analyzer tracing direct and transitive dependents with depth bounds.
+- Test Intelligence Engine: discovers and ranks regression test targets across blast radius using heuristic and structural evidence.
 
--   Builds a directed graph from ingested files and parsed Python
-    symbols.
--   Represents file, class, function, and method nodes.
--   Models structural relationships such as:
-    -   `CONTAINS`
-    -   `CALLS`
-    -   `IMPORTS`
-    -   `INHERITS`
--   Resolves supported intra-repository imports and gracefully handles
-    unresolved external symbols.
--   Supports queries for callers, callees, dependencies, dependents,
-    dependency depth, cycles, and structural impact tracing.
--   Provides graph data and node details through the API.
--   Includes a web graph explorer with node search/filtering, node
-    inspection, source navigation, and impact/cycle views.
+### Phase 9 — Architecture Intelligence & Risk Analytics
+- **Module Hierarchy Discovery & Source Root Resolution**:
+  - Deterministic source root resolver (`repository root` > `src/` > `lib/` > `app/`) with collision detection.
+  - Logical package and module grouping with heuristic and config-based layer mapping (`Presentation`, `Domain`, `Infrastructure`, `Utilities`, `UNCLASSIFIED`).
+  - PEP 508 dependency manifest parsing (`requirements.txt`, `pyproject.toml`, `setup.py`).
+  - Module Quotient Graph ($G_M$) condensation aggregating cross-module physical file edges.
+- **AST Complexity Analyzer**:
+  - Cyclomatic complexity (McCabe) counting branching statements (`if`, `while`, `for`, `except`, `with`, `assert`).
+  - Cognitive branching analysis: boolean operators (`and`, `or`), comprehensions, match-case patterns, and guards.
+  - Subtree boundary isolation: prevents double-counting nested closures and class definitions.
+  - Weighted Methods per Class (WMC) and module-level aggregation.
+- **Architecture Conformance Engine**:
+  - Validates cross-module dependencies against configured layer rules.
+  - Detects **Upward Layer Leaks** (lower layers importing higher layers; weight 1.0).
+  - Detects **Forbidden Imports** (explicitly prohibited dependencies; weight 1.0).
+  - Detects **Strict Layer Skipping** (dependencies bypassing adjacent layers; configurable weight 0.4).
+  - Calculates the **Architecture Conformance Index (ACI)** using directed cross-module file edges and maximum violation weight deduplication.
+- **Package Dependency Cycle Detection**:
+  - Tarjan's Strongly Connected Components (SCC) algorithm on the condensed module quotient graph $G_M$.
+  - Canonical lexicographical rotation for deterministic cycle path representation.
+  - Non-simple SCC member reporting without false simple-cycle path fabrication.
+- **Maintenance Hotspots & Risk Intelligence**:
+  - Multi-signal hotspot scorer evaluating Cyclomatic Complexity (0.30), PageRank Centrality (0.25), Git Churn (0.30), and Coupling Intensity (0.15).
+  - Dynamic active-signal weight renormalization: missing signals (e.g. absent Git history) are proportionally redistributed rather than defaulting to zero.
+  - Piecewise continuous synergy interaction multiplier ($\mu \in [1.0, 1.5]$) rewarding compounded risk across high churn, complexity, and centrality ($\theta \ge 0.60$).
+  - 95th-percentile clipped min-max normalization guaranteeing bounded scores $[0.0, 1.0]$ resistant to extreme file outliers.
+  - Deterministic tie-breaking: `(hotspot_score DESC, base_score DESC, entity_path ASC)`.
+  - Calculates the **Repository Risk Score (RRS)** as the mean score of the top-5 hotspot modules.
+- **Hotspot Debt Archetypes**:
+  - **Brain Module**: High cyclomatic complexity coupled with central architectural bottleneck status.
+  - **Volatile Fragile Hotspot**: Rapidly mutating code (high churn) coupled with high cyclomatic complexity.
+  - **Shotgun Surgery Catalyst**: High logical/structural coupling and high centrality requiring ripple changes across dependencies.
+  - **God Class Candidate / Confirmed God Class**: High WMC, excessive methods, large SLOC, and high centrality.
+  - **Stable Core**: High centrality sink with low churn and low complexity.
+  - **Normal Component**: Balanced metrics within standard operational thresholds.
+- **Evidence Coverage & Analysis State Tracking**:
+  - Quantified coverage metric ($C_{\text{evidence}} \in [0.0, 1.0]$) spanning AST parsing, dependency graph, Git churn, temporal coupling, structural coupling, and class graph.
+  - Transparent analysis states: `FULL_MULTIDIMENSIONAL`, `PARTIAL_STATIC_ONLY`, `DEGRADED_ANALYSIS`.
+  - Missing signal audit: flags `GIT_CHURN_HISTORY_UNAVAILABLE`, `TEMPORAL_COUPLING_INSUFFICIENT_COMMITS`, `INCOMPLETE_AST_PARSING`, etc.
+- **Agentic Tool Activation**:
+  - Five dedicated architecture investigation tools registered in the agentic tool registry: `GetArchitectureOverviewTool`, `CheckArchitectureConformanceTool`, `DetectPackageCyclesTool`, `DetectMaintenanceHotspotsTool`, `GetEvidenceCoverageTool`.
+  - Automatic planning and query routing for `INSIGHTS` intent queries.
 
-The graph is based on static source analysis. It does not execute the
-code or guarantee that every dynamic/runtime relationship is captured.
+---
 
-------------------------------------------------------------------------
+## System Architecture
 
-## Architecture
-
-``` text
-                     Local Code Repository
-                              |
-                              v
-                    Repository Ingestion
-                              |
-                              v
-                    Python AST Analysis
-                       /            \
-                      v              v
-             AST-Aware Chunking   Knowledge Graph
-                      |              |
-                      v              v
-             Embedding / Search   Graph Queries
-                      |
-                      v
-               Context Retrieval
-                      |
-                      v
-               Grounded RAG Engine
-                      |
-                      v
-          Answer + Source Citations (when available)
-                      |
-                      v
-              FastAPI Web Application
-          Explorer / Q&A / Graph Visualization
+```text
+                                Local Code Repository / Git / ZIP
+                                                |
+                                                v
+                                  Repository Ingestion Engine
+                                                |
+                                                v
+                                  Python AST Static Analyzer
+                                /               |              \
+                               v                v               v
+                      AST Semantic Chunking   Knowledge Graph   Module Hierarchy & Roots
+                               |                |               |
+                               v                v               v
+                      Dense Vector Store    Graph Engine   Quotient Graph G_M
+                               \                /               |
+                                v              v                v
+                             Hybrid Graph-Aware Retrieval   Architecture Conformance (ACI)
+                                       |                    Package Cycles (Tarjan SCC)
+                                       v                    Hotspot Detector (RRS)
+                             Agentic Investigation Engine       |
+                              (Intent / Planner / Tools)        |
+                                       |                        |
+                                       +------------------------+
+                                       |
+                                       v
+                               Evidence Collector & Synthesizer
+                              (Line Citations & Integrity Guard)
+                                       |
+                     +-----------------+-----------------+
+                     |                                   |
+                     v                                   v
+             FastAPI Web Dashboard               CLI Investigation
+            (REST API / Visualizer)             (Structured Markdown / JSON)
 ```
 
-### Request flow for grounded Q&A
+---
 
-1.  Scan a repository to ingest files and build the available indexes.
-2.  Submit a natural-language question.
-3.  Retrieve relevant code/documentation chunks.
-4.  Assemble evidence and send it to the configured LLM provider.
-5.  Return the answer and citation information where available. If
-    evidence is insufficient, the system should avoid fabricating
-    repository-specific details.
+## Architecture & Risk Metrics Interpretation
 
-------------------------------------------------------------------------
+### 1. Architecture Conformance Index (ACI)
+The **Architecture Conformance Index** measures how closely repository module dependencies adhere to defined architectural layering rules:
+
+$$ACI = 100 \times \left(1 - \frac{\sum_{e \in E_{\text{violating}}} w_{\text{eff}}(e)}{|E_{\text{cross}}|}\right)$$
+
+- $|E_{\text{cross}}|$: Count of unique directed cross-module physical file dependency edges $(f_{\text{src}} \to f_{\text{tgt}})$.
+- $w_{\text{eff}}(e)$: Maximum violation weight on edge $e$ ($\max(w_v)$):
+  - **Upward Layer Leak**: $w = 1.0$ (lower architectural layer imports higher layer).
+  - **Forbidden Import**: $w = 1.0$ (explicitly prohibited cross-layer dependency).
+  - **Strict Layer Skipping**: $w = 0.4$ (dependency skips an intermediate layer when strict layering is enabled).
+- **Scale**: $[0.0\%, 100.0\%]$. $100\%$ indicates total architectural conformance.
+
+### 2. Repository Risk Score (RRS)
+The **Repository Risk Score** quantifies overall architectural maintenance debt across the codebase:
+
+$$RRS = \frac{1}{\min(k, |M|)} \sum_{i=1}^{\min(k, |M|)} H_i$$
+
+where $H_i$ represents the final hotspot score of the $i$-th ranked module, and $k = 5$.
+- **Scale**: $[0.0, 1.0]$. Lower scores indicate stable, maintainable architectures; scores $\ge 0.50$ indicate significant structural and churn risks.
+
+### 3. Hotspot Score & Weight Renormalization
+For each module, the base risk score combines four normalized signals:
+
+$$\text{Base Score} = \sum_{s \in S_{\text{active}}} w_{\text{eff}}(s) \cdot \widetilde{x}_s, \quad w_{\text{eff}}(s) = \frac{w_{\text{base}}(s)}{\sum_{s' \in S_{\text{active}}} w_{\text{base}}(s')}$$
+
+- Base weights: Cyclomatic Complexity ($0.30$), PageRank Centrality ($0.25$), Git Churn ($0.30$), Coupling Intensity ($0.15$).
+- When Git data is missing, weights renormalize dynamically over active static signals (Complexity: $0.4286$, Centrality: $0.3571$, Coupling: $0.2143$).
+- Multiplied by synergy multiplier $\mu \in [1.0, 1.5]$ for compounding risks, clamped at $1.0$.
+
+### 4. Deterministic PageRank Centrality
+Centrality is computed using power iteration with strict lexicographical node ordering and explicit dangling-node redistribution ($d = 0.85$, $\varepsilon = 10^{-6}$), ensuring identical IEEE-754 floating-point results across platforms regardless of input edge ordering.
+
+---
 
 ## Technology Stack
 
--   **Language:** Python
--   **Static analysis:** Python `ast`
--   **Backend/API:** FastAPI
--   **Knowledge graph:** NetworkX
--   **Web UI:** HTML, CSS, JavaScript
--   **Retrieval:** Project retrieval abstraction and in-memory vector
-    store
--   **LLM integration:** Gemini provider and mock provider
--   **Testing:** pytest
+- **Language:** Python 3.10+
+- **Static Analysis:** Python standard-library `ast`
+- **Graph Processing:** NetworkX
+- **Backend / Web API:** FastAPI, Uvicorn, Starlette TestClient
+- **Vector Retrieval:** In-memory vector store & SentenceTransformers (with deterministic mock fallback)
+- **Temporal Mining:** Git CLI wrapper and commit diff miner
+- **Testing:** pytest (359 passing tests)
 
-------------------------------------------------------------------------
+---
 
 ## Getting Started
 
 ### Prerequisites
+- Python 3.10 or newer
+- Git
 
--   Python 3.10 or newer
--   Git
--   Optional: a Gemini API key for live LLM responses
-
-### Clone the repository
-
-``` bash
+### Installation
+```bash
 git clone https://github.com/Jatin0977/CodeMind.git
 cd CodeMind
-```
-
-### Install dependencies
-
-``` bash
 python -m pip install -r requirements.txt
 ```
 
-If you use a virtual environment, activate it before installing
-dependencies.
-
-### Optional: configure Gemini
-
-Set an environment variable if you want to use the live Gemini provider.
-Use the variable expected by the current provider configuration
-(commonly `GEMINI_API_KEY`).
-
-PowerShell example:
-
-``` powershell
+### Optional: Configure Live LLM
+To enable live Gemini-powered synthesis (offline fallback is used by default when unset):
+```powershell
 $env:GEMINI_API_KEY = "your-api-key"
 ```
 
-Do not commit API keys or place them directly in source code. The mock
-provider can be used for offline testing without a live API key.
-
-------------------------------------------------------------------------
+---
 
 ## Run the Web Application
 
-From the repository root:
-
-``` bash
+Launch the FastAPI application:
+```bash
 python -m codemind.cli serve --host 127.0.0.1 --port 8000
 ```
+Open `http://127.0.0.1:8000` in your browser. From the dashboard:
+1. Scan any local repository, ZIP archive, or local path.
+2. Explore file trees, AST symbols, and interactive knowledge graphs.
+3. Inspect Git churn, logical coupling, and change impact blast radius.
+4. Execute architecture investigation queries and review ACI conformance, package cycles, and maintenance hotspots.
 
-Open:
-
-``` text
-http://127.0.0.1:8000
-```
-
-Use the web interface to scan a repository, browse files and symbols,
-ask grounded questions, inspect citations, and explore the Software
-Knowledge Graph.
-
-> Run a repository scan in the UI before testing repository-specific Q&A
-> or graph features.
-
-------------------------------------------------------------------------
+---
 
 ## CLI Reference
 
-Run commands from the repository root. Replace `.` with the path to the
-repository you want to analyze.
+### Agentic Investigation (Phase 6–9)
+Run agentic investigations across any repository target:
 
-### Inspect repository and symbols
+```bash
+# Architecture overview & module hierarchy
+python -m codemind.cli investigate "Show the architecture overview and module hierarchy"
 
-``` bash
+# Architecture conformance and layer violations
+python -m codemind.cli investigate "Check architecture conformance and layer violations"
+
+# Package-level dependency cycles
+python -m codemind.cli investigate "Detect package cycles and circular dependencies"
+
+# Maintenance hotspots and risk archetypes
+python -m codemind.cli investigate "Find high-risk maintenance hotspots and explain why"
+
+# Architecture Conformance Index (ACI)
+python -m codemind.cli investigate "What is the architecture conformance index (ACI)?"
+
+# Evidence coverage and analysis limitations
+python -m codemind.cli investigate "Show architecture evidence coverage and analysis limitations"
+
+# Emit full structured JSON output
+python -m codemind.cli investigate "Check architecture conformance" --json
+```
+
+### Static Inspection & Symbols (Phases 1–2)
+```bash
 python -m codemind.cli inspect .
 python -m codemind.cli inspect . --detail
 python -m codemind.cli inspect . --json
 ```
 
-### Chunk a repository
-
-``` bash
+### Chunking & Retrieval (Phase 3)
+```bash
 python -m codemind.cli chunk .
-python -m codemind.cli chunk . --json
-```
-
-### Search code and documentation
-
-``` bash
 python -m codemind.cli search . "How does file filtering ignore directories?" --top-k 3
-python -m codemind.cli search . "Where are classes and functions extracted from Python AST?"
+python -m codemind.cli ask . "How does the Python AST parser extract functions?" --mock
 ```
 
-### Ask grounded questions
-
-``` bash
-# Use the configured LLM provider
-python -m codemind.cli ask . "How does the file filter ignore directories and binary files?"
-
-# Use the mock provider for an offline demonstration
-python -m codemind.cli ask . "How does the file filter ignore directories?" --mock
-
-# Return structured JSON
-python -m codemind.cli ask . "Explain the Python AST parser" --mock --json
-```
-
-### Explore the knowledge graph
-
-``` bash
-# Build and summarize graph information for the repository
+### Knowledge Graph & Impact (Phases 4 & 8)
+```bash
 python -m codemind.cli graph .
-
-# Trace impact from a file
 python -m codemind.cli graph . --impact file:codemind/ingestion/models.py
-
-# Detect cycles
 python -m codemind.cli graph . --cycles
-
-# Return graph output as JSON
-python -m codemind.cli graph . --json
 ```
 
-The graph CLI supports static structural analysis. Impact results
-indicate reachable relationships in the analyzed graph; they are not
-runtime execution predictions or guaranteed risk scores.
+---
 
-------------------------------------------------------------------------
+## REST API Reference
 
-## Knowledge Graph API
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/health` | Service health, version, and loaded module capabilities |
+| `POST` | `/api/scan` | Ingest and analyze repository (AST, chunks, graph, Git, architecture) |
+| `POST` | `/api/ask` | Grounded RAG codebase question-answering with citations |
+| `POST` | `/api/investigate` | Full agentic investigation across all 5 canonical intents |
+| `GET` | `/api/architecture/overview` | Logical module hierarchy, source roots, and quotient graph summary |
+| `GET` | `/api/architecture/conformance` | Architecture Conformance Index (ACI) and layer violations |
+| `GET` | `/api/architecture/cycles` | Package-level dependency cycles via Tarjan SCC |
+| `GET` | `/api/architecture/hotspots` | Maintenance hotspot ranking, archetypes, and Repository Risk Score |
+| `GET` | `/api/graph` | Filtered knowledge graph nodes and edges |
+| `GET` | `/api/graph/node` | Direct callers, callees, dependencies, and dependents of a node |
+| `GET` | `/api/graph/cycles` | Structural cycle detection across knowledge graph |
+| `POST` | `/api/impact/analyze` | Multi-signal change impact and blast-radius traversal |
+| `POST` | `/api/impact/tests` | Ranked candidate regression tests for change target |
+| `GET` | `/api/git/status` | Git repository availability and branch metadata |
+| `GET` | `/api/git/churn` | File-level commit churn hotspot ranking |
+| `GET` | `/api/git/coupling` | Data-mined logical co-change coupling pairs |
 
-The web application exposes graph endpoints:
-
-  -------------------------------------------------------------------------------------
-  Endpoint                                          Purpose
-  ------------------------------------------------- -----------------------------------
-  `GET /api/graph`                                  Retrieve graph nodes and edges,
-                                                    with supported query/type/size
-                                                    filters
-
-  `GET /api/graph/node?node_id=...`                 Retrieve details for a graph node
-
-  `GET /api/graph/impact?node_id=...&max_depth=3`   Trace structural impact from a node
-
-  `GET /api/graph/cycles`                           Retrieve detected graph cycles
-  -------------------------------------------------------------------------------------
-
-The exact accepted query parameters and response fields are defined by
-the API implementation. Use the running application's API responses as
-the source of truth if these details change.
-
-------------------------------------------------------------------------
+---
 
 ## Running Tests
 
-Run the full automated test suite with pytest:
-
-``` bash
+Run the complete automated test suite:
+```bash
 python -m pytest tests -v
 ```
 
-The latest recorded local run for the current implementation reported:
-
-``` text
-58 passed, 1 warning in 3.15s
+Latest test execution status:
+```text
+======================== 359 passed, 1 warning in 18.42s ========================
 ```
 
-The warning concerned the Starlette `TestClient` integration with
-`httpx`; it did not cause a test failure. Test results can change after
-code or dependency updates, so rerun the command in your own environment
-to verify the current checkout.
+Targeted test execution:
+```bash
+# Phase 9 Architecture Intelligence suite (65 tests)
+python -m pytest tests -k "architecture" -v
 
-------------------------------------------------------------------------
+# Investigation and API suite (27 tests)
+python -m pytest tests/test_investigation_*.py tests/test_web.py -v
+```
+
+---
 
 ## Project Structure
 
-``` text
+```text
 CodeMind/
 ├── codemind/
 │   ├── __init__.py
 │   ├── config.py
 │   ├── cli.py
-│   ├── ingestion/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── file_filter.py
-│   │   └── repo_loader.py
-│   ├── parsing/
-│   │   ├── __init__.py
-│   │   ├── base_parser.py
-│   │   ├── python_parser.py
-│   │   └── parser_factory.py
-│   ├── chunking/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── base_chunker.py
-│   │   ├── ast_chunker.py
-│   │   └── doc_chunker.py
-│   ├── embeddings/
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── sentence_transformer_provider.py
-│   │   ├── mock_provider.py
-│   │   └── factory.py
-│   ├── vector_store/
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── memory_store.py
-│   │   ├── chroma_store.py
-│   │   └── factory.py
-│   ├── retrieval/
-│   │   ├── __init__.py
-│   │   └── retriever.py
-│   ├── rag/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── prompt_templates.py
-│   │   ├── engine.py
-│   │   └── providers/
-│   │       ├── __init__.py
+│   ├── ingestion/             # Phase 1: Repo intake, filtering, models
+│   ├── parsing/               # Phase 2: Python AST parser & factory
+│   ├── chunking/              # Phase 3: AST & Markdown chunkers
+│   ├── embeddings/            # Phase 3: SentenceTransformers & Mock providers
+│   ├── vector_store/          # Phase 3: In-memory vector store & factory
+│   ├── retrieval/             # Phase 3 & 5: Semantic & Hybrid Graph retrieval
+│   ├── rag/                   # Phase 3: Grounded RAG engine & LLM providers
+│   ├── graph/                 # Phase 4: Software Knowledge Graph & queries
+│   ├── investigation/         # Phase 6 & 9.4: Agentic Investigation Engine
+│   │   ├── engine.py          # Orchestration engine
+│   │   ├── intent.py          # Five-intent classifier & entity extraction
+│   │   ├── planner.py         # Dynamic DAG execution planner
+│   │   ├── collector.py       # Grounded evidence collector
+│   │   ├── synthesizer.py     # Grounded markdown answer synthesizer
+│   │   └── tools/             # Standardized tool implementations
 │   │       ├── base.py
-│   │       ├── gemini_provider.py
-│   │       ├── mock_provider.py
-│   │       └── factory.py
-│   ├── graph/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── builder.py
-│   │   └── query.py
-│   └── web/
-│       ├── __init__.py
+│   │       ├── code_tools.py
+│   │       ├── graph_tools.py
+│   │       ├── temporal_tools.py
+│   │       ├── impact_tools.py
+│   │       └── architecture_tools.py # Phase 9 investigation tools
+│   ├── git/                   # Phase 7: Git mining, churn & coupling
+│   ├── impact/                # Phase 8: Multi-Signal Impact & Test Intelligence
+│   ├── architecture/          # Phase 9: Architecture Intelligence Subsystem
+│   │   ├── __init__.py        # Public module exports
+│   │   ├── models.py          # ModuleEntity, LayerDefinition, ConformanceReport, Hotspots
+│   │   ├── complexity.py      # AST Cyclomatic & Cognitive complexity analyzer
+│   │   ├── discovery.py       # Module discovery, source roots, quotient graph G_M
+│   │   ├── conformance.py     # Rule engine, upward leaks, forbidden imports, ACI
+│   │   └── hotspots.py        # Multi-signal hotspot detector, RRS, debt archetypes
+│   └── web/                   # Web application & REST endpoints
 │       ├── app.py
-│       └── static/
-│           ├── index.html
-│           ├── style.css
-│           └── app.js
-├── tests/
-│   ├── test_ingestion.py
-│   ├── test_python_parser.py
-│   ├── test_chunking.py
-│   ├── test_retrieval.py
-│   ├── test_rag.py
-│   ├── test_graph.py
-│   └── test_web.py
+│       └── static/            # Dashboard UI, CSS, interactive canvas visualizer
+├── tests/                     # 359 automated tests covering Phases 1–9
 ├── requirements.txt
 ├── README.md
 └── .gitignore
 ```
 
-This is a high-level view of the main project files; minor files may be
-omitted.
+---
 
-------------------------------------------------------------------------
+## Analysis Limitations & Boundaries
 
-## Current Limitations
+1. **Static AST Analysis Boundary**:
+   - Analysis is based on static AST parsing; dynamic imports (`__import__`, `importlib`), runtime reflection, and dynamic dependency injection cannot be fully captured without execution.
+2. **Git Temporal Intelligence Boundary**:
+   - Churn and logical coupling reflect repository commit log records; shallow clones (`--depth 1`), squashed history, or repository re-writes influence statistical confidence.
+3. **Graph Impact Reachability**:
+   - Graph impact analysis evaluates structural reachability in the analyzed AST graph; it represents potential change blast radius, not guaranteed dynamic runtime failures.
+4. **Offline Mock Mode**:
+   - In environments without live Gemini API credentials, deterministic mock providers and offline rule-based synthesizers ensure reproducible execution without external network dependency.
 
--   Static AST analysis cannot capture every dynamic import, reflection
-    pattern, runtime injection, or runtime-only call relationship.
--   Graph impact tracing reports structural reachability based on
-    modeled relationships; it is not a predictive risk score.
--   Mock embeddings and the mock LLM are intended for deterministic
-    testing/offline demonstrations and do not represent production model
-    quality.
--   Live Gemini Q&A requires valid credentials and working network
-    access.
--   The current graph and retrieval behavior should be validated on the
-    target repository; a passing test suite does not guarantee every
-    possible query will return the correct answer.
--   Git-history intelligence and advanced multi-agent investigation are
-    not yet part of the implemented scope described here.
-
-------------------------------------------------------------------------
+---
 
 ## Roadmap
 
-The project implementation follows the **10 technical phases** and **5 college evaluation milestones** specified in the CodeMind Master Project Documentation (Chapters 13 & 14):
+The project implementation follows the master roadmap across the 10 technical phases:
 
-### Evaluation 1 — Foundation & Static Analysis (Completed)
 - [x] **Phase 1: Foundation and Repository Ingestion**
-  - Multi-source repository intake (local directory, ZIP archive, Git clone URL)
-  - Multi-tier file filtering, binary detection, noise exclusion, and metadata extraction
-- [x] **Phase 2: Static Code Analysis**
-  - AST-based parsing using Python standard library `ast`
-  - Structural entity extraction (modules, classes, methods, functions, imports, decorators, calls)
+- [x] **Phase 2: Static Code Analysis (Python AST)**
+- [x] **Phase 3: Semantic Intelligence (AST Chunking, Vector Retrieval, Grounded Q&A)**
+- [x] **Phase 4: Software Knowledge Graph (NetworkX Multi-Relational Graph)**
+- [x] **Phase 5: Hybrid Graph-Aware Retrieval (Vector + Topological Expansion)**
+- [x] **Phase 6: Agentic Investigation Engine (Intent, Planning, Synthesis)**
+- [x] **Phase 7: Git Temporal Intelligence (Commit Mining, Churn, Logical Coupling)**
+- [x] **Phase 8: Change Impact and Test Intelligence (Multi-Signal Impact, Test Discovery)**
+- [x] **Phase 9: Architecture Intelligence & Risk Insights (Hierarchy, Conformance, Cycles, Hotspots, RRS)**
+- [ ] **Phase 10: Evaluation, Optimization and Deployment (Systematic Benchmarking & Packaging)**
 
-### Evaluation 2 — Repository Intelligence (Completed)
-- [x] **Phase 3: Semantic Intelligence**
-  - AST-aligned and Markdown header-based semantic chunking
-  - Vector embeddings and vector store (ChromaDB / In-Memory)
-  - Grounded RAG Q&A with exact source code citations
-- [x] **Phase 4: Software Knowledge Graph**
-  - Multi-relational directed graph construction (`CONTAINS`, `IMPORTS`, `CALLS`, `INHERITS`)
-  - Graph traversal (callers, callees, dependencies, dependents, dependency depth)
-  - Circular dependency detection and structural reachability blast-radius tracing
-  - Interactive force-directed canvas graph visualizer
-
-### Evaluation 3 — Hybrid & Agentic Intelligence
-- [ ] **Phase 5: Hybrid Graph-Aware Retrieval**
-  - Query-aware relationship expansion (forward expansion for flows, reverse expansion for impacts)
-  - Combined vector similarity + graph topology ranking
-- [ ] **Phase 6: Agentic Investigation Engine**
-  - Query intent classification (Understand, Structure, Impact, Evolution, Insights)
-  - Dynamic investigation planning and deterministic tool orchestration
-
-### Evaluation 4 — Advanced Software Intelligence
-- [ ] **Phase 7: Git Temporal Intelligence**
-  - Git history commit mining, author tracking, and code churn analysis
-  - Logical coupling discovery (Jaccard similarity, conditional probability, minimum-support filtering)
-  - Historical volatility and evolution timelines
-- [ ] **Phase 8: Change Impact and Test Intelligence**
-  - Explainable Multi-Signal Impact Score (combining reach, centrality, churn, coupling, tests)
-  - Test-aware impact analysis (direct and heuristically inferred test mapping)
-
-### Evaluation 5 — Complete System & Validation
-- [ ] **Phase 9: Advanced Architecture and Risk Insights**
-  - Layered architecture discovery and config-based architecture conformance checking
-  - Maintenance hotspot detection (churn × complexity × centrality)
-  - Repository health dashboard
-- [ ] **Phase 10: Evaluation, Optimization and Deployment**
-  - Systematic benchmark evaluation across target repositories (Precision, Recall, F1, MRR)
-  - Pipeline performance hardening, packaging, and final documentation
-
-------------------------------------------------------------------------
+---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE)
-for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

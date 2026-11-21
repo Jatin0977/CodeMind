@@ -11,7 +11,7 @@ import ast
 import sys
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple, Any
+from typing import List, Dict, Optional, Set, Tuple, Any, Union
 
 import networkx as nx
 
@@ -259,11 +259,11 @@ class ArchitectureDiscoveryEngine:
 
     def __init__(
         self,
-        repo_root: str,
+        repo_root: Optional[Union[str, Path]] = None,
         manifest_dependencies: Optional[Set[str]] = None,
         layer_config: Optional[Dict[str, Any]] = None,
     ):
-        self.repo_root = Path(repo_root).resolve()
+        self.repo_root = Path(repo_root or ".").resolve()
         self.root_resolver = SourceRootResolver(self.repo_root)
         manifest_parser = DependencyManifestParser()
         self.manifest_dependencies = (
@@ -274,10 +274,17 @@ class ArchitectureDiscoveryEngine:
         self.layer_config = layer_config or {}
         # Pre-load frozen standard library modules
         self.stdlib_names = getattr(sys, "stdlib_module_names", set())
+        self.modules: Dict[str, ModuleEntity] = {}
+        self.layers: Dict[str, LayerDefinition] = {}
+        self.quotient_graph: nx.DiGraph = nx.DiGraph()
+
+    @property
+    def source_roots(self) -> List[str]:
+        return [str(r) for r in self.root_resolver.source_roots]
 
     def discover_modules(
         self,
-        files: List[SourceFile],
+        files: Optional[Union[List[SourceFile], Dict[str, ParsedFile], List[str]]] = None,
         parsed_files: Optional[Dict[str, ParsedFile]] = None,
         complexity_metrics: Optional[Dict[str, ComplexityMetrics]] = None,
     ) -> Dict[str, ModuleEntity]:
@@ -286,11 +293,25 @@ class ArchitectureDiscoveryEngine:
         and infer initial layer assignments.
         """
         modules_map: Dict[str, ModuleEntity] = {}
-        parsed_map = parsed_files or {}
+        if files is None and parsed_files is not None:
+            files_to_process = list(parsed_files.keys())
+            parsed_map = parsed_files
+        elif isinstance(files, dict):
+            files_to_process = list(files.keys())
+            parsed_map = files
+        else:
+            files_to_process = files or []
+            parsed_map = parsed_files or {}
         complexity_map = complexity_metrics or {}
 
-        for sf in files:
-            rel_path = sf.relative_path.replace("\\", "/")
+        for sf in files_to_process:
+            if isinstance(sf, str):
+                rel_path = sf.replace("\\", "/")
+                loc = getattr(parsed_map.get(rel_path), "line_count", 0)
+            else:
+                rel_path = getattr(sf, "relative_path", getattr(sf, "file_path", "")).replace("\\", "/")
+                loc = getattr(sf, "line_count", getattr(sf, "lines", 0))
+
             if not rel_path.endswith(".py"):
                 continue
 
@@ -304,7 +325,7 @@ class ArchitectureDiscoveryEngine:
 
             mod_entity = modules_map[mod_name]
             mod_entity.files.append(rel_path)
-            mod_entity.total_loc += getattr(sf, "line_count", getattr(sf, "lines", 0))
+            mod_entity.total_loc += loc
 
             if rel_path in complexity_map:
                 mod_entity.total_complexity += complexity_map[rel_path].file_complexity
@@ -315,6 +336,30 @@ class ArchitectureDiscoveryEngine:
             mod_entity.inferred_layer = layer
             mod_entity.inference_confidence = confidence
             mod_entity.inference_evidence = evidence
+
+        # Populate self.layers grouping modules
+        layer_levels = {
+            "presentation": 1,
+            "api": 1,
+            "interfaces": 1,
+            "application": 2,
+            "domain": 3,
+            "core": 3,
+            "infrastructure": 4,
+            "util": 5,
+            "common": 5,
+            "shared": 5,
+        }
+        layers_dict: Dict[str, LayerDefinition] = {}
+        for mod_name, mod in modules_map.items():
+            l_name = mod.inferred_layer
+            if l_name not in layers_dict:
+                level = layer_levels.get(l_name.lower(), 10 if l_name == "UNCLASSIFIED" else 5)
+                layers_dict[l_name] = LayerDefinition(name=l_name, level=level, modules=[])
+            layers_dict[l_name].modules.append(mod_name)
+
+        self.modules = modules_map
+        self.layers = layers_dict
 
         return modules_map
 
@@ -530,4 +575,5 @@ class ArchitectureDiscoveryEngine:
         for (src, tgt), weight in edge_weights.items():
             g_module.add_edge(src, tgt, weight=weight)
 
+        self.quotient_graph = g_module
         return g_module, unresolved_imports

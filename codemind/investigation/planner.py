@@ -514,22 +514,24 @@ class InvestigationPlanner:
 
         # 5. detect_maintenance_hotspots (Active Phase 9 or Deferred Phase 6)
         if is_hotspot_query:
+            hotspot_params = {"module": primary_entity} if primary_entity else {}
             steps.append({
                 "tag": "hotspots_step",
                 "tool_name": "detect_maintenance_hotspots",
                 "purpose": "Identify maintenance hotspots combining churn, complexity, and centrality",
-                "input_parameters": {},
+                "input_parameters": hotspot_params,
                 "dependencies": [],
                 "is_required": False,
             })
 
         # 6. check_architecture_conformance (Active Phase 9 or Deferred Phase 6)
         if is_conformance_query or any(w in q_lower for w in ["conformance", "layer", "architecture", "boundary"]):
+            conformance_params = {"module": primary_entity} if primary_entity else {}
             steps.append({
                 "tag": "conformance_step",
                 "tool_name": "check_architecture_conformance",
                 "purpose": "Validate architectural layering and dependency conformance",
-                "input_parameters": {},
+                "input_parameters": conformance_params,
                 "dependencies": [],
                 "is_required": False,
             })

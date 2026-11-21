@@ -44,12 +44,14 @@ class GetArchitectureOverviewTool(BaseTool):
         layers: Optional[Dict[str, LayerDefinition]] = None,
         repo: Optional[IngestedRepository] = None,
         parsed_files: Optional[Dict[str, Any]] = None,
+        quotient_graph: Optional[Any] = None,
     ):
         self.discovery_engine = discovery_engine
         self._modules = modules
         self._layers = layers
         self.repo = repo
         self.parsed_files = parsed_files
+        self._quotient_graph = quotient_graph
 
         self._definition = ToolDefinition(
             tool_name="get_architecture_overview",
@@ -178,10 +180,16 @@ class CheckArchitectureConformanceTool(BaseTool):
         conformance_engine: Optional[ArchitectureConformanceEngine] = None,
         discovery_engine: Optional[ArchitectureDiscoveryEngine] = None,
         parsed_files: Optional[Dict[str, Any]] = None,
+        layers: Optional[Dict[str, LayerDefinition]] = None,
+        modules: Optional[Dict[str, ModuleEntity]] = None,
+        quotient_graph: Optional[Any] = None,
     ):
         self.conformance_engine = conformance_engine
         self.discovery_engine = discovery_engine
         self.parsed_files = parsed_files
+        self._layers = layers
+        self._modules = modules
+        self._quotient_graph = quotient_graph
 
         self._definition = ToolDefinition(
             tool_name="check_architecture_conformance",
@@ -227,10 +235,10 @@ class CheckArchitectureConformanceTool(BaseTool):
 
         engine = self.conformance_engine
         if engine is None:
-            # Initialize from discovery engine if available
-            modules_map = self.discovery_engine.modules if self.discovery_engine else None
-            layers_map = self.discovery_engine.layers if self.discovery_engine else None
-            q_graph = self.discovery_engine.quotient_graph if self.discovery_engine else None
+            # Initialize from discovery engine or explicit modules/layers/quotient_graph
+            modules_map = self._modules or (self.discovery_engine.modules if self.discovery_engine else None)
+            layers_map = self._layers or (self.discovery_engine.layers if self.discovery_engine else None)
+            q_graph = self._quotient_graph or (self.discovery_engine.quotient_graph if self.discovery_engine else None)
             engine = ArchitectureConformanceEngine(
                 layers=layers_map,
                 modules_map=modules_map,
@@ -306,9 +314,11 @@ class DetectPackageCyclesTool(BaseTool):
         self,
         conformance_engine: Optional[ArchitectureConformanceEngine] = None,
         quotient_graph: Optional[nx.DiGraph] = None,
+        modules: Optional[Any] = None,
     ):
         self.conformance_engine = conformance_engine
         self.quotient_graph = quotient_graph
+        self.modules = modules
 
         self._definition = ToolDefinition(
             tool_name="detect_package_cycles",
@@ -393,6 +403,10 @@ class DetectMaintenanceHotspotsTool(BaseTool):
         temporal_couplings: Optional[List[Any]] = None,
         total_source_files: int = 0,
         valid_ast_files: int = 0,
+        discovery_engine: Optional[Any] = None,
+        parsed_files: Optional[Dict[str, Any]] = None,
+        churn_analyzer: Optional[Any] = None,
+        coupling_analyzer: Optional[Any] = None,
     ):
         self.hotspot_detector = hotspot_detector or MaintenanceHotspotDetector()
         self.modules = modules
@@ -402,6 +416,10 @@ class DetectMaintenanceHotspotsTool(BaseTool):
         self.temporal_couplings = temporal_couplings
         self.total_source_files = total_source_files
         self.valid_ast_files = valid_ast_files
+        self.discovery_engine = discovery_engine
+        self.parsed_files = parsed_files
+        self.churn_analyzer = churn_analyzer
+        self.coupling_analyzer = coupling_analyzer
 
         self._definition = ToolDefinition(
             tool_name="detect_maintenance_hotspots",
@@ -435,10 +453,19 @@ class DetectMaintenanceHotspotsTool(BaseTool):
         archetype_filter = arguments.get("archetype")
         mod_filter = arguments.get("module")
 
-        modules_input = self.modules if self.modules is not None else {}
+        modules_input = self.modules
+        if modules_input is None and self.discovery_engine is not None:
+            modules_input = self.discovery_engine.modules
+        if modules_input is None:
+            modules_input = {}
+
+        q_graph = self.quotient_graph
+        if q_graph is None and self.discovery_engine is not None:
+            q_graph = self.discovery_engine.quotient_graph
+
         report: HotspotReport = self.hotspot_detector.detect_hotspots(
             modules=modules_input,
-            quotient_graph=self.quotient_graph,
+            quotient_graph=q_graph,
             commits=self.commits,
             churn_summary=self.churn_summary,
             temporal_couplings=self.temporal_couplings,
@@ -473,6 +500,7 @@ class DetectMaintenanceHotspotsTool(BaseTool):
             "total_analyzed": report.total_entities_analyzed,
             "matched_hotspots_count": len(filtered_hotspots),
             "top_hotspot_mean": report.top_hotspot_mean,
+            "repository_risk_score": report.top_hotspot_mean,
             "analysis_state": report.analysis_state.value if hasattr(report.analysis_state, "value") else str(report.analysis_state),
             "hotspots": filtered_hotspots[:limit],
             "evidence_coverage": report.evidence_coverage.to_dict() if report.evidence_coverage else None,
