@@ -91,6 +91,9 @@ class CodebaseState:
         self.impact_engine: Optional[ChangeImpactEngine] = None
         self.impact_scorer: Optional[MultiSignalImpactScorer] = None
         self.test_engine: Optional[TestIntelligenceEngine] = None
+        self.architecture_discovery: Optional[Any] = None
+        self.architecture_conformance: Optional[Any] = None
+        self.hotspot_detector: Optional[Any] = None
 
     def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
         """
@@ -266,6 +269,17 @@ class CodebaseState:
             self.impact_engine = None
             self.impact_scorer = None
             self.test_engine = None
+
+        # Initialize Phase 9: Architecture Intelligence
+        try:
+            from ..architecture import ArchitectureDiscoveryEngine, ArchitectureConformanceEngine, MaintenanceHotspotDetector
+            self.architecture_discovery = ArchitectureDiscoveryEngine()
+            self.architecture_conformance = ArchitectureConformanceEngine()
+            self.hotspot_detector = MaintenanceHotspotDetector()
+        except Exception:
+            self.architecture_discovery = None
+            self.architecture_conformance = None
+            self.hotspot_detector = None
 
         # Prepare file tree items
         files_data = [
@@ -453,6 +467,11 @@ def create_app():
             impact_scorer=GLOBAL_STATE.impact_scorer,
             test_engine=GLOBAL_STATE.test_engine,
             enable_impact=bool(GLOBAL_STATE.impact_engine is not None),
+            discovery_engine=getattr(GLOBAL_STATE, "architecture_discovery", None),
+            conformance_engine=getattr(GLOBAL_STATE, "architecture_conformance", None),
+            hotspot_detector=getattr(GLOBAL_STATE, "hotspot_detector", None),
+            enable_architecture=bool(getattr(GLOBAL_STATE, "architecture_discovery", None) is not None),
+            parsed_files=GLOBAL_STATE.parsed_files,
             llm_provider=llm_provider,
         )
 

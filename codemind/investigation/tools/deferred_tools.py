@@ -12,17 +12,19 @@ from typing import List
 from .base import DeferredTool
 
 
-def create_deferred_tools(include_git: bool = True, include_impact: bool = True) -> List[DeferredTool]:
+def create_deferred_tools(
+    include_git: bool = True,
+    include_impact: bool = True,
+    include_architecture: bool = True,
+) -> List[DeferredTool]:
     """
     Construct and return all formal DeferredTool instances for future/uninitialized phases.
     Preserves strict phase boundaries without fabricating analytical outputs.
 
     Args:
-        include_git: If True, includes Phase 7 Git Temporal deferred placeholders
-                     (for Phase 6 backward compatibility / non-git environments).
-                     If False, only includes Phase 8 and Phase 9 deferred tools.
+        include_git: If True, includes Phase 7 Git Temporal deferred placeholders.
         include_impact: If True, includes Phase 8 Change Impact & Test Intelligence deferred placeholders.
-                        If False, omits Phase 8 (when active impact tools are registered).
+        include_architecture: If True, includes Phase 9 Advanced Architecture deferred placeholders.
     """
     tools = []
     if include_git:
@@ -85,21 +87,22 @@ def create_deferred_tools(include_git: bool = True, include_impact: bool = True)
             ),
         ])
 
-    tools.extend([
-        # Phase 9 — Advanced Architecture and Risk Insights
-        DeferredTool(
-            name="detect_maintenance_hotspots",
-            description="Identify maintenance hotspots by cross-referencing code churn, cyclomatic complexity, and centrality.",
-            target_phase="Phase 9: Advanced Architecture and Risk Insights",
-            required_capabilities=["hotspot_detector", "complexity_analyzer", "churn_analyzer"],
-            input_schema={"type": "object"},
-        ),
-        DeferredTool(
-            name="check_architecture_conformance",
-            description="Validate architectural layering and dependency conformance against configured architectural boundaries.",
-            target_phase="Phase 9: Advanced Architecture and Risk Insights",
-            required_capabilities=["conformance_engine", "layer_definitions"],
-            input_schema={"type": "object"},
-        ),
-    ])
+    if include_architecture:
+        tools.extend([
+            # Phase 9 — Advanced Architecture and Risk Insights
+            DeferredTool(
+                name="detect_maintenance_hotspots",
+                description="Identify maintenance hotspots by cross-referencing code churn, cyclomatic complexity, and centrality.",
+                target_phase="Phase 9: Advanced Architecture and Risk Insights",
+                required_capabilities=["hotspot_detector", "complexity_analyzer", "churn_analyzer"],
+                input_schema={"type": "object"},
+            ),
+            DeferredTool(
+                name="check_architecture_conformance",
+                description="Validate architectural layering and dependency conformance against configured architectural boundaries.",
+                target_phase="Phase 9: Advanced Architecture and Risk Insights",
+                required_capabilities=["conformance_engine", "layer_definitions"],
+                input_schema={"type": "object"},
+            ),
+        ])
     return tools

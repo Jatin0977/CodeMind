@@ -137,7 +137,7 @@ class EntityExtractor:
         # 7. Module or component references e.g. "authentication module", "auth component"
         module_matches = re.findall(r"\b([a-zA-Z0-9_\-]+)\s+(?:module|component|package|subsystem)\b", text, re.IGNORECASE)
         for mod in module_matches:
-            if mod.lower() not in {"the", "this", "that", "a", "an", "each", "all"} and mod not in ENGLISH_PASCAL_STOP_WORDS:
+            if mod.lower() not in {"the", "this", "that", "a", "an", "each", "all", "and", "or", "in", "of", "for", "with", "to", "from", "by", "our", "their", "its"} and mod not in ENGLISH_PASCAL_STOP_WORDS:
                 if mod not in modules:
                     modules.append(mod)
                     raw_entities.append(mod)
@@ -284,6 +284,23 @@ class InvestigationIntentClassifier:
                 (r"\bhigh\s+complexity\b", 2.5),
                 (r"\bhotspots?\b", 2.5),
                 (r"\barchitectural\s+layering\b", 2.5),
+                (r"\barchitecture\s+overview\b", 3.0),
+                (r"\bmodule\s+hierarchy\b", 3.0),
+                (r"\bpackage\s+cycles?\b", 3.0),
+                (r"\bpackage\s+level\s+cycles?\b", 3.0),
+                (r"\blayer\s+violations?\b", 3.0),
+                (r"\blayer\s+conformance\b", 3.0),
+                (r"\blayer\s+skipping\b", 3.0),
+                (r"\bupward\s+layer\s+leaks?\b", 3.0),
+                (r"\bforbidden\s+imports?\b", 3.0),
+                (r"\bevidence\s+coverage\b", 3.0),
+                (r"\banalysis\s+limitations?\b", 3.0),
+                (r"\bconformance\s+index\b", 3.0),
+                (r"\baci\b", 2.5),
+                (r"\bvolatile\s+fragile\b", 3.0),
+                (r"\bbrain\s+modules?\b", 3.0),
+                (r"\bshotgun\s+surgery\b", 3.0),
+                (r"\bgod\s+class\b", 3.0),
             ],
             InvestigationIntent.STRUCTURE: [
                 (r"\bdepend(?:s|ed|ing)?\s+on\b", 2.5),

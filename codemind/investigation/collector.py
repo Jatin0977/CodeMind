@@ -140,6 +140,16 @@ class EvidenceCollector:
                 item.end_line,
                 item.content or "",
             )
+        elif cat == "architecture":
+            return (
+                cat,
+                item.source_tool,
+                item.symbol_name or "",
+                item.relative_path or "",
+                item.start_line,
+                item.relationship_type or "",
+                item.provenance or "",
+            )
         elif cat == "deferred":
             return (cat, item.source_tool, item.target_phase or "")
         else:
@@ -550,6 +560,187 @@ class EvidenceCollector:
                         },
                     )
                 )
+
+        # 8. Phase 9 Architecture Intelligence tools
+        elif tool_name == "get_architecture_overview" and isinstance(data, dict):
+            q_info = data.get("quotient_graph") or data.get("quotient_graph_summary") or {}
+            self.add_item(
+                EvidenceItem(
+                    category="architecture",
+                    source_tool=tool_name,
+                    source_step_id=step_id,
+                    symbol_name="ArchitectureHierarchy",
+                    provenance="architecture_overview",
+                    metadata={
+                        "total_modules": data.get("total_modules", 0),
+                        "total_layers": data.get("total_layers", 0),
+                        "matched_modules": data.get("matched_modules_count", 0),
+                        "cross_module_edges": q_info.get("edges_count", data.get("cross_module_edges", 0)),
+                        "is_acyclic": q_info.get("is_acyclic", True),
+                    },
+                )
+            )
+            for mod in (data.get("modules") or [])[:15]:
+                mod_name = mod.get("name") or mod.get("module_id") or "module"
+                layer_name = mod.get("layer") or mod.get("layer_name") or "UNCLASSIFIED"
+                self.add_item(
+                    EvidenceItem(
+                        category="architecture",
+                        source_tool=tool_name,
+                        source_step_id=step_id,
+                        symbol_name=mod_name,
+                        score=mod.get("stability") or mod.get("confidence"),
+                        provenance="module_stability",
+                        metadata={
+                            "layer": layer_name,
+                            "files_count": mod.get("files_count", 0),
+                            "fan_in": mod.get("fan_in", 0),
+                            "fan_out": mod.get("fan_out", 0),
+                            "complexity": mod.get("total_complexity", 0),
+                        },
+                    )
+                )
+
+        elif tool_name == "check_architecture_conformance" and isinstance(data, dict):
+            tot_edges = data.get("total_evaluated_edges", data.get("total_cross_module_edges", 0))
+            viols_cnt = data.get("violations_count", data.get("total_violations", len(data.get("violations", []))))
+            self.add_item(
+                EvidenceItem(
+                    category="architecture",
+                    source_tool=tool_name,
+                    source_step_id=step_id,
+                    symbol_name="ArchitectureConformance",
+                    score=data.get("conformance_index"),
+                    provenance="architecture_conformance",
+                    metadata={
+                        "conformance_index": data.get("conformance_index"),
+                        "total_cross_module_edges": tot_edges,
+                        "violating_edges_count": data.get("violating_edges_count", 0),
+                        "total_violations": viols_cnt,
+                        "is_fully_conformant": data.get("is_compliant", data.get("is_fully_conformant", False)),
+                    },
+                )
+            )
+            for v in (data.get("violations") or [])[:25]:
+                self.add_item(
+                    EvidenceItem(
+                        category="architecture",
+                        source_tool=tool_name,
+                        source_step_id=step_id,
+                        relative_path=v.get("source_file"),
+                        start_line=v.get("line_number"),
+                        end_line=v.get("line_number"),
+                        symbol_name=f"{v.get('source_module')} -> {v.get('target_module')}",
+                        relationship_type=v.get("violation_type"),
+                        graph_source=v.get("source_module"),
+                        graph_target=v.get("target_module"),
+                        score=v.get("weight"),
+                        provenance="layer_violation",
+                        metadata={
+                            "target_file": v.get("target_file"),
+                            "rule_description": v.get("rule_description"),
+                            "violation_type": v.get("violation_type"),
+                            "severity": v.get("severity"),
+                        },
+                    )
+                )
+
+        elif tool_name == "detect_package_cycles" and isinstance(data, dict):
+            cyc_cnt = data.get("total_cycles", data.get("package_cycles_count", len(data.get("cycles", []))))
+            has_cyc = data.get("has_cycles", data.get("has_package_cycles", cyc_cnt > 0))
+            self.add_item(
+                EvidenceItem(
+                    category="architecture",
+                    source_tool=tool_name,
+                    source_step_id=step_id,
+                    symbol_name="PackageCycles",
+                    score=float(cyc_cnt),
+                    provenance="package_cycle_analysis",
+                    metadata={
+                        "has_package_cycles": has_cyc,
+                        "package_cycles_count": cyc_cnt,
+                        "total_sccs": data.get("total_sccs", 0),
+                    },
+                )
+            )
+            for cyc in (data.get("cycles") or [])[:15]:
+                mods = cyc.get("modules") or cyc.get("cycle_path") or []
+                self.add_item(
+                    EvidenceItem(
+                        category="architecture",
+                        source_tool=tool_name,
+                        source_step_id=step_id,
+                        symbol_name=f"Cycle: {' -> '.join(str(m) for m in mods)}",
+                        relationship_type="PACKAGE_CYCLE",
+                        provenance="package_cycle",
+                        metadata={
+                            "cycle_id": cyc.get("cycle_id", "cycle"),
+                            "modules": mods,
+                            "length": cyc.get("length", len(mods)),
+                        },
+                    )
+                )
+
+        elif tool_name == "detect_maintenance_hotspots" and isinstance(data, dict):
+            rrs_score = data.get("top_hotspot_mean", data.get("repository_risk_score"))
+            hot_cnt = data.get("matched_hotspots_count", data.get("hotspots_count", len(data.get("hotspots", []))))
+            tot_analyzed = data.get("total_analyzed", data.get("total_modules_analyzed", 0))
+            self.add_item(
+                EvidenceItem(
+                    category="architecture",
+                    source_tool=tool_name,
+                    source_step_id=step_id,
+                    symbol_name="RepositoryRiskScore",
+                    score=rrs_score,
+                    provenance="repository_risk_score",
+                    metadata={
+                        "repository_risk_score": rrs_score,
+                        "hotspots_count": hot_cnt,
+                        "total_modules_analyzed": tot_analyzed,
+                        "analysis_state": data.get("analysis_state"),
+                        "evidence_coverage": data.get("evidence_coverage"),
+                    },
+                )
+            )
+            for h in (data.get("hotspots") or [])[:20]:
+                h_name = h.get("entity_path") or h.get("module_id") or "hotspot"
+                h_score = h.get("hotspot_score") if h.get("hotspot_score") is not None else h.get("risk_score")
+                self.add_item(
+                    EvidenceItem(
+                        category="architecture",
+                        source_tool=tool_name,
+                        source_step_id=step_id,
+                        symbol_name=h_name,
+                        score=h_score,
+                        provenance="maintenance_hotspot",
+                        metadata={
+                            "archetype": h.get("archetype"),
+                            "active_signals": list(h.get("effective_weights", {}).keys()) or h.get("active_signals", []),
+                            "interaction_multiplier": h.get("multiplier") or h.get("interaction_multiplier", 1.0),
+                            "metrics": h.get("raw_metrics") or h.get("metrics", {}),
+                        },
+                    )
+                )
+
+        elif tool_name == "get_evidence_coverage" and isinstance(data, dict):
+            cov_score = data.get("overall_coverage") if data.get("overall_coverage") is not None else data.get("coverage_score")
+            self.add_item(
+                EvidenceItem(
+                    category="architecture",
+                    source_tool=tool_name,
+                    source_step_id=step_id,
+                    symbol_name="EvidenceCoverage",
+                    score=cov_score,
+                    provenance="evidence_coverage",
+                    metadata={
+                        "coverage_score": cov_score,
+                        "analysis_state": data.get("analysis_state"),
+                        "missing_signals": data.get("missing_signals", []),
+                        "limitations": data.get("limitations", []),
+                        "dimensions": data.get("dimensions", {}),
+                    },
+                )
+            )
 
         return len(self._items) - initial_count
 

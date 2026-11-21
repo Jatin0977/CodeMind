@@ -457,22 +457,51 @@ class InvestigationPlanner:
         entities: ExtractedEntities,
         primary_entity: Optional[str],
     ) -> List[Dict[str, Any]]:
-        """INSIGHTS: detect_cycles -> search_symbols -> detect_maintenance_hotspots (deferred) -> check_architecture_conformance (deferred)"""
+        """INSIGHTS: detect_cycles -> search_symbols -> detect_maintenance_hotspots -> check_architecture_conformance -> get_architecture_overview -> detect_package_cycles -> get_evidence_coverage"""
         steps = []
         q_lower = query.lower()
 
-        # 1. detect_cycles (if circular dependencies or cycles queried, or general repository health)
-        if any(w in q_lower for w in ["cycle", "circular", "loop", "health", "risk", "insight"]):
+        is_architecture_query = any(w in q_lower for w in ["architecture", "overview", "hierarchy", "module", "layer", "quotient", "structure", "system", "component", "subsystem"])
+        is_conformance_query = any(w in q_lower for w in ["conformance", "layer", "violation", "aci", "boundary", "leak", "forbidden", "strict"])
+        is_package_cycle_query = any(w in q_lower for w in ["package cycle", "package-level cycle", "module cycle", "quotient cycle", "circular package", "scc"])
+        is_cycle_query = any(w in q_lower for w in ["cycle", "circular", "loop", "health", "risk", "insight"])
+        is_hotspot_query = any(w in q_lower for w in ["hotspot", "maintenance", "risk", "debt", "complexity", "archetype", "brain", "rrs"])
+        is_coverage_query = any(w in q_lower for w in ["coverage", "evidence", "limitation", "confidence", "completeness", "temporal", "validity"])
+
+        # 1. get_architecture_overview (Phase 9 active tool)
+        if is_architecture_query or is_conformance_query:
+            steps.append({
+                "tag": "arch_overview_step",
+                "tool_name": "get_architecture_overview",
+                "purpose": "Analyze architectural module decomposition and layered hierarchy",
+                "input_parameters": {},
+                "dependencies": [],
+                "is_required": False,
+            })
+
+        # 2. detect_cycles (code graph / AST cycles)
+        if is_cycle_query:
             steps.append({
                 "tag": "cycles_step",
                 "tool_name": "detect_cycles",
                 "purpose": "Detect circular dependency loops across imports and function calls",
                 "input_parameters": {"max_cycles": 25},
                 "dependencies": [],
-                "is_required": True,
+                "is_required": False if is_architecture_query else True,
             })
 
-        # 2. search_symbols (if specific entity mentioned in insight query)
+        # 3. detect_package_cycles (Phase 9 active tool: Tarjan SCC on module quotient graph)
+        if is_package_cycle_query or (is_cycle_query and any(w in q_lower for w in ["package", "module", "quotient", "scc"])):
+            steps.append({
+                "tag": "package_cycles_step",
+                "tool_name": "detect_package_cycles",
+                "purpose": "Detect package-level strongly connected component cycles in quotient graph",
+                "input_parameters": {},
+                "dependencies": [],
+                "is_required": False,
+            })
+
+        # 4. search_symbols (if specific entity mentioned in insight query)
         if primary_entity:
             steps.append({
                 "tag": "search_step",
@@ -483,23 +512,34 @@ class InvestigationPlanner:
                 "is_required": False,
             })
 
-        # 3. detect_maintenance_hotspots (Deferred Tool, Phase 9)
-        if any(w in q_lower for w in ["hotspot", "maintenance", "risk", "debt", "complexity"]):
+        # 5. detect_maintenance_hotspots (Active Phase 9 or Deferred Phase 6)
+        if is_hotspot_query:
             steps.append({
                 "tag": "hotspots_step",
                 "tool_name": "detect_maintenance_hotspots",
-                "purpose": "Identify maintenance hotspots combining churn, complexity, and centrality (Deferred to Phase 9)",
+                "purpose": "Identify maintenance hotspots combining churn, complexity, and centrality",
                 "input_parameters": {},
                 "dependencies": [],
                 "is_required": False,
             })
 
-        # 4. check_architecture_conformance (Deferred Tool, Phase 9)
-        if any(w in q_lower for w in ["conformance", "layer", "architecture", "boundary"]):
+        # 6. check_architecture_conformance (Active Phase 9 or Deferred Phase 6)
+        if is_conformance_query or any(w in q_lower for w in ["conformance", "layer", "architecture", "boundary"]):
             steps.append({
                 "tag": "conformance_step",
                 "tool_name": "check_architecture_conformance",
-                "purpose": "Validate architectural layering and dependency conformance (Deferred to Phase 9)",
+                "purpose": "Validate architectural layering and dependency conformance",
+                "input_parameters": {},
+                "dependencies": [],
+                "is_required": False,
+            })
+
+        # 7. get_evidence_coverage (Phase 9 active tool)
+        if is_coverage_query:
+            steps.append({
+                "tag": "evidence_coverage_step",
+                "tool_name": "get_evidence_coverage",
+                "purpose": "Evaluate multi-signal evidence completeness and analysis limitations",
                 "input_parameters": {},
                 "dependencies": [],
                 "is_required": False,
@@ -518,7 +558,7 @@ class InvestigationPlanner:
             steps.append({
                 "tag": "hotspots_step",
                 "tool_name": "detect_maintenance_hotspots",
-                "purpose": "Analyze codebase for maintenance hotspots (Deferred to Phase 9)",
+                "purpose": "Analyze codebase for maintenance hotspots",
                 "input_parameters": {},
                 "dependencies": [],
                 "is_required": False,

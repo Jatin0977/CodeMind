@@ -579,6 +579,17 @@ def investigate_repository(
     except Exception:
         pass
 
+    discovery_engine = None
+    conformance_engine = None
+    hotspot_detector = None
+    try:
+        from .architecture import ArchitectureDiscoveryEngine, ArchitectureConformanceEngine, MaintenanceHotspotDetector
+        discovery_engine = ArchitectureDiscoveryEngine()
+        conformance_engine = ArchitectureConformanceEngine()
+        hotspot_detector = MaintenanceHotspotDetector()
+    except Exception:
+        pass
+
     engine = InvestigationEngine(
         repo=repo,
         query_engine=query_engine,
@@ -588,6 +599,11 @@ def investigate_repository(
         git_client=git_client,
         git_churn_analyzer=git_churn_analyzer,
         git_coupling_analyzer=git_coupling_analyzer,
+        discovery_engine=discovery_engine,
+        conformance_engine=conformance_engine,
+        hotspot_detector=hotspot_detector,
+        enable_architecture=bool(discovery_engine is not None),
+        parsed_files=parsed_files,
         llm_provider=llm_provider,
     )
 

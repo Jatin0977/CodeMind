@@ -314,6 +314,7 @@ class InvestigationSynthesizer:
         temporal_cites = [c for c in citations if c.category == "temporal"]
         impact_cites = [c for c in citations if c.category == "impact"]
         test_cites = [c for c in citations if c.category == "test_intelligence"]
+        arch_cites = [c for c in citations if c.category == "architecture"]
         deferred_cites = [c for c in citations if c.category == "deferred"]
 
         # Check for ambiguity and failure warnings in steps
@@ -342,6 +343,7 @@ class InvestigationSynthesizer:
             or len(temporal_cites) > 0
             or len(impact_cites) > 0
             or len(test_cites) > 0
+            or len(arch_cites) > 0
         )
 
         if not has_evidence:
@@ -403,6 +405,44 @@ class InvestigationSynthesizer:
             direct_answer_parts.append(
                 f"Retrieved {len(retrieval_cites)} relevant semantic code chunk(s)."
             )
+
+        if arch_cites:
+            aci_cites = [c for c in arch_cites if c.provenance == "architecture_conformance"]
+            hotspot_cites = [c for c in arch_cites if c.provenance in ("repository_risk_score", "maintenance_hotspot")]
+            cycle_cites = [c for c in arch_cites if c.provenance in ("package_cycle", "package_cycle_analysis")]
+            overview_cites = [c for c in arch_cites if c.provenance in ("architecture_overview", "module_stability")]
+            cov_cites = [c for c in arch_cites if c.provenance == "evidence_coverage"]
+
+            arch_summary = []
+            if overview_cites:
+                meta = overview_cites[0].metadata or {}
+                arch_summary.append(f"Analyzed {meta.get('total_modules', 0)} architectural module(s) across {meta.get('total_layers', 0)} layer(s).")
+            if aci_cites:
+                aci_val = aci_cites[0].score
+                score_str = f"{aci_val:.2f}%" if aci_val is not None else "N/A"
+                meta = aci_cites[0].metadata or {}
+                viols = meta.get("total_violations", 0)
+                arch_summary.append(f"Architecture Conformance Index (ACI): **{score_str}** ({viols} layer violation(s)).")
+            if cycle_cites:
+                meta = cycle_cites[0].metadata or {}
+                cyc_cnt = meta.get("package_cycles_count", len([c for c in cycle_cites if c.provenance == "package_cycle"]))
+                arch_summary.append(f"Identified {cyc_cnt} package-level dependency cycle(s).")
+            if hotspot_cites:
+                rrs_cite = next((c for c in hotspot_cites if c.provenance == "repository_risk_score"), None)
+                if rrs_cite and rrs_cite.score is not None:
+                    arch_summary.append(f"Repository Risk Score (RRS): **{rrs_cite.score:.2f}**.")
+                hot_modules = [c for c in hotspot_cites if c.provenance == "maintenance_hotspot"]
+                if hot_modules:
+                    arch_summary.append(f"Detected {len(hot_modules)} maintenance hotspot module(s).")
+            if cov_cites and not arch_summary:
+                cov_val = cov_cites[0].score
+                cov_str = f"{cov_val * 100:.1f}%" if cov_val is not None else "N/A"
+                arch_summary.append(f"Architecture evidence coverage: {cov_str}.")
+
+            if arch_summary:
+                direct_answer_parts.append(" ".join(arch_summary))
+            else:
+                direct_answer_parts.append(f"Evaluated {len(arch_cites)} architectural metric(s) and conformance record(s).")
 
         sections.append("### Direct Answer\n" + " ".join(direct_answer_parts))
 
@@ -489,6 +529,36 @@ class InvestigationSynthesizer:
             ev_type = tc.relationship_type or "HEURISTIC"
             findings.append(f"- **Recommended Test (Tier {tier}, {ev_type})**: `{tc.symbol_name}` in `{tc.to_citation_tag()}`{score_str}.")
 
+        # Architecture findings
+        for a in arch_cites:
+            meta = a.metadata or {}
+            prov = a.provenance or "architecture"
+            if prov == "architecture_overview":
+                findings.append(f"- **Architecture Hierarchy**: {meta.get('total_modules', 0)} modules, {meta.get('total_layers', 0)} layers, {meta.get('cross_module_edges', 0)} cross-module edges (Tool: `{a.source_tool}`).")
+            elif prov == "module_stability":
+                score_str = f"{a.score:.2f}" if a.score is not None else "N/A"
+                findings.append(f"- **Module Stability**: Module `{a.symbol_name}` (Layer: {meta.get('layer')}, Instability I: {score_str}, Fan-in: {meta.get('fan_in')}, Fan-out: {meta.get('fan_out')}).")
+            elif prov == "architecture_conformance":
+                aci_str = f"{a.score:.2f}%" if a.score is not None else "N/A"
+                findings.append(f"- **Architecture Conformance (ACI)**: Conformance Index {aci_str} with {meta.get('total_violations', 0)} violation(s) across {meta.get('violating_edges_count', 0)} violating edge(s).")
+            elif prov == "layer_violation":
+                line_info = f":{a.start_line}" if a.start_line else ""
+                findings.append(f"- **Layer Violation ({a.relationship_type})**: `{a.graph_source}` -> `{a.graph_target}` at `{a.relative_path}{line_info}` ({meta.get('rule_description', '')}, Weight: {a.score}).")
+            elif prov == "package_cycle":
+                cycle_mods = " -> ".join(meta.get("modules", []))
+                findings.append(f"- **Package-Level Cycle**: Circular dependency `{cycle_mods}` ({meta.get('length', 0)} modules).")
+            elif prov == "repository_risk_score":
+                rrs_str = f"{a.score:.2f}" if a.score is not None else "N/A"
+                findings.append(f"- **Repository Risk Score (RRS)**: Evaluated at {rrs_str} across {meta.get('total_modules', 0)} module(s).")
+            elif prov == "maintenance_hotspot":
+                score_str = f"{a.score:.2f}" if a.score is not None else "N/A"
+                archetype = meta.get("archetype", "UNKNOWN")
+                findings.append(f"- **Maintenance Hotspot**: Module `{a.symbol_name}` classified as **{archetype}** (Risk Score: {score_str}, Multiplier: {meta.get('interaction_multiplier', 1.0):.2f}).")
+            elif prov == "evidence_coverage":
+                cov_str = f"{(a.score or 0.0) * 100:.1f}%"
+                missing = ", ".join(meta.get("missing_signals", [])) or "None"
+                findings.append(f"- **Evidence Coverage**: {cov_str} active coverage (Missing signals: {missing}).")
+
         if findings:
             sections.append("### Key Findings\n" + "\n".join(findings))
 
@@ -519,6 +589,18 @@ class InvestigationSynthesizer:
                 "Git Temporal Intelligence Boundary: Historical metrics and logical coupling reflect repository commit log records; "
                 "shallow clones, branch boundaries, or squash merges may influence statistical support."
             )
+
+        if arch_cites:
+            cov_cites = [c for c in arch_cites if c.provenance == "evidence_coverage"]
+            if cov_cites:
+                meta = cov_cites[0].metadata or {}
+                for lim in meta.get("limitations", []):
+                    limitations.append(f"Architecture Limitation: {lim}")
+            else:
+                limitations.append(
+                    "Architecture Intelligence Boundary: Conformance and risk metrics reflect analyzed Python ASTs "
+                    "and configured layer rules; dynamic imports, reflection, or unparsed files may affect boundary coverage."
+                )
 
         for w in ambiguity_warnings:
             limitations.append(f"Ambiguity Encountered: {w}")

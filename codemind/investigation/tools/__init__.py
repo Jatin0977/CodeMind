@@ -4,7 +4,7 @@ Exports BaseTool, ToolResult, DeferredTool, ToolRegistry, concrete tools,
 and a deterministic factory function to initialize and populate the registry.
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 
 from .base import BaseTool, ToolResult, DeferredTool
 from .registry import ToolRegistry
@@ -20,6 +20,13 @@ from .graph_tools import (
 from .retrieval_tools import SemanticSearchTool, HybridSearchTool
 from .git_tools import GitCommitHistoryTool, GitCodeChurnTool, GitLogicalCouplingTool
 from .impact_tools import MultiSignalImpactTool, GetTestCoverageTool
+from .architecture_tools import (
+    GetArchitectureOverviewTool,
+    CheckArchitectureConformanceTool,
+    DetectPackageCyclesTool,
+    DetectMaintenanceHotspotsTool,
+    GetEvidenceCoverageTool,
+)
 from .deferred_tools import create_deferred_tools
 
 from ...ingestion.models import IngestedRepository
@@ -44,6 +51,15 @@ def create_tool_registry(
     enable_impact: bool = False,
     has_tests: bool = False,
     total_repo_commits: int = 0,
+    discovery_engine: Optional[Any] = None,
+    conformance_engine: Optional[Any] = None,
+    hotspot_detector: Optional[Any] = None,
+    enable_architecture: bool = False,
+    modules: Optional[Any] = None,
+    layers: Optional[Any] = None,
+    quotient_graph: Optional[Any] = None,
+    evidence_coverage: Optional[Any] = None,
+    parsed_files: Optional[Dict[str, Any]] = None,
 ) -> ToolRegistry:
     """
     Construct and return a deterministic ToolRegistry populated with all
@@ -56,10 +72,12 @@ def create_tool_registry(
     3. Retrieval tools: semantic_search, hybrid_search
     4. Git Temporal tools (Phase 7): git_commit_history, git_code_churn, git_logical_coupling (if Git enabled)
     5. Impact tools (Phase 8): multi_signal_impact, get_test_coverage (if Impact enabled)
-    6. Deferred tools (Phases 9, or uninitialized Phases 7/8):
+    6. Architecture tools (Phase 9): get_architecture_overview, check_architecture_conformance,
+                                    detect_package_cycles, detect_maintenance_hotspots, get_evidence_coverage (if Architecture enabled)
+    7. Deferred tools (any uninitialized phases):
        - Phase 7: git_commit_history, git_code_churn (when Git uninitialized)
        - Phase 8: multi_signal_impact, get_test_coverage (when Impact uninitialized)
-       - Phase 9: detect_maintenance_hotspots, check_architecture_conformance
+       - Phase 9: detect_maintenance_hotspots, check_architecture_conformance (when Architecture uninitialized)
 
     Returns:
         Populated ToolRegistry with deterministic ordering.
@@ -69,6 +87,9 @@ def create_tool_registry(
     )
     has_impact = enable_impact or any(
         x is not None for x in (impact_engine, impact_scorer, test_engine)
+    )
+    has_architecture = enable_architecture or any(
+        x is not None for x in (discovery_engine, conformance_engine, hotspot_detector, modules, layers, quotient_graph)
     )
     registry = ToolRegistry()
 
@@ -136,10 +157,57 @@ def create_tool_registry(
             )
         )
 
-    # 6. Deferred Tools (Phases 9 and any inactive future phases)
+    # 6. Architecture & Risk Tools (Phase 9 Active)
+    if has_architecture:
+        registry.register(
+            GetArchitectureOverviewTool(
+                discovery_engine=discovery_engine,
+                modules=modules,
+                layers=layers,
+                repo=repo,
+                parsed_files=parsed_files,
+            )
+        )
+        registry.register(
+            CheckArchitectureConformanceTool(
+                conformance_engine=conformance_engine,
+                discovery_engine=discovery_engine,
+                parsed_files=parsed_files,
+            )
+        )
+        registry.register(
+            DetectPackageCyclesTool(
+                conformance_engine=conformance_engine,
+                quotient_graph=quotient_graph,
+            )
+        )
+        registry.register(
+            DetectMaintenanceHotspotsTool(
+                hotspot_detector=hotspot_detector,
+                modules=modules,
+                quotient_graph=quotient_graph,
+                churn_summary=getattr(git_churn_analyzer, "latest_summary", None) if git_churn_analyzer else None,
+                total_source_files=len(repo.files) if repo else 0,
+                valid_ast_files=len(parsed_files) if parsed_files else 0,
+            )
+        )
+        registry.register(
+            GetEvidenceCoverageTool(
+                evidence_coverage=evidence_coverage,
+                total_source_files=len(repo.files) if repo else 0,
+                valid_ast_files=len(parsed_files) if parsed_files else 0,
+                has_graph=bool(query_engine is not None),
+                has_churn=has_git,
+                eligible_commits_count=total_repo_commits,
+                has_structural_coupling=bool(quotient_graph is not None and quotient_graph.number_of_edges() > 0),
+            )
+        )
+
+    # 7. Deferred Tools (any uninitialized phases)
     deferred_tools = create_deferred_tools(
         include_git=not has_git,
         include_impact=not has_impact,
+        include_architecture=not has_architecture,
     )
     for def_tool in deferred_tools:
         registry.register(def_tool)
@@ -168,6 +236,11 @@ __all__ = [
     "GitLogicalCouplingTool",
     "MultiSignalImpactTool",
     "GetTestCoverageTool",
+    "GetArchitectureOverviewTool",
+    "CheckArchitectureConformanceTool",
+    "DetectPackageCyclesTool",
+    "DetectMaintenanceHotspotsTool",
+    "GetEvidenceCoverageTool",
     "create_deferred_tools",
     "create_tool_registry",
 ]

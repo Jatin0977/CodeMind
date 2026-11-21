@@ -54,6 +54,15 @@ class InvestigationEngine:
         impact_scorer: Optional[Any] = None,
         test_engine: Optional[Any] = None,
         enable_impact: bool = False,
+        discovery_engine: Optional[Any] = None,
+        conformance_engine: Optional[Any] = None,
+        hotspot_detector: Optional[Any] = None,
+        enable_architecture: bool = False,
+        modules: Optional[Any] = None,
+        layers: Optional[Any] = None,
+        quotient_graph: Optional[Any] = None,
+        evidence_coverage: Optional[Any] = None,
+        parsed_files: Optional[Any] = None,
     ):
         """
         Initialize the investigation engine with explicit dependencies.
@@ -70,6 +79,14 @@ class InvestigationEngine:
         self.impact_engine = impact_engine
         self.impact_scorer = impact_scorer
         self.test_engine = test_engine
+        self.discovery_engine = discovery_engine
+        self.conformance_engine = conformance_engine
+        self.hotspot_detector = hotspot_detector
+        self.modules = modules
+        self.layers = layers
+        self.quotient_graph = quotient_graph
+        self.evidence_coverage = evidence_coverage
+        self.parsed_files = parsed_files
 
         # 1. Tool registry
         if registry is not None:
@@ -88,6 +105,15 @@ class InvestigationEngine:
                 impact_scorer=impact_scorer,
                 test_engine=test_engine,
                 enable_impact=enable_impact,
+                discovery_engine=discovery_engine,
+                conformance_engine=conformance_engine,
+                hotspot_detector=hotspot_detector,
+                enable_architecture=enable_architecture,
+                modules=modules,
+                layers=layers,
+                quotient_graph=quotient_graph,
+                evidence_coverage=evidence_coverage,
+                parsed_files=parsed_files,
             )
 
         # 2. Intent classifier
