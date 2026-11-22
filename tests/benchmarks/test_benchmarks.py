@@ -29,9 +29,10 @@ class TestBenchmarkEvaluation(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.root_dir = Path(__file__).resolve().parent.parent
-        cls.dataset_path = cls.root_dir / "tests" / "benchmarks" / "golden_dataset.json"
-        cls.fixtures_dir = cls.root_dir / "tests" / "benchmarks" / "fixtures"
+        cls.benchmarks_dir = Path(__file__).resolve().parent
+        cls.root_dir = cls.benchmarks_dir.parent.parent
+        cls.dataset_path = cls.benchmarks_dir / "golden_dataset.json"
+        cls.fixtures_dir = cls.benchmarks_dir / "fixtures"
 
     def test_golden_dataset_schema_and_distribution(self):
         """Verify the golden evaluation dataset exists, is valid JSON, and has 50 queries across all 5 intents."""

@@ -42,12 +42,14 @@ def _init_git_repo(repo_dir: Path, commit_batches: Optional[List[List[str]]] = N
             for rel_file in batch_files:
                 _run_git_cmd(repo_dir, ["add", rel_file])
             _run_git_cmd(repo_dir, ["commit", "-m", f"feat: commit batch {idx + 1}"])
+        _run_git_cmd(repo_dir, ["add", "."])
+        _run_git_cmd(repo_dir, ["commit", "-m", "chore: add remaining fixture modules and __init__ files"])
     else:
         _run_git_cmd(repo_dir, ["add", "."])
         _run_git_cmd(repo_dir, ["commit", "-m", "feat: initial benchmark baseline commit"])
 
 
-def generate_small_repo(base_dir: Path) -> Path:
+def generate_small_repo(base_dir: Path, init_git: bool = False) -> Path:
     """Generate repo_small: 10 source files (~500 LOC) with clean 3-tier layering."""
     repo_dir = base_dir / "repo_small"
     if repo_dir.exists():
@@ -297,17 +299,18 @@ def generate_small_repo(base_dir: Path) -> Path:
         encoding="utf-8",
     )
 
-    # Initialize Git with 3 commits for churn & history testing
-    commits = [
-        ["utils/crypto.py", "utils/validators.py", "models/user.py", "models/session.py"],
-        ["db/connection.py", "db/repository.py"],
-        ["services/auth_service.py", "services/user_service.py", "api/auth_controller.py", "api/user_controller.py"],
-    ]
-    _init_git_repo(repo_dir, commit_batches=commits)
+    if init_git:
+        # Initialize Git with 3 commits for churn & history testing
+        commits = [
+            ["utils/crypto.py", "utils/validators.py", "models/user.py", "models/session.py"],
+            ["db/connection.py", "db/repository.py"],
+            ["services/auth_service.py", "services/user_service.py", "api/auth_controller.py", "api/user_controller.py"],
+        ]
+        _init_git_repo(repo_dir, commit_batches=commits)
     return repo_dir
 
 
-def generate_medium_repo(base_dir: Path) -> Path:
+def generate_medium_repo(base_dir: Path, init_git: bool = False) -> Path:
     """
     Generate repo_medium: 50 source files (~5,000 LOC) across 8 packages.
     Features:
@@ -504,29 +507,30 @@ def generate_medium_repo(base_dir: Path) -> Path:
 
     # Total files: 6 + 6 + 6 + 7 + 6 + 6 + 6 + 7 = 50 source files!
 
-    # Create 15 commits with intentional co-change patterns
-    commits = [
-        ["core/config.py", "core/logger.py", "core/constants.py"],
-        ["core/exceptions.py", "core/telemetry.py", "core/event_bus.py"],
-        ["auth/tokens.py", "auth/password.py"],
-        ["auth/permissions.py", "auth/middleware.py"],
-        ["auth/session_store.py", "auth/oauth_provider.py"],
-        ["domain/customer.py", "domain/product.py"],
-        ["domain/cart.py", "domain/order.py", "services/order_processor.py"],  # Co-change 1
-        ["billing/invoices.py", "billing/tax.py"],
-        ["billing/subscriptions.py", "billing/payment_gateway.py"],
-        ["services/account_service.py", "billing/ledger.py"],
-        ["domain/cart.py", "services/order_processor.py"],  # Co-change 2 (churn coupling)
-        ["adapters/email_adapter.py", "adapters/stripe_adapter.py"],
-        ["storage/postgres_db.py", "storage/sql_repo.py"],
-        ["domain/cart.py", "services/order_processor.py"],  # Co-change 3 (high Jaccard coupling)
-        ["utils/formatters.py", "utils/date_utils.py", "utils/validation.py"],
-    ]
-    _init_git_repo(repo_dir, commit_batches=commits)
+    if init_git:
+        # Create 15 commits with intentional co-change patterns
+        commits = [
+            ["core/config.py", "core/logger.py", "core/constants.py"],
+            ["core/exceptions.py", "core/telemetry.py", "core/event_bus.py"],
+            ["auth/tokens.py", "auth/password.py"],
+            ["auth/permissions.py", "auth/middleware.py"],
+            ["auth/session_store.py", "auth/oauth_provider.py"],
+            ["domain/customer.py", "domain/product.py"],
+            ["domain/cart.py", "domain/order.py", "services/order_processor.py"],  # Co-change 1
+            ["billing/invoices.py", "billing/tax.py"],
+            ["billing/subscriptions.py", "billing/payment_gateway.py"],
+            ["services/account_service.py", "billing/ledger.py"],
+            ["domain/cart.py", "services/order_processor.py"],  # Co-change 2 (churn coupling)
+            ["adapters/email_adapter.py", "adapters/stripe_adapter.py"],
+            ["storage/postgres_db.py", "storage/sql_repo.py"],
+            ["domain/cart.py", "services/order_processor.py"],  # Co-change 3 (high Jaccard coupling)
+            ["utils/formatters.py", "utils/date_utils.py", "utils/validation.py"],
+        ]
+        _init_git_repo(repo_dir, commit_batches=commits)
     return repo_dir
 
 
-def generate_large_repo(base_dir: Path) -> Path:
+def generate_large_repo(base_dir: Path, init_git: bool = False) -> Path:
     """
     Generate repo_large: 250 source files (~30,000 LOC) across 15 packages.
     Used for scalability benchmarking: parallel ingestion, AST parsing, and graph traversal.
@@ -580,13 +584,14 @@ def generate_large_repo(base_dir: Path) -> Path:
                 lines.append("            result = {'code': 204, 'priority': False, 'factor': factor}\n")
                 lines.append("        return result\n\n")
 
-            (pkg_dir / file_name).write_text("".join(lines), encoding="utf-8")
+            (pkg_dir / file_name).write_text("".join(lines).rstrip() + "\n", encoding="utf-8")
 
-    _init_git_repo(repo_dir)
+    if init_git:
+        _init_git_repo(repo_dir)
     return repo_dir
 
 
-def ensure_fixtures(base_dir: Optional[Path] = None) -> Dict[str, Path]:
+def ensure_fixtures(base_dir: Optional[Path] = None, init_git: bool = False) -> Dict[str, Path]:
     """Ensure all three deterministic fixtures exist; generate them if missing."""
     if base_dir is None:
         base_dir = Path(__file__).resolve().parent / "fixtures"
@@ -594,15 +599,15 @@ def ensure_fixtures(base_dir: Optional[Path] = None) -> Dict[str, Path]:
 
     small_dir = base_dir / "repo_small"
     if not small_dir.exists() or len(list(small_dir.glob("**/*.py"))) < 10:
-        generate_small_repo(base_dir)
+        generate_small_repo(base_dir, init_git=init_git)
 
     med_dir = base_dir / "repo_medium"
     if not med_dir.exists() or len(list(med_dir.glob("**/*.py"))) < 50:
-        generate_medium_repo(base_dir)
+        generate_medium_repo(base_dir, init_git=init_git)
 
     large_dir = base_dir / "repo_large"
     if not large_dir.exists() or len(list(large_dir.glob("**/*.py"))) < 250:
-        generate_large_repo(base_dir)
+        generate_large_repo(base_dir, init_git=init_git)
 
     return {
         "small": small_dir,
