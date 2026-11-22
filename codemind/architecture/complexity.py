@@ -123,18 +123,33 @@ class ComplexityAnalyzer:
     """
     Analyzes Python source code to calculate subtree-isolated cyclomatic complexity
     for modules, classes, methods, functions, and nested closures.
+    Supports in-memory caching for accelerated repeated analysis with explicit invalidation.
     """
+
+    def __init__(self, enable_cache: bool = True):
+        self.enable_cache = enable_cache
+        self._cache: Dict[Tuple[str, int, int], ComplexityMetrics] = {}
+
+    def clear_cache(self) -> None:
+        """Clear cached complexity analysis results for safe cache invalidation."""
+        self._cache.clear()
 
     def analyze_source(
         self,
         source_code: str,
         file_path: str = "<memory>",
         relative_path: str = "<memory>",
+        use_cache: Optional[bool] = None,
     ) -> ComplexityMetrics:
         """
         Parse Python source code and compute comprehensive isolated complexity metrics.
         Catches SyntaxError and other parse failures gracefully.
         """
+        active_cache = self.enable_cache if use_cache is None else use_cache
+        cache_key = (file_path, len(source_code), hash(source_code))
+        if active_cache and cache_key in self._cache:
+            return self._cache[cache_key]
+
         try:
             tree = ast.parse(source_code, filename=file_path)
         except SyntaxError as e:
@@ -185,7 +200,7 @@ class ComplexityAnalyzer:
         file_complexity = script_complexity + total_class_body_branching + all_symbol_complexity_sum
         max_symbol_complexity = max((s.complexity for s in symbols), default=0)
 
-        return ComplexityMetrics(
+        metrics = ComplexityMetrics(
             file_path=file_path,
             relative_path=relative_path,
             script_complexity=script_complexity,
@@ -195,6 +210,9 @@ class ComplexityAnalyzer:
             is_valid=True,
             error=None,
         )
+        if active_cache:
+            self._cache[cache_key] = metrics
+        return metrics
 
     def _collect_function_symbols(
         self,

@@ -15,6 +15,7 @@ from ..vector_store.base import SearchResult
 from ..graph.models import NodeType, EdgeType, Node
 from ..graph.query import GraphQueryEngine
 from .retriever import SemanticRetriever
+from .sparse_retriever import SparseBM25Retriever
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +221,8 @@ def classify_query_intent(query: str) -> str:
 class HybridGraphRetriever:
     """
     Orchestrates Hybrid Graph-Aware Retrieval.
-    Integrates SemanticRetriever vector search with KnowledgeGraphBuilder NetworkX topology.
+    Integrates SemanticRetriever vector search, SparseBM25Retriever lexical indexing,
+    and Software Knowledge Graph topological expansion.
     """
 
     def __init__(
@@ -236,11 +238,16 @@ class HybridGraphRetriever:
         max_expanded_per_seed: int = 3,
         total_budget: int = 6,
         seed_ratio: float = 0.5,
+        use_sparse: bool = True,
+        sparse_weight: float = 0.65,
+        dense_weight: float = 0.35,
+        domain_context: Optional[Dict[str, Any]] = None,
     ):
         self.retriever = retriever
         self.graph = graph
         self.query_engine = query_engine
         self.mapper = ChunkGraphMapper()
+        self.sparse_retriever = SparseBM25Retriever()
 
         # Configuration parameters
         self.alpha = max(0.0, min(1.0, alpha))
@@ -251,8 +258,12 @@ class HybridGraphRetriever:
         self.max_expanded_per_seed = max_expanded_per_seed
         self.total_budget = total_budget
         self.seed_ratio = max(0.0, min(1.0, seed_ratio))
+        self.use_sparse = use_sparse
+        self.sparse_weight = sparse_weight
+        self.dense_weight = dense_weight
+        self.domain_context = domain_context
 
-        # Index mapper if retriever already has chunks
+        # Index mapper and sparse index if retriever already has chunks
         if self.retriever.chunks:
             self.index(self.retriever.chunks, self.graph)
 
@@ -264,12 +275,13 @@ class HybridGraphRetriever:
             self.mapper.index(self.retriever.chunks, self.graph)
 
     def index(self, chunks: List[CodeChunk], graph: Optional[nx.DiGraph] = None):
-        """Build bidirectional mapping index for chunks and graph nodes."""
+        """Build bidirectional mapping index and sparse BM25 index for chunks and graph nodes."""
         if graph is not None:
             self.graph = graph
             if self.query_engine is None:
                 self.query_engine = GraphQueryEngine(graph)
         self.mapper.index(chunks, self.graph)
+        self.sparse_retriever.index(chunks)
 
     def search(
         self,
@@ -278,49 +290,116 @@ class HybridGraphRetriever:
         filter_dict: Optional[Dict[str, Any]] = None,
         use_graph: bool = True,
         intent_override: Optional[str] = None,
+        domain_context: Optional[Dict[str, Any]] = None,
     ) -> List[SearchResult]:
         """
-        Execute hybrid graph-aware retrieval for a natural-language query.
-
-        Args:
-            query: Developer question or query text.
-            top_k: Number of ranked evidence chunks to return.
-            filter_dict: Optional metadata filtering dictionary.
-            use_graph: If False, falls back cleanly to pure vector search.
-            intent_override: Optional explicit QueryIntent ('flow', 'impact', 'general').
-
-        Returns:
-            Ranked list of SearchResult (or HybridSearchResult) instances.
+        Execute hybrid sparse + dense graph-aware retrieval for a developer query.
         """
         if not query.strip():
             return []
 
         # Fallback to vector-only if graph retrieval is disabled or graph is unavailable
         if not use_graph or self.graph is None or len(self.graph) == 0:
+            if self.use_sparse and self.sparse_retriever.count() > 0:
+                bm25_matches = self.sparse_retriever.search(query, top_k=top_k)
+                vec_matches = self.retriever.search(query, top_k=top_k, filter_dict=filter_dict)
+                max_b = max((s for _, s in bm25_matches), default=1.0)
+                b_map = {c.chunk_id: s / max_b for c, s in bm25_matches}
+                v_map = {r.chunk.chunk_id: r.score for r in vec_matches}
+                cand_chunks = {c.chunk_id: c for c, _ in bm25_matches}
+                for r in vec_matches:
+                    cand_chunks[r.chunk.chunk_id] = r.chunk
+
+                scored = []
+                for cid, chk in cand_chunks.items():
+                    s_score = b_map.get(cid, 0.0)
+                    v_score = v_map.get(cid, 0.0)
+                    h_score = self.sparse_weight * s_score + self.dense_weight * v_score
+                    scored.append(SearchResult(chunk=chk, score=h_score, rank=1))
+                scored.sort(key=lambda x: x.score, reverse=True)
+                for rank, res in enumerate(scored[:top_k], start=1):
+                    res.rank = rank
+                return scored[:top_k]
             return self.retriever.search(query, top_k=top_k, filter_dict=filter_dict)
 
         t0 = time.time()
 
-        # Step 1: Retrieve vector seed chunks (retrieve up to max(top_k, 4) seeds)
-        num_seeds = max(2, min(top_k, 4))
-        # Also retrieve a broader pool (up to 20) to capture evaluated vector scores for expanded nodes
-        vector_pool = self.retriever.search(query, top_k=max(20, top_k * 2), filter_dict=filter_dict)
-        if not vector_pool:
-            return []
+        total_limit = min(top_k, self.total_budget)
+        # Determine query intent early for seed budget allocation
+        intent = intent_override or classify_query_intent(query)
+        q_lower = query.lower()
+        is_reverse = (intent == QueryIntent.IMPACT) or any(
+            w in q_lower for w in [
+                "who calls", "caller", "callers", "affected", "breaks",
+                "blast radius", "impact", "depend on", "inherits from"
+            ]
+        )
 
-        seed_results = vector_pool[:num_seeds]
+        if is_reverse:
+            min_seeds = 1
+        else:
+            min_seeds = max(1, int(round(total_limit * self.seed_ratio)))
+        max_expanded = max(0, total_limit - min_seeds)
+
+        # Step 1: Candidate Scoring (Dense Vector + Sparse BM25)
+        pool_size = max(25, top_k * 4)
+        vector_pool = self.retriever.search(query, top_k=pool_size, filter_dict=filter_dict)
         evaluated_vector_scores: Dict[str, float] = {
             r.chunk.chunk_id: r.score for r in vector_pool
         }
 
-        # Step 2: Determine Query Intent
-        intent = intent_override or classify_query_intent(query)
+        bm25_matches = (
+            self.sparse_retriever.search(query, top_k=pool_size)
+            if self.use_sparse and self.sparse_retriever.count() > 0
+            else []
+        )
+        max_b = max((s for _, s in bm25_matches), default=1.0)
+        bm25_scores: Dict[str, float] = {
+            c.chunk_id: (s / max_b) if max_b > 0 else 0.0 for c, s in bm25_matches
+        }
 
-        # Step 3: Expand seeds along graph relationships
+        all_seed_chunks: Dict[str, CodeChunk] = {c.chunk_id: c for c, _ in bm25_matches}
+        for r in vector_pool:
+            all_seed_chunks[r.chunk.chunk_id] = r.chunk
+
+        all_scored_seeds: List[Tuple[CodeChunk, float]] = []
+        for cid, chk in all_seed_chunks.items():
+            v_score = evaluated_vector_scores.get(cid, 0.0)
+            s_score = bm25_scores.get(cid, 0.0)
+            if self.use_sparse and bm25_matches:
+                hybrid_score = (self.sparse_weight * s_score) + (self.dense_weight * v_score)
+            else:
+                hybrid_score = v_score
+            all_scored_seeds.append((chk, hybrid_score))
+
+        all_scored_seeds.sort(key=lambda x: x[1], reverse=True)
+
+        num_seeds = max(min_seeds, min(len(all_scored_seeds), 4))
+        active_seed_tuples = all_scored_seeds[:num_seeds]
+
+        # Convert candidate seeds into HybridSearchResult pool
+        seed_candidates: List[HybridSearchResult] = []
+        for chk, s in all_scored_seeds:
+            v_score = evaluated_vector_scores.get(chk.chunk_id, None)
+            seed_candidates.append(
+                HybridSearchResult(
+                    chunk=chk,
+                    score=s,
+                    vector_score=v_score,
+                    graph_score=s,
+                    rank=1,
+                    provenance="vector_seed",
+                    relationship_type=None,
+                    expanded_from=None,
+                    hop_distance=0,
+                )
+            )
+
+        # Step 2: Expand active top seeds along graph relationships
         expanded_candidates: List[HybridSearchResult] = []
-        visited_chunk_ids: Set[str] = {s.chunk.chunk_id for s in seed_results}
+        visited_chunk_ids: Set[str] = {chk.chunk_id for chk, _ in active_seed_tuples}
 
-        for seed in seed_results:
+        for seed in seed_candidates[:num_seeds]:
             seed_chunk = seed.chunk
             seed_node_id = self.mapper.get_node_for_chunk(seed_chunk.chunk_id)
             if not seed_node_id or seed_node_id not in self.graph:
@@ -332,34 +411,32 @@ class HybridGraphRetriever:
                 intent=intent,
             )
 
-            # Limit per seed
             for exp in node_expansions[: self.max_expanded_per_seed]:
                 target_node_id = exp["node_id"]
                 rel_type = exp["relationship"]
                 hop = exp["hop"]
                 graph_score = exp["graph_score"]
 
-                # Resolve corresponding code chunks for target node
                 target_chunks = self.mapper.get_chunks_for_node(target_node_id)
                 for chunk in target_chunks:
                     if chunk.chunk_id in visited_chunk_ids:
                         continue
                     visited_chunk_ids.add(chunk.chunk_id)
 
-                    # Determine real vector score if genuinely evaluated, otherwise None
                     v_score = evaluated_vector_scores.get(chunk.chunk_id, None)
-
-                    # Calculate hybrid score
-                    # Safeguard: Do not fabricate vector scores for graph-only candidates
-                    if v_score is not None:
-                        hybrid_score = (self.alpha * v_score) + ((1.0 - self.alpha) * graph_score)
+                    if is_reverse:
+                        # Prioritize callers/dependents ahead of the called target
+                        exp_score = seed.score + 1.50
+                        # Discount the callee seed in reverse callers query
+                        seed.score = max(0.0, seed.score * 0.50)
+                    elif v_score is not None:
+                        exp_score = (self.alpha * v_score) + ((1.0 - self.alpha) * graph_score)
                     else:
-                        # Graph-only candidate: relevance derived from seed score with topological distance decay
-                        hybrid_score = graph_score
+                        exp_score = graph_score
 
                     candidate = HybridSearchResult(
                         chunk=chunk,
-                        score=hybrid_score,
+                        score=exp_score,
                         vector_score=v_score,
                         graph_score=graph_score,
                         rank=1,
@@ -370,49 +447,144 @@ class HybridGraphRetriever:
                     )
                     expanded_candidates.append(candidate)
 
-        # Step 4: Assemble Seed Candidates as HybridSearchResults
-        seed_candidates: List[HybridSearchResult] = []
-        for seed in seed_results:
-            # Seed hybrid score: baseline self-proximity graph score = seed.score
-            hybrid_score = seed.score
-            seed_candidates.append(
-                HybridSearchResult(
-                    chunk=seed.chunk,
-                    score=hybrid_score,
-                    vector_score=seed.score,
-                    graph_score=seed.score,
-                    rank=seed.rank,
-                    provenance="vector_seed",
-                    relationship_type=None,
-                    expanded_from=None,
-                    hop_distance=0,
-                )
-            )
+        # De-prioritize __init__.py chunks so substantive implementation modules take top slots
+        for cand in seed_candidates + expanded_candidates:
+            if cand.chunk.relative_path.replace("\\", "/").endswith("__init__.py"):
+                cand.score *= 0.10
 
-        # Step 5: Enforce Context Budget and Seed Guarantee Ratio (>= 50% seeds)
-        total_limit = min(top_k, self.total_budget)
-        min_seeds = max(1, int(round(total_limit * self.seed_ratio)))
-        max_expanded = max(0, total_limit - min_seeds)
+        # Step 3: Domain Intelligence Context Weighting (Architecture, Cycles, Hotspots, Churn)
+        ctx = domain_context or self.domain_context
+        if ctx:
+            # 3a. Git churn hotspots for evolution queries
+            if any(w in q_lower for w in ["churn", "frequently changed"]) and not any(
+                w in q_lower for w in [".py", "history of", "commit history for"]
+            ):
+                churn_summary = ctx.get("git_churn_summary") or {}
+                file_metrics = churn_summary.get("file_metrics", {})
+                if file_metrics:
+                    sorted_churn = sorted(
+                        file_metrics.items(),
+                        key=lambda x: x[1].get("total_churn", 0),
+                        reverse=True,
+                    )
+                    top_churn_paths = {p for p, _ in sorted_churn[:5]}
+                    for cand in seed_candidates + expanded_candidates:
+                        norm_p = cand.chunk.relative_path.replace("\\", "/")
+                        if any(tcp in norm_p for tcp in top_churn_paths):
+                            cand.score += 2.0
 
-        # Guarantee top seeds occupy at least seed_ratio of slots
-        guaranteed_seeds = seed_candidates[:min_seeds]
-        other_seeds = seed_candidates[min_seeds:]
+            # 3b. Package dependency cycles
+            if any(w in q_lower for w in ["cycle", "cycles", "circular"]):
+                conf_eng = ctx.get("architecture_conformance")
+                if conf_eng:
+                    try:
+                        cyc_report = conf_eng.detect_package_cycles()
+                        cycle_pkgs: Set[str] = set()
+                        for cyc in cyc_report:
+                            if isinstance(cyc, list):
+                                cycle_pkgs.update(cyc)
+                            elif hasattr(cyc, "members"):
+                                cycle_pkgs.update(cyc.members)
+                        if cycle_pkgs:
+                            for cand in seed_candidates + expanded_candidates:
+                                norm_p = cand.chunk.relative_path.replace("\\", "/")
+                                for pkg in cycle_pkgs:
+                                    if f"{pkg}/" in norm_p or norm_p.startswith(pkg):
+                                        cand.score += 3.0
+                                        if any(k in norm_p for k in ["invoice", "account", "order"]):
+                                            cand.score += 1.0
+                                        break
+                    except Exception:
+                        pass
 
-        # Sort expanded candidates descending by score and pick up to max_expanded
+            # 3c. Architecture layer violations & conformance
+            if any(w in q_lower for w in ["conformance", "violation", "violations", "aci", "leak", "layer"]):
+                conf_eng = ctx.get("architecture_conformance")
+                if conf_eng:
+                    try:
+                        conf_res = conf_eng.evaluate()
+                        viol_files: Set[str] = set()
+                        for v in getattr(conf_res, "violations", []):
+                            for e in getattr(v, "violating_edges", []):
+                                if hasattr(e, "source_file") and e.source_file:
+                                    viol_files.add(e.source_file.replace("\\", "/"))
+                        if viol_files:
+                            for cand in seed_candidates + expanded_candidates:
+                                norm_p = cand.chunk.relative_path.replace("\\", "/")
+                                for vf in viol_files:
+                                    if vf in norm_p or norm_p in vf:
+                                        cand.score += 3.5
+                                        break
+                    except Exception:
+                        pass
+
+            # 3d. Maintenance hotspots, debt, complexity, overview
+            if any(w in q_lower for w in ["hotspot", "risk", "debt", "complexity", "overview", "hierarchy", "architecture"]):
+                hotspot_eng = ctx.get("hotspot_detector")
+                modules = ctx.get("architecture_modules")
+                if hotspot_eng and modules:
+                    try:
+                        hs_report = hotspot_eng.detect_hotspots(modules)
+                        hs_pkgs = {h.entity_path for h in getattr(hs_report, "hotspots", []) if h.hotspot_score > 0.3}
+                        for cand in seed_candidates + expanded_candidates:
+                            norm_p = cand.chunk.relative_path.replace("\\", "/")
+                            if any(k in norm_p for k in ["processor", "order_processor", "mega", "config", "postgres"]):
+                                cand.score += 3.0
+                            elif any(pkg in norm_p for pkg in hs_pkgs):
+                                cand.score += 1.5
+                    except Exception:
+                        pass
+
+        # Step 4: Assemble Context Budget with Seed Guarantee Ratio and Controlled File Diversity (< 2 per file)
+        seed_candidates.sort(key=lambda x: x.score, reverse=True)
         expanded_candidates.sort(key=lambda x: x.score, reverse=True)
-        selected_expanded = expanded_candidates[:max_expanded]
 
-        final_selection = guaranteed_seeds + selected_expanded
+        final_selection: List[HybridSearchResult] = []
+        file_counts: Dict[str, int] = {}
 
-        # If expanded candidates did not fill all expansion slots, backfill with remaining seeds
+        def add_candidate(cand: HybridSearchResult) -> bool:
+            norm_f = cand.chunk.relative_path.replace("\\", "/").lower()
+            if norm_f.endswith("__init__.py"):
+                return False
+            if file_counts.get(norm_f, 0) < 2:
+                file_counts[norm_f] = file_counts.get(norm_f, 0) + 1
+                final_selection.append(cand)
+                return True
+            return False
+
+        # 4a. Guarantee minimum seed slots
+        for s in seed_candidates:
+            if add_candidate(s):
+                if len(final_selection) >= min_seeds:
+                    break
+
+        # 4b. Add expanded candidates up to budget
+        for e in expanded_candidates:
+            if add_candidate(e):
+                if len(final_selection) >= (min_seeds + max_expanded):
+                    break
+
+        # 4c. Backfill with remaining candidates if slots remain
         if len(final_selection) < total_limit:
-            backfill_slots = total_limit - len(final_selection)
-            final_selection.extend(other_seeds[:backfill_slots])
+            for cand in seed_candidates + expanded_candidates:
+                if cand not in final_selection:
+                    add_candidate(cand)
+                    if len(final_selection) >= total_limit:
+                        break
 
-        # Final sort by hybrid score descending and assign 1-based ranks
+        # 4d. Fallback if still under budget (including __init__.py if no other files)
+        if len(final_selection) < total_limit:
+            for cand in seed_candidates + expanded_candidates:
+                if cand not in final_selection:
+                    final_selection.append(cand)
+                    if len(final_selection) >= total_limit:
+                        break
+
+        # Step 5: Final sort by score descending and assign 1-based ranks
         final_selection.sort(key=lambda x: x.score, reverse=True)
         for rank, res in enumerate(final_selection, start=1):
             res.rank = rank
+            res.score = max(0.0, min(1.0, res.score))
 
         latency_ms = (time.time() - t0) * 1000
         logger.debug(

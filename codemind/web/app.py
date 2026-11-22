@@ -5,6 +5,8 @@ Prepared for College Evaluation 1 (Technical Phases 1 and 2).
 
 import os
 import time
+import asyncio
+import threading
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
@@ -68,9 +70,18 @@ class ImpactTestsRequest(BaseModel):
 
 
 class CodebaseState:
-    """Session state holding the currently ingested repository and static analysis results."""
+    """
+    Session state holding the currently ingested repository and static analysis results.
+
+    DEPLOYMENT CONCURRENCY MODEL:
+    In-process synchronization (threading.RLock) provides strict thread-safety and serialized
+    access to mutable repository models within a SINGLE operating system process (e.g. uvicorn --workers 1).
+    Process-local locks do NOT protect shared state across multiple OS worker processes (uvicorn --workers N).
+    Multi-worker horizontal scaling requires centralized external state (e.g. Redis or database-backed state).
+    """
 
     def __init__(self):
+        self._lock = threading.RLock()
         self.repo: Optional[IngestedRepository] = None
         self.parsed_files: Dict[str, ParsedFile] = {}  # rel_path -> ParsedFile
         self.static_metrics: Dict[str, Any] = {}
@@ -101,8 +112,12 @@ class CodebaseState:
     def scan_and_analyze(self, repo_path: str) -> Dict[str, Any]:
         """
         Load repository (local, ZIP, or Git URL), extract AST symbols, and compute static metrics.
-        Runs purely on Technical Phase 1 (Ingestion) and Phase 2 (Static Code Analysis).
+        Thread-safe under single-process concurrency.
         """
+        with self._lock:
+            return self._scan_and_analyze_impl(repo_path)
+
+    def _scan_and_analyze_impl(self, repo_path: str) -> Dict[str, Any]:
         # Reset Git temporal intelligence state to prevent stale state bleed across scans
         self.git_client = None
         self.git_miner = None
@@ -300,6 +315,15 @@ class CodebaseState:
             self.architecture_layers = None
             self.quotient_graph = None
 
+        # Update hybrid retriever with domain intelligence context
+        if self.hybrid_retriever:
+            self.hybrid_retriever.domain_context = {
+                "git_churn_summary": self.git_churn_summary,
+                "architecture_conformance": self.architecture_conformance,
+                "architecture_modules": self.architecture_modules,
+                "hotspot_detector": self.hotspot_detector,
+            }
+
         # Prepare file tree items
         files_data = [
             {
@@ -343,6 +367,14 @@ class CodebaseState:
 
 # Global session instance
 GLOBAL_STATE = CodebaseState()
+_STATE_ASYNC_LOCK: Optional[asyncio.Lock] = None
+
+
+def get_state_async_lock() -> asyncio.Lock:
+    global _STATE_ASYNC_LOCK
+    if _STATE_ASYNC_LOCK is None:
+        _STATE_ASYNC_LOCK = asyncio.Lock()
+    return _STATE_ASYNC_LOCK
 
 
 def create_app():
@@ -398,19 +430,30 @@ def create_app():
         }
 
     @app.post("/api/scan")
-    def scan_repository(request: ScanRequest):
-        try:
-            summary = GLOBAL_STATE.scan_and_analyze(request.repo_path)
-            return summary
-        except FileNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except NotADirectoryError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+    async def scan_repository(request: ScanRequest):
+        if not request.repo_path or not request.repo_path.strip():
+            raise HTTPException(status_code=400, detail="Repository path cannot be empty.")
+        clean_path = request.repo_path.strip()
+        if not (clean_path.startswith("http://") or clean_path.startswith("https://") or clean_path.endswith(".zip")):
+            p = Path(clean_path).resolve()
+            if not p.exists():
+                raise HTTPException(status_code=404, detail=f"Repository path does not exist: {clean_path}")
+
+        async with get_state_async_lock():
+            try:
+                summary = GLOBAL_STATE.scan_and_analyze(clean_path)
+                return summary
+            except FileNotFoundError as e:
+                raise HTTPException(status_code=404, detail=str(e))
+            except NotADirectoryError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
     @app.post("/api/ask")
     def ask_question(request: AskRequest):
+        if not request.question or not request.question.strip():
+            raise HTTPException(status_code=400, detail="Question cannot be empty.")
         if GLOBAL_STATE.repo is None:
             raise HTTPException(
                 status_code=400,
@@ -533,6 +576,10 @@ def create_app():
 
     @app.get("/api/file")
     def get_file_content(path: str):
+        if not path or not path.strip():
+            raise HTTPException(status_code=400, detail="File path cannot be empty.")
+        if ".." in path or path.startswith("/") or path.startswith("\\"):
+            raise HTTPException(status_code=400, detail="Path traversal ('..') is strictly prohibited.")
         if GLOBAL_STATE.repo is None:
             raise HTTPException(status_code=400, detail="No repository scanned yet.")
 
@@ -555,6 +602,10 @@ def create_app():
 
     @app.get("/api/symbols")
     def get_symbols(path: str):
+        if not path or not path.strip():
+            raise HTTPException(status_code=400, detail="File path cannot be empty.")
+        if ".." in path or path.startswith("/") or path.startswith("\\"):
+            raise HTTPException(status_code=400, detail="Path traversal ('..') is strictly prohibited.")
         if GLOBAL_STATE.repo is None:
             raise HTTPException(status_code=400, detail="No repository scanned yet.")
 
@@ -913,5 +964,93 @@ def create_app():
     def analyze_impact_tests_get(target: str, max_depth: int = 3):
         """Discover and rank candidate regression tests across blast radius (GET)."""
         return _handle_impact_tests(target=target, max_depth=max_depth)
+
+    # -------------------------------------------------------------------------
+    # Architecture Intelligence Endpoints (Phase 9 REST Activation)
+    # -------------------------------------------------------------------------
+
+    @app.get("/api/architecture/overview")
+    def get_architecture_overview():
+        """Retrieve architectural module hierarchy, layers, and quotient graph."""
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        if not GLOBAL_STATE.architecture_discovery:
+            raise HTTPException(status_code=400, detail="Architecture discovery not initialized.")
+
+        modules_data = {
+            k: (v.to_dict() if hasattr(v, "to_dict") else v)
+            for k, v in (GLOBAL_STATE.architecture_modules or {}).items()
+        }
+        layers_data = [
+            (l.to_dict() if hasattr(l, "to_dict") else l)
+            for l in (GLOBAL_STATE.architecture_layers or [])
+        ]
+        import networkx as nx
+        if isinstance(GLOBAL_STATE.quotient_graph, nx.DiGraph):
+            quotient_graph_data = {
+                "nodes": list(GLOBAL_STATE.quotient_graph.nodes()),
+                "edges": [{"source": u, "target": v, **d} for u, v, d in GLOBAL_STATE.quotient_graph.edges(data=True)],
+                "node_count": GLOBAL_STATE.quotient_graph.number_of_nodes(),
+                "edge_count": GLOBAL_STATE.quotient_graph.number_of_edges(),
+            }
+        elif hasattr(GLOBAL_STATE.quotient_graph, "to_dict"):
+            quotient_graph_data = GLOBAL_STATE.quotient_graph.to_dict()
+        else:
+            quotient_graph_data = GLOBAL_STATE.quotient_graph or {}
+
+        return {
+            "modules": modules_data,
+            "layers": layers_data,
+            "quotient_graph": quotient_graph_data,
+        }
+
+    @app.get("/api/architecture/conformance")
+    def get_architecture_conformance(strict_layering: bool = False):
+        """Evaluate architectural rule conformance and compute the Architecture Conformance Index (ACI)."""
+        if GLOBAL_STATE.repo is None or not GLOBAL_STATE.architecture_conformance:
+            raise HTTPException(status_code=400, detail="No repository scanned yet or architecture engine uninitialized.")
+        report = GLOBAL_STATE.architecture_conformance.evaluate(
+            parsed_files=GLOBAL_STATE.parsed_files,
+            strict_layering=strict_layering,
+        )
+        return report.to_dict()
+
+    @app.get("/api/architecture/cycles")
+    def get_architecture_cycles():
+        """Detect package-level dependency cycles using Tarjan's SCC algorithm on quotient graph."""
+        if GLOBAL_STATE.repo is None or not GLOBAL_STATE.architecture_conformance:
+            raise HTTPException(status_code=400, detail="No repository scanned yet or architecture engine uninitialized.")
+        cycles = GLOBAL_STATE.architecture_conformance.detect_package_cycles()
+        sccs = GLOBAL_STATE.architecture_conformance.detect_package_sccs()
+        return {
+            "has_cycles": len(cycles) > 0,
+            "cycles": cycles,
+            "package_sccs": sccs,
+            "cycle_count": len(cycles),
+        }
+
+    @app.get("/api/architecture/hotspots")
+    def get_architecture_hotspots():
+        """Compute repository-level risk scores, maintenance debt archetypes, and hotspot metrics."""
+        if GLOBAL_STATE.repo is None:
+            raise HTTPException(status_code=400, detail="No repository scanned yet.")
+        hotspot_detector = GLOBAL_STATE.hotspot_detector
+        if not hotspot_detector:
+            from ..architecture.hotspots import MaintenanceHotspotDetector
+            hotspot_detector = MaintenanceHotspotDetector()
+
+        valid_ast_count = len([f for f in GLOBAL_STATE.repo.files if f.is_python])
+        report = hotspot_detector.detect_hotspots(
+            modules=GLOBAL_STATE.architecture_modules or {},
+            quotient_graph=GLOBAL_STATE.quotient_graph,
+            commits=GLOBAL_STATE.git_commits,
+            churn_summary=GLOBAL_STATE.git_churn_summary,
+            temporal_couplings=GLOBAL_STATE.git_couplings,
+            total_source_files=len(GLOBAL_STATE.repo.files),
+            valid_ast_files=valid_ast_count,
+        )
+        data = report.to_dict()
+        data["repository_risk_score"] = report.top_hotspot_mean
+        return data
 
     return app

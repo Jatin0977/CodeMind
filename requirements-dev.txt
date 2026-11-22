@@ -1,0 +1,7 @@
+# CodeMind — Development, Testing & Benchmarking Dependencies
+-r requirements.txt
+pytest>=8.0.0
+pytest-cov>=4.1.0
+build>=1.0.0
+setuptools>=61.0
+wheel

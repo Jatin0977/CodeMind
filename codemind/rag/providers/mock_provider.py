@@ -35,7 +35,7 @@ class MockLLMProvider(BaseLLMProvider):
             return self.custom_response
 
         # Check for insufficient context in prompt
-        if "No relevant code chunks retrieved" in prompt or "Relevance Score: 0.0" in prompt:
+        if "No relevant code chunks retrieved" in prompt or "Evidence #1" not in prompt or bool(re.search(r"--- Evidence #1 .*?Relevance Score:\s*0\.000\b", prompt)):
             return "Insufficient context in repository to answer this question accurately."
 
         # Extract developer question and evidence

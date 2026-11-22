@@ -21,21 +21,60 @@ class PythonParser(BaseParser):
     def parse(self, source_file: SourceFile) -> ParsedFile:
         """
         Parse a Python source file into structured symbols and metadata.
-        Catches SyntaxError and other parsing errors gracefully.
+        Catches SyntaxError, RecursionError, MemoryError, and other parsing errors gracefully.
+        Guards against deeply nested structures, null bytes, and excessive file sizes.
         """
         file_path = source_file.file_path
         rel_path = source_file.relative_path
 
+        # Guard against oversized files (>10MB) to prevent memory exhaustion
+        if len(source_file.content or "") > 10 * 1024 * 1024:
+            return ParsedFile(
+                file_path=file_path,
+                relative_path=rel_path,
+                language="python",
+                is_valid=False,
+                error="FileSizeLimitExceeded: File exceeds 10MB parser limit",
+            )
+
+        # Guard against null-byte corruption
+        if "\x00" in (source_file.content or ""):
+            return ParsedFile(
+                file_path=file_path,
+                relative_path=rel_path,
+                language="python",
+                is_valid=False,
+                error="BinaryOrNullBytesError: Source contains null bytes",
+            )
+
         try:
             tree = ast.parse(source_file.content, filename=file_path)
-        except SyntaxError as e:
+        except (SyntaxError, IndentationError, TabError) as e:
             logger.debug(f"Syntax error parsing {rel_path}: {e}")
             return ParsedFile(
                 file_path=file_path,
                 relative_path=rel_path,
                 language="python",
                 is_valid=False,
-                error=f"SyntaxError at line {e.lineno}: {e.msg}",
+                error=f"SyntaxError at line {getattr(e, 'lineno', 0)}: {getattr(e, 'msg', str(e))}",
+            )
+        except RecursionError:
+            logger.warning(f"Recursion error on deeply nested AST in {rel_path}")
+            return ParsedFile(
+                file_path=file_path,
+                relative_path=rel_path,
+                language="python",
+                is_valid=False,
+                error="RecursionError: Maximum AST nesting recursion depth exceeded",
+            )
+        except MemoryError:
+            logger.warning(f"Memory error parsing {rel_path}")
+            return ParsedFile(
+                file_path=file_path,
+                relative_path=rel_path,
+                language="python",
+                is_valid=False,
+                error="MemoryError: AST parsing exceeded available memory",
             )
         except Exception as e:
             logger.debug(f"Error parsing {rel_path}: {e}")

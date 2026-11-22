@@ -855,6 +855,18 @@ function renderInvestigationResult(data) {
   }
 }
 
+function sanitizeHtml(dirty) {
+  if (typeof DOMPurify !== "undefined" && DOMPurify && typeof DOMPurify.sanitize === "function") {
+    return DOMPurify.sanitize(dirty, {
+      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'code', 'pre', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+      ALLOWED_ATTR: ['href', 'target', 'class', 'style', 'title'],
+    });
+  }
+  // Genuinely safe fallback: text escaping converts all HTML characters to inert entities.
+  // Never rely on regex tag stripping alone as an HTML sanitizer.
+  return escapeHtml(dirty);
+}
+
 function formatMarkdownText(md) {
   if (!md) return "";
   let html = escapeHtml(md);
@@ -869,7 +881,15 @@ function formatMarkdownText(md) {
   html = html.replace(/\[([a-zA-Z0-9_\-\.\/\\]+:\d+-\d+)\]/g, '<span style="color:var(--accent-cyan); font-weight:700;">[$1]</span>');
 
   // Convert newlines to paragraphs/breaks
-  return html.split("\n\n").map(para => `<p>${para.replace(/\n/g, "<br>")}</p>`).join("");
+  const formatted = html.split("\n\n").map(para => `<p>${para.replace(/\n/g, "<br>")}</p>`).join("");
+
+  // If DOMPurify is available, apply full HTML sanitization
+  if (typeof DOMPurify !== "undefined" && DOMPurify && typeof DOMPurify.sanitize === "function") {
+    return sanitizeHtml(formatted);
+  }
+  // If DOMPurify is unavailable, the user input was already escaped above via escapeHtml(md),
+  // and only known safe markdown tags (<p>, <br>, <strong>, <code>, <span>) were introduced.
+  return formatted;
 }
 
 function getFileIcon(lang) {

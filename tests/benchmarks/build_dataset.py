@@ -1,0 +1,756 @@
+"""
+Script to create tests/benchmarks/golden_dataset.json with 50 curated developer queries.
+"""
+
+import json
+from pathlib import Path
+
+queries = [
+    # --- UNDERSTAND (Q01 - Q10) ---
+    {
+        "id": "Q01",
+        "query": "How does the authentication flow work in AuthService?",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "models/user.py"],
+        "ground_truth_chunks": ["AuthService.authenticate", "AuthService.validate_session"],
+        "expected_structural_facts": {
+            "callers": ["api/auth_controller.py"],
+            "dependencies": ["utils/crypto.py", "models/user.py", "db/repository.py"],
+        },
+        "expected_citations": [
+            {"file": "services/auth_service.py", "start_line": 15, "end_line": 40}
+        ],
+    },
+    {
+        "id": "Q02",
+        "query": "Explain the user registration workflow",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/user_service.py", "utils/validators.py"],
+        "ground_truth_chunks": ["UserService.register_user", "validate_email"],
+        "expected_structural_facts": {
+            "callers": ["api/user_controller.py"],
+            "dependencies": ["utils/validators.py", "utils/crypto.py", "db/repository.py"],
+        },
+        "expected_citations": [
+            {"file": "services/user_service.py", "start_line": 15, "end_line": 45}
+        ],
+    },
+    {
+        "id": "Q03",
+        "query": "What does the hash_password function do in crypto utils?",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["utils/crypto.py"],
+        "ground_truth_chunks": ["hash_password", "verify_password"],
+        "expected_structural_facts": {
+            "callers": ["services/auth_service.py", "services/user_service.py"],
+            "dependencies": [],
+        },
+        "expected_citations": [
+            {"file": "utils/crypto.py", "start_line": 10, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q04",
+        "query": "How does session validation work?",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "models/session.py"],
+        "ground_truth_chunks": ["AuthService.validate_session", "SessionModel.is_expired"],
+        "expected_structural_facts": {
+            "callers": ["api/auth_controller.py"],
+            "dependencies": ["models/session.py"],
+        },
+        "expected_citations": [
+            {"file": "services/auth_service.py", "start_line": 35, "end_line": 45}
+        ],
+    },
+    {
+        "id": "Q05",
+        "query": "Explain how the token verification is handled",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["utils/crypto.py", "services/auth_service.py"],
+        "ground_truth_chunks": ["generate_token", "AuthService.validate_session"],
+        "expected_structural_facts": {
+            "callers": ["services/auth_service.py"],
+            "dependencies": [],
+        },
+        "expected_citations": [
+            {"file": "utils/crypto.py", "start_line": 20, "end_line": 30}
+        ],
+    },
+    {
+        "id": "Q06",
+        "query": "Walk through the user lookup mechanism in UserRepository",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/repository.py"],
+        "ground_truth_chunks": ["UserRepository.find_by_email", "UserRepository.find_by_id"],
+        "expected_structural_facts": {
+            "callers": ["services/auth_service.py", "services/user_service.py"],
+            "dependencies": ["db/connection.py", "models/user.py"],
+        },
+        "expected_citations": [
+            {"file": "db/repository.py", "start_line": 20, "end_line": 45}
+        ],
+    },
+    {
+        "id": "Q07",
+        "query": "What is the purpose of the ConnectionManager class?",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/connection.py"],
+        "ground_truth_chunks": ["ConnectionManager", "ConnectionManager.execute"],
+        "expected_structural_facts": {
+            "callers": ["db/repository.py"],
+            "dependencies": [],
+        },
+        "expected_citations": [
+            {"file": "db/connection.py", "start_line": 6, "end_line": 30}
+        ],
+    },
+    {
+        "id": "Q08",
+        "query": "How are database connections pooled?",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/connection.py"],
+        "ground_truth_chunks": ["ConnectionManager.connect", "ConnectionManager.disconnect"],
+        "expected_structural_facts": {
+            "callers": ["db/repository.py"],
+            "dependencies": [],
+        },
+        "expected_citations": [
+            {"file": "db/connection.py", "start_line": 10, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q09",
+        "query": "Explain the role of the password validator",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["utils/validators.py"],
+        "ground_truth_chunks": ["validate_password_strength"],
+        "expected_structural_facts": {
+            "callers": ["services/user_service.py"],
+            "dependencies": [],
+        },
+        "expected_citations": [
+            {"file": "utils/validators.py", "start_line": 12, "end_line": 24}
+        ],
+    },
+    {
+        "id": "Q10",
+        "query": "Describe the API request handling in user controller",
+        "expected_intent": "UNDERSTAND",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["api/user_controller.py", "services/user_service.py"],
+        "ground_truth_chunks": ["UserController.register", "UserController.get_profile"],
+        "expected_structural_facts": {
+            "callers": [],
+            "dependencies": ["services/user_service.py"],
+        },
+        "expected_citations": [
+            {"file": "api/user_controller.py", "start_line": 10, "end_line": 35}
+        ],
+    },
+
+    # --- STRUCTURE (Q11 - Q20) ---
+    {
+        "id": "Q11",
+        "query": "Who calls AuthService?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["api/auth_controller.py"],
+        "ground_truth_chunks": ["AuthController.__init__", "AuthController.login"],
+        "expected_structural_facts": {
+            "callers": ["api/auth_controller.py"],
+            "entity": "AuthService",
+        },
+        "expected_citations": [
+            {"file": "api/auth_controller.py", "start_line": 8, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q12",
+        "query": "What are the dependencies of UserService?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/user_service.py"],
+        "ground_truth_chunks": ["UserService"],
+        "expected_structural_facts": {
+            "dependencies": ["db/repository.py", "models/user.py", "utils/crypto.py", "utils/validators.py"],
+            "entity": "UserService",
+        },
+        "expected_citations": [
+            {"file": "services/user_service.py", "start_line": 4, "end_line": 16}
+        ],
+    },
+    {
+        "id": "Q13",
+        "query": "List all callers of hash_password",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "services/user_service.py"],
+        "ground_truth_chunks": ["AuthService.authenticate", "UserService.register_user"],
+        "expected_structural_facts": {
+            "callers": ["services/auth_service.py", "services/user_service.py"],
+            "symbol": "hash_password",
+        },
+        "expected_citations": [
+            {"file": "utils/crypto.py", "start_line": 10, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q14",
+        "query": "Show the class hierarchy for BaseRepository",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/repository.py"],
+        "ground_truth_chunks": ["BaseRepository", "UserRepository"],
+        "expected_structural_facts": {
+            "base_class": "BaseRepository",
+            "subclasses": ["UserRepository"],
+        },
+        "expected_citations": [
+            {"file": "db/repository.py", "start_line": 8, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q15",
+        "query": "What does auth controller import?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["api/auth_controller.py"],
+        "ground_truth_chunks": ["AuthController"],
+        "expected_structural_facts": {
+            "imports": ["services/auth_service.py"],
+        },
+        "expected_citations": [
+            {"file": "api/auth_controller.py", "start_line": 3, "end_line": 6}
+        ],
+    },
+    {
+        "id": "Q16",
+        "query": "Where is validate_email called?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/user_service.py"],
+        "ground_truth_chunks": ["UserService.register_user"],
+        "expected_structural_facts": {
+            "callers": ["services/user_service.py"],
+            "symbol": "validate_email",
+        },
+        "expected_citations": [
+            {"file": "services/user_service.py", "start_line": 18, "end_line": 26}
+        ],
+    },
+    {
+        "id": "Q17",
+        "query": "Who inherits from BaseModel?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["models/user.py", "models/session.py"],
+        "ground_truth_chunks": ["UserModel", "SessionModel"],
+        "expected_structural_facts": {
+            "entities": ["UserModel", "SessionModel"],
+        },
+        "expected_citations": [
+            {"file": "models/user.py", "start_line": 6, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q18",
+        "query": "Show base classes of SessionModel",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["models/session.py"],
+        "ground_truth_chunks": ["SessionModel"],
+        "expected_structural_facts": {
+            "class": "SessionModel",
+            "base_classes": [],
+        },
+        "expected_citations": [
+            {"file": "models/session.py", "start_line": 6, "end_line": 18}
+        ],
+    },
+    {
+        "id": "Q19",
+        "query": "What does user_service import from models?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/user_service.py"],
+        "ground_truth_chunks": ["UserService"],
+        "expected_structural_facts": {
+            "imported_symbols": ["UserModel"],
+        },
+        "expected_citations": [
+            {"file": "services/user_service.py", "start_line": 4, "end_line": 8}
+        ],
+    },
+    {
+        "id": "Q20",
+        "query": "Which components depend on connection.py?",
+        "expected_intent": "STRUCTURE",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/repository.py"],
+        "ground_truth_chunks": ["BaseRepository", "UserRepository"],
+        "expected_structural_facts": {
+            "dependents": ["db/repository.py"],
+        },
+        "expected_citations": [
+            {"file": "db/repository.py", "start_line": 4, "end_line": 12}
+        ],
+    },
+
+    # --- IMPACT (Q21 - Q30) ---
+    {
+        "id": "Q21",
+        "query": "What is affected if AuthService is modified?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["api/auth_controller.py"],
+        "ground_truth_chunks": ["AuthController.login", "AuthController.verify"],
+        "expected_structural_facts": {
+            "target": "AuthService",
+            "blast_radius_nodes": ["api/auth_controller.py", "AuthController"],
+        },
+        "expected_citations": [
+            {"file": "services/auth_service.py", "start_line": 10, "end_line": 30}
+        ],
+    },
+    {
+        "id": "Q22",
+        "query": "What breaks if hash_password in crypto is changed?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "services/user_service.py", "api/auth_controller.py", "api/user_controller.py"],
+        "ground_truth_chunks": ["AuthService.authenticate", "UserService.register_user"],
+        "expected_structural_facts": {
+            "target": "hash_password",
+            "blast_radius_files": ["services/auth_service.py", "services/user_service.py"],
+        },
+        "expected_citations": [
+            {"file": "utils/crypto.py", "start_line": 10, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q23",
+        "query": "What is the blast radius if UserRepository is refactored?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "services/user_service.py", "api/auth_controller.py", "api/user_controller.py"],
+        "ground_truth_chunks": ["AuthService", "UserService"],
+        "expected_structural_facts": {
+            "target": "UserRepository",
+            "impact_depth": 2,
+        },
+        "expected_citations": [
+            {"file": "db/repository.py", "start_line": 15, "end_line": 40}
+        ],
+    },
+    {
+        "id": "Q24",
+        "query": "What files will be impacted if session model changes?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "api/auth_controller.py"],
+        "ground_truth_chunks": ["AuthService.authenticate", "AuthService.validate_session"],
+        "expected_structural_facts": {
+            "target": "SessionModel",
+            "impacted_files": ["services/auth_service.py", "api/auth_controller.py"],
+        },
+        "expected_citations": [
+            {"file": "models/session.py", "start_line": 5, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q25",
+        "query": "What may be affected if validate_email is deleted?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/user_service.py", "api/user_controller.py"],
+        "ground_truth_chunks": ["UserService.register_user"],
+        "expected_structural_facts": {
+            "target": "validate_email",
+            "direct_caller": "services/user_service.py",
+        },
+        "expected_citations": [
+            {"file": "utils/validators.py", "start_line": 8, "end_line": 16}
+        ],
+    },
+    {
+        "id": "Q26",
+        "query": "What are the consequences of changing ConnectionManager?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/repository.py", "services/auth_service.py", "services/user_service.py"],
+        "ground_truth_chunks": ["BaseRepository", "UserRepository"],
+        "expected_structural_facts": {
+            "target": "ConnectionManager",
+            "blast_radius_depth": 3,
+        },
+        "expected_citations": [
+            {"file": "db/connection.py", "start_line": 5, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q27",
+        "query": "What breaks if the user table schema is updated?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["models/user.py", "db/repository.py", "services/user_service.py"],
+        "ground_truth_chunks": ["UserModel", "UserRepository.save_user"],
+        "expected_structural_facts": {
+            "target": "UserModel",
+        },
+        "expected_citations": [
+            {"file": "models/user.py", "start_line": 8, "end_line": 30}
+        ],
+    },
+    {
+        "id": "Q28",
+        "query": "What is the impact of modifying token generation in crypto?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "api/auth_controller.py"],
+        "ground_truth_chunks": ["generate_token", "AuthService.authenticate"],
+        "expected_structural_facts": {
+            "target": "generate_token",
+        },
+        "expected_citations": [
+            {"file": "utils/crypto.py", "start_line": 22, "end_line": 32}
+        ],
+    },
+    {
+        "id": "Q29",
+        "query": "What files are in the blast radius of db connection pool?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/connection.py", "db/repository.py"],
+        "ground_truth_chunks": ["ConnectionManager", "BaseRepository"],
+        "expected_structural_facts": {
+            "target": "ConnectionManager",
+        },
+        "expected_citations": [
+            {"file": "db/connection.py", "start_line": 6, "end_line": 28}
+        ],
+    },
+    {
+        "id": "Q30",
+        "query": "What is the risk of modifying the authentication controller?",
+        "expected_intent": "IMPACT",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["api/auth_controller.py"],
+        "ground_truth_chunks": ["AuthController"],
+        "expected_structural_facts": {
+            "target": "AuthController",
+            "blast_radius_depth": 1,
+        },
+        "expected_citations": [
+            {"file": "api/auth_controller.py", "start_line": 8, "end_line": 30}
+        ],
+    },
+
+    # --- EVOLUTION (Q31 - Q40) ---
+    {
+        "id": "Q31",
+        "query": "Show the commit history for auth_service.py",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py"],
+        "ground_truth_chunks": ["AuthService"],
+        "expected_structural_facts": {
+            "file": "services/auth_service.py",
+            "has_commits": True,
+        },
+        "expected_citations": [
+            {"file": "services/auth_service.py", "start_line": 1, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q32",
+        "query": "How has user_service changed over time?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/user_service.py"],
+        "ground_truth_chunks": ["UserService"],
+        "expected_structural_facts": {
+            "file": "services/user_service.py",
+        },
+        "expected_citations": [
+            {"file": "services/user_service.py", "start_line": 1, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q33",
+        "query": "Which files frequently changed together with auth_service?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["services/auth_service.py", "services/user_service.py", "api/auth_controller.py"],
+        "ground_truth_chunks": ["AuthService", "UserService"],
+        "expected_structural_facts": {
+            "coupled_files": ["services/user_service.py", "api/auth_controller.py"],
+        },
+        "expected_citations": [
+            {"file": "services/auth_service.py", "start_line": 1, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q34",
+        "query": "What are the code churn hotspots in the repository?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["services/order_processor.py", "domain/cart.py"],
+        "ground_truth_chunks": ["MegaOrderProcessor", "CartDomain"],
+        "expected_structural_facts": {
+            "high_churn_files": ["services/order_processor.py", "domain/cart.py"],
+        },
+        "expected_citations": [
+            {"file": "services/order_processor.py", "start_line": 10, "end_line": 50}
+        ],
+    },
+    {
+        "id": "Q35",
+        "query": "Who authored the recent commits to crypto.py?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["utils/crypto.py"],
+        "ground_truth_chunks": ["hash_password"],
+        "expected_structural_facts": {
+            "author": "CodeMind Benchmark",
+        },
+        "expected_citations": [
+            {"file": "utils/crypto.py", "start_line": 1, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q36",
+        "query": "What is the logical coupling for repository.py?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/repository.py", "db/connection.py"],
+        "ground_truth_chunks": ["UserRepository", "ConnectionManager"],
+        "expected_structural_facts": {
+            "coupled_file": "db/connection.py",
+        },
+        "expected_citations": [
+            {"file": "db/repository.py", "start_line": 1, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q37",
+        "query": "Show the git log for database connection manager",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["db/connection.py"],
+        "ground_truth_chunks": ["ConnectionManager"],
+        "expected_structural_facts": {
+            "file": "db/connection.py",
+        },
+        "expected_citations": [
+            {"file": "db/connection.py", "start_line": 1, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q38",
+        "query": "Which files are logically coupled with session model?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["models/session.py", "models/user.py"],
+        "ground_truth_chunks": ["SessionModel", "UserModel"],
+        "expected_structural_facts": {
+            "coupled_file": "models/user.py",
+        },
+        "expected_citations": [
+            {"file": "models/session.py", "start_line": 1, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q39",
+        "query": "What is the evolution of the user controller?",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["api/user_controller.py"],
+        "ground_truth_chunks": ["UserController"],
+        "expected_structural_facts": {
+            "file": "api/user_controller.py",
+        },
+        "expected_citations": [
+            {"file": "api/user_controller.py", "start_line": 1, "end_line": 25}
+        ],
+    },
+    {
+        "id": "Q40",
+        "query": "Show the revision history of validators.py",
+        "expected_intent": "EVOLUTION",
+        "target_repo": "repo_small",
+        "ground_truth_files": ["utils/validators.py"],
+        "ground_truth_chunks": ["validate_email"],
+        "expected_structural_facts": {
+            "file": "utils/validators.py",
+        },
+        "expected_citations": [
+            {"file": "utils/validators.py", "start_line": 1, "end_line": 20}
+        ],
+    },
+
+    # --- INSIGHTS (Q41 - Q50) ---
+    {
+        "id": "Q41",
+        "query": "What is the architecture overview of the repository?",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["services/order_processor.py", "billing/invoices.py", "storage/postgres_db.py"],
+        "ground_truth_chunks": ["MegaOrderProcessor", "InvoiceService", "PostgresDatabase"],
+        "expected_structural_facts": {
+            "layers": ["api", "services", "domain", "storage"],
+        },
+        "expected_citations": [
+            {"file": "services/order_processor.py", "start_line": 8, "end_line": 35}
+        ],
+    },
+    {
+        "id": "Q42",
+        "query": "Detect package dependency cycles in the project",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["billing/invoices.py", "services/account_service.py"],
+        "ground_truth_chunks": ["InvoiceService", "AccountService"],
+        "expected_structural_facts": {
+            "cycle_packages": ["billing", "services"],
+        },
+        "expected_citations": [
+            {"file": "billing/invoices.py", "start_line": 5, "end_line": 15}
+        ],
+    },
+    {
+        "id": "Q43",
+        "query": "What are the maintenance hotspots in the codebase?",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["services/order_processor.py"],
+        "ground_truth_chunks": ["MegaOrderProcessor"],
+        "expected_structural_facts": {
+            "top_hotspot": "services/order_processor.py",
+            "archetype": "GOD_CLASS",
+        },
+        "expected_citations": [
+            {"file": "services/order_processor.py", "start_line": 10, "end_line": 40}
+        ],
+    },
+    {
+        "id": "Q44",
+        "query": "Which modules have the highest risk score?",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["services/order_processor.py"],
+        "ground_truth_chunks": ["MegaOrderProcessor"],
+        "expected_structural_facts": {
+            "highest_risk_module": "services/order_processor.py",
+        },
+        "expected_citations": [
+            {"file": "services/order_processor.py", "start_line": 10, "end_line": 50}
+        ],
+    },
+    {
+        "id": "Q45",
+        "query": "Show the architecture layer violations",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["storage/postgres_db.py", "services/notification_service.py"],
+        "ground_truth_chunks": ["PostgresDatabase"],
+        "expected_structural_facts": {
+            "violating_edge": "storage/postgres_db.py -> services/notification_service.py",
+            "violation_type": "UPWARD_LAYER_LEAK",
+        },
+        "expected_citations": [
+            {"file": "storage/postgres_db.py", "start_line": 5, "end_line": 18}
+        ],
+    },
+    {
+        "id": "Q46",
+        "query": "Explain the repository architecture and module hierarchy",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["core/config.py", "services/order_processor.py"],
+        "ground_truth_chunks": ["AppConfig", "MegaOrderProcessor"],
+        "expected_structural_facts": {
+            "module_count": 8,
+        },
+        "expected_citations": [
+            {"file": "core/config.py", "start_line": 1, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q47",
+        "query": "Find package dependency cycles in the codebase",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["billing/invoices.py", "services/account_service.py"],
+        "ground_truth_chunks": ["InvoiceService", "AccountService"],
+        "expected_structural_facts": {
+            "scc_count": 1,
+        },
+        "expected_citations": [
+            {"file": "services/account_service.py", "start_line": 5, "end_line": 18}
+        ],
+    },
+    {
+        "id": "Q48",
+        "query": "What is the architecture conformance index of the codebase?",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["storage/postgres_db.py"],
+        "ground_truth_chunks": ["PostgresDatabase"],
+        "expected_structural_facts": {
+            "has_violations": True,
+        },
+        "expected_citations": [
+            {"file": "storage/postgres_db.py", "start_line": 5, "end_line": 20}
+        ],
+    },
+    {
+        "id": "Q49",
+        "query": "Which classes have high complexity and maintenance risk?",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["services/order_processor.py"],
+        "ground_truth_chunks": ["MegaOrderProcessor"],
+        "expected_structural_facts": {
+            "high_complexity_class": "MegaOrderProcessor",
+            "mccabe_gt": 20,
+        },
+        "expected_citations": [
+            {"file": "services/order_processor.py", "start_line": 12, "end_line": 45}
+        ],
+    },
+    {
+        "id": "Q50",
+        "query": "Identify technical debt and maintenance risks in domain services",
+        "expected_intent": "INSIGHTS",
+        "target_repo": "repo_medium",
+        "ground_truth_files": ["services/order_processor.py", "billing/invoices.py"],
+        "ground_truth_chunks": ["MegaOrderProcessor", "InvoiceService"],
+        "expected_structural_facts": {
+            "hotspot_identified": True,
+        },
+        "expected_citations": [
+            {"file": "services/order_processor.py", "start_line": 10, "end_line": 40}
+        ],
+    },
+]
+
+dataset = {
+    "version": "1.0.0",
+    "total_queries": len(queries),
+    "intents": ["UNDERSTAND", "STRUCTURE", "IMPACT", "EVOLUTION", "INSIGHTS"],
+    "queries": queries,
+}
+
+out_path = Path(__file__).resolve().parent / "golden_dataset.json"
+out_path.write_text(json.dumps(dataset, indent=2), encoding="utf-8")
+print(f"Created {out_path} with {len(queries)} queries.")
