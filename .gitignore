@@ -26,6 +26,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+
 # Virtual environments
 venv/
 .venv/
@@ -57,3 +58,9 @@ htmlcov/
 # Vector Store / CodeMind Ingestion DBs (future)
 .codemind_cache/
 chroma_db/
+
+# Research Experiments & Evaluation Repositories
+eval_repos/
+research_experiments/
+*.xlsx
+CodeMind_Benchmark_Query_Set.xlsx
