@@ -69,6 +69,17 @@ class ImpactTestsRequest(BaseModel):
     max_depth: int = Field(default=3, ge=1, le=10, description="Maximum traversal depth for blast radius")
 
 
+def _sanitize_surrogates(val: Any) -> Any:
+    """Recursively sanitize strings to eliminate surrogate code points before JSON serialization."""
+    if isinstance(val, str):
+        return val.encode("utf-8", errors="replace").decode("utf-8")
+    elif isinstance(val, dict):
+        return {k: _sanitize_surrogates(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_sanitize_surrogates(item) for item in val]
+    return val
+
+
 class CodebaseState:
     """
     Session state holding the currently ingested repository and static analysis results.
@@ -341,7 +352,7 @@ class CodebaseState:
 
         return {
             "repository": self.repo.repo_name,
-            "repo_path": self.repo.repo_path,
+            "repo_path": getattr(self.repo, "source_url", None) or self.repo.repo_path,
             "total_files": self.repo.summary.total_files,
             "total_lines": self.repo.summary.total_lines,
             "total_size_bytes": self.repo.summary.total_size_bytes,
@@ -381,7 +392,7 @@ def create_app():
     """Create and configure the FastAPI web application."""
     from fastapi import FastAPI, HTTPException
     from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import HTMLResponse, FileResponse
+    from fastapi.responses import HTMLResponse, FileResponse, Response
     from fastapi.middleware.cors import CORSMiddleware
 
     app = FastAPI(
@@ -408,6 +419,10 @@ def create_app():
         if index_file.exists():
             return FileResponse(index_file)
         return HTMLResponse("<h1>CodeMind UI Initializing...</h1>")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        return Response(status_code=204)
 
     @app.get("/api/health")
     def health_check():
@@ -652,13 +667,13 @@ def create_app():
             if e.source in node_id_set and e.target in node_id_set
         ]
 
-        return {
+        return _sanitize_surrogates({
             "summary": summary,
             "total_nodes": len(nodes),
             "total_edges": len(edges),
             "nodes": nodes,
             "edges": edges,
-        }
+        })
 
     @app.get("/api/graph/impact")
     def get_graph_impact(node_id: str, max_depth: int = 3):

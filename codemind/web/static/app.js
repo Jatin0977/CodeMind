@@ -13,6 +13,75 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
 });
 
+function setupTabsSliding() {
+  const tabsHeader = document.querySelector(".tabs-header");
+  const leftArrow = document.getElementById("tabsScrollLeft");
+  const rightArrow = document.getElementById("tabsScrollRight");
+  if (!tabsHeader) return;
+
+  // Arrow buttons
+  if (leftArrow) {
+    leftArrow.addEventListener("click", () => {
+      tabsHeader.scrollBy({ left: -240, behavior: "smooth" });
+    });
+  }
+  if (rightArrow) {
+    rightArrow.addEventListener("click", () => {
+      tabsHeader.scrollBy({ left: 240, behavior: "smooth" });
+    });
+  }
+
+  // Mouse wheel horizontal scrolling
+  tabsHeader.addEventListener("wheel", (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      tabsHeader.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
+
+  // Mouse drag-to-slide
+  let isDown = false;
+  let startX = 0;
+  let scrollStart = 0;
+  let hasMoved = false;
+
+  tabsHeader.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    isDown = true;
+    hasMoved = false;
+    tabsHeader.classList.add("grabbing");
+    startX = e.pageX - tabsHeader.getBoundingClientRect().left;
+    scrollStart = tabsHeader.scrollLeft;
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (isDown) {
+      isDown = false;
+      tabsHeader.classList.remove("grabbing");
+    }
+  });
+
+  tabsHeader.addEventListener("mousemove", (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - tabsHeader.getBoundingClientRect().left;
+    const walk = x - startX;
+    if (Math.abs(walk) > 4) {
+      hasMoved = true;
+    }
+    tabsHeader.scrollLeft = scrollStart - walk;
+  });
+
+  // Prevent accidental click on tab when dragging
+  tabsHeader.addEventListener("click", (e) => {
+    if (hasMoved) {
+      e.preventDefault();
+      e.stopPropagation();
+      hasMoved = false;
+    }
+  }, true);
+}
+
 function setupEventListeners() {
   document.getElementById("scanBtn").addEventListener("click", scanRepository);
   document.getElementById("fileFilterInput").addEventListener("input", filterFiles);
@@ -21,6 +90,9 @@ function setupEventListeners() {
   document.getElementById("repoPathInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") scanRepository();
   });
+
+  // Setup tabs sliding (mouse drag-to-slide, wheel, and navigation arrows)
+  setupTabsSliding();
 
   const askBtn = document.getElementById("askBtn");
   if (askBtn) askBtn.addEventListener("click", askQuestion);
@@ -496,6 +568,12 @@ function switchTab(tab) {
     onEvolutionTabActivated();
   } else if (tab === "architecture") {
     onArchitectureTabActivated();
+  }
+
+  // Smoothly scroll active tab into view in tabs-header
+  const activeBtn = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
+  if (activeBtn && typeof activeBtn.scrollIntoView === "function") {
+    activeBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
   }
 }
 
@@ -1225,6 +1303,8 @@ function runPhysicsLoop() {
 
   const visibleNodes = graphNodes.filter(n => n.visible !== false);
   const visibleEdges = graphEdges.filter(e => e.visible !== false);
+
+  if (visibleNodes.length === 0) return;
   const canvas = document.getElementById("graphCanvas");
   const cx = canvas ? (canvas.clientWidth / 2) : 400;
   const cy = canvas ? (canvas.clientHeight / 2) : 270;
@@ -1346,6 +1426,18 @@ function drawGraph() {
 
   const visibleNodes = graphNodes.filter(n => n.visible !== false);
   const visibleEdges = graphEdges.filter(e => e.visible !== false);
+
+  if (visibleNodes.length === 0) {
+    ctx.restore();
+    ctx.save();
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px 'Inter', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("No Graph Nodes Loaded — Scan a repository above to explore its Knowledge Graph", width / 2, height / 2);
+    ctx.restore();
+    return;
+  }
 
   const isImpactMode = Boolean(activeImpactData && activeImpactData.target_node);
   const impactedIdsMap = new Map();
@@ -1934,6 +2026,22 @@ async function loadEvolutionData() {
         statusText.textContent = statusData.is_git_repo
           ? `Git: Active (HEAD: ${statusData.head_commit ? statusData.head_commit.slice(0, 7) : 'empty'})`
           : "Not a Git Repo";
+      }
+
+      if (!statusData.is_git_repo) {
+        cachedEvolutionData.churn = [];
+        cachedEvolutionData.coupling = [];
+        cachedEvolutionData.history = [];
+        renderChurnTable([]);
+        renderCouplingTable([]);
+        renderHistoryStream([]);
+        const churnPill = document.getElementById("churnCountPill");
+        if (churnPill) churnPill.textContent = "0 files";
+        const coupPill = document.getElementById("couplingCountPill");
+        if (coupPill) coupPill.textContent = "0 pairs";
+        const histPill = document.getElementById("historyCountPill");
+        if (histPill) histPill.textContent = "0 commits";
+        return;
       }
     }
 
@@ -2808,17 +2916,6 @@ function renderArchBenchmarks(benchData) {
       note: "Verified under 8-thread barrier tests; requires --workers 1 deployment",
     },
   ];
-
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td><strong>${escapeHtml(r.metric)}</strong><br><span style="font-size: 0.72rem; color: var(--text-tertiary);">${escapeHtml(r.note)}</span></td>
-      <td>${escapeHtml(r.baseline)}</td>
-      <td><strong>${escapeHtml(r.optimized)}</strong></td>
-      <td><code>${escapeHtml(r.target)}</code></td>
-      <td><span class="status-badge ${r.badgeClass}">${escapeHtml(r.status)}</span></td>
-    </tr>
-  `).join("");
-}
 
   tbody.innerHTML = rows.map(r => `
     <tr>

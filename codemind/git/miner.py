@@ -16,7 +16,7 @@ from .models import (
 
 
 def decode_git_path(raw_bytes: bytes) -> str:
-    """
+    r"""
     Losslessly decode raw Git filename bytes into a string using surrogateescape (PEP 383).
     Preserves all valid UTF-8 sequences (multilingual, accents, emojis) while mapping
     arbitrary non-UTF-8 bytes to surrogate code points (\udc80 - \udcff), guaranteeing

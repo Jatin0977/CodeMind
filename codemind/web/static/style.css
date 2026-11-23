@@ -529,14 +529,91 @@ body {
 .lang-yaml { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
 .lang-text { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
 
+.center-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tabs-nav-container {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid var(--border-subtle);
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tabs-nav-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 48px;
+  background: rgba(15, 23, 42, 0.9);
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 5;
+  transition: all 0.2s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tabs-nav-arrow:hover {
+  background: rgba(0, 240, 255, 0.2);
+  color: #ffffff;
+}
+
+.tabs-nav-arrow:active {
+  transform: scale(0.92);
+}
+
 /* Tabs Header */
 .tabs-header {
   display: flex;
-  border-bottom: 1px solid var(--border-subtle);
-  background: rgba(0, 0, 0, 0.2);
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.4) transparent;
+  border-bottom: none;
+  background: transparent;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  cursor: grab;
+  user-select: none;
+}
+
+.tabs-header.grabbing {
+  cursor: grabbing;
+}
+
+.tabs-header::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tabs-header::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs-header::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.35);
+  border-radius: 2px;
+}
+
+.tabs-header::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
 }
 
 .tab-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 14px 20px;
   background: transparent;
   border: none;

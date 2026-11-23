@@ -65,6 +65,7 @@ class IngestedRepository:
     repo_name: str
     files: List[SourceFile] = field(default_factory=list)
     summary: IngestionSummary = field(default_factory=IngestionSummary)
+    source_url: Optional[str] = None
 
     def get_python_files(self) -> List[SourceFile]:
         """Return all Python source files."""

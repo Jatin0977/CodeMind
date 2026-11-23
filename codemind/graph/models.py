@@ -41,16 +41,28 @@ class Node:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert Node to dictionary representation."""
+        clean_name = self.name.encode("utf-8", errors="replace").decode("utf-8") if isinstance(self.name, str) else self.name
+        clean_metadata = {}
+        for k, v in self.metadata.items():
+            if isinstance(v, str):
+                clean_metadata[k] = v.encode("utf-8", errors="replace").decode("utf-8")
+            elif isinstance(v, (list, tuple)):
+                clean_metadata[k] = [
+                    item.encode("utf-8", errors="replace").decode("utf-8") if isinstance(item, str) else item
+                    for item in v
+                ]
+            else:
+                clean_metadata[k] = v
         return {
             "id": self.id,
-            "name": self.name,
+            "name": clean_name,
             "node_type": self.node_type,
             "file_path": self.file_path,
             "relative_path": self.relative_path,
             "start_line": self.start_line,
             "end_line": self.end_line,
             "language": self.language,
-            "metadata": self.metadata,
+            "metadata": clean_metadata,
         }
 
 

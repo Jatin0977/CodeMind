@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CodeMind — Repository Ingestion & Static Code Analysis</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=10.5.3">
 </head>
 <body class="dark-theme">
   <!-- Top Navigation Header -->
@@ -177,32 +178,36 @@
 
       <!-- Center Pane: AST Symbol Inspector & Static Analysis Overview -->
       <section class="panel glass-card center-panel">
-        <!-- Tabs Header -->
-        <div class="tabs-header">
-          <button class="tab-btn active" id="tabSymbolsBtn" onclick="switchTab('symbols')">
-            <span>🔍</span> AST Symbol Inspector
-          </button>
-          <button class="tab-btn" id="tabAnalysisBtn" onclick="switchTab('analysis')">
-            <span>📊</span> Static Analysis Overview
-          </button>
-          <button class="tab-btn" id="tabQABtn" onclick="switchTab('qa')">
-            <span>🤖</span> Grounded Codebase Q&A
-          </button>
-          <button class="tab-btn" id="tabGraphBtn" onclick="switchTab('graph')">
-            <span>🕸️</span> Software Knowledge Graph
-          </button>
-          <button class="tab-btn" id="tabInvestigateBtn" onclick="switchTab('investigate')">
-            <span>🕵️</span> Agentic Investigation
-          </button>
-          <button class="tab-btn" id="tabEvolutionBtn" onclick="switchTab('evolution')">
-            <span>⏳</span> Evolution & Git Intelligence
-          </button>
-          <button class="tab-btn" id="tabImpactBtn" onclick="switchTab('impact')">
-            <span>🎯</span> Change Impact & Tests
-          </button>
-          <button class="tab-btn" id="tabArchitectureBtn" onclick="switchTab('architecture')">
-            <span>🏛️</span> Architecture & Risk Dashboard
-          </button>
+        <!-- Tabs Header Navigation Container with Slide Arrows -->
+        <div class="tabs-nav-container">
+          <button class="tabs-nav-arrow" id="tabsScrollLeft" title="Slide tabs left" aria-label="Slide tabs left">&#x2039;</button>
+          <div class="tabs-header">
+            <button class="tab-btn active" id="tabSymbolsBtn" onclick="switchTab('symbols')">
+              <span>🔍</span> AST Symbol Inspector
+            </button>
+            <button class="tab-btn" id="tabAnalysisBtn" onclick="switchTab('analysis')">
+              <span>📊</span> Static Analysis Overview
+            </button>
+            <button class="tab-btn" id="tabQABtn" onclick="switchTab('qa')">
+              <span>🤖</span> Grounded Codebase Q&A
+            </button>
+            <button class="tab-btn" id="tabGraphBtn" onclick="switchTab('graph')">
+              <span>🕸️</span> Software Knowledge Graph
+            </button>
+            <button class="tab-btn" id="tabInvestigateBtn" onclick="switchTab('investigate')">
+              <span>🕵️</span> Agentic Investigation
+            </button>
+            <button class="tab-btn" id="tabEvolutionBtn" onclick="switchTab('evolution')">
+              <span>⏳</span> Evolution & Git Intelligence
+            </button>
+            <button class="tab-btn" id="tabImpactBtn" onclick="switchTab('impact')">
+              <span>🎯</span> Change Impact & Tests
+            </button>
+            <button class="tab-btn" id="tabArchitectureBtn" onclick="switchTab('architecture')">
+              <span>🏛️</span> Architecture & Risk Dashboard
+            </button>
+          </div>
+          <button class="tabs-nav-arrow" id="tabsScrollRight" title="Slide tabs right" aria-label="Slide tabs right">&#x203A;</button>
         </div>
 
         <!-- Tab 1: AST Symbol Inspector -->
@@ -986,6 +991,6 @@
 
   <!-- Sanitization & Client Application -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=10.5.3"></script>
 </body>
 </html>

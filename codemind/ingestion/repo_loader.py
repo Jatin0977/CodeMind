@@ -71,7 +71,7 @@ class RepositoryLoader:
         try:
             logger.info(f"Cloning remote repository {git_url} to {temp_dir}...")
             result = subprocess.run(
-                ["git", "clone", "--depth", "1", git_url, temp_dir],
+                ["git", "clone", "--depth", "50", git_url, temp_dir],
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -143,10 +143,11 @@ class RepositoryLoader:
                     summary.skipped_files.append({"path": rel_path_str, "reason": "Failed to decode content"})
 
         return IngestedRepository(
-            repo_path=original_path or str(path_obj),
+            repo_path=str(path_obj),
             repo_name=repo_name,
             files=source_files,
             summary=summary,
+            source_url=original_path,
         )
 
     def _read_file(self, file_path: Path, root_path: Path) -> Optional[SourceFile]:
