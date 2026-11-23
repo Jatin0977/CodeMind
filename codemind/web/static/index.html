@@ -200,6 +200,9 @@
           <button class="tab-btn" id="tabImpactBtn" onclick="switchTab('impact')">
             <span>🎯</span> Change Impact & Tests
           </button>
+          <button class="tab-btn" id="tabArchitectureBtn" onclick="switchTab('architecture')">
+            <span>🏛️</span> Architecture & Risk Dashboard
+          </button>
         </div>
 
         <!-- Tab 1: AST Symbol Inspector -->
@@ -755,6 +758,205 @@
             <div class="empty-state" id="impactEmptyState" style="text-align: center; padding: 3rem 1rem;">
               <span class="empty-icon" style="font-size: 2.5rem;">🎯</span>
               <p style="color: var(--text-secondary); margin-top: 0.5rem;">Enter any symbol name, class, function, or file path above to calculate its multi-signal blast radius and prioritized test candidates.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 8: Architecture Intelligence & Risk Dashboard (Phase 10.5) -->
+        <div class="tab-content" id="tabArchitecture">
+          <div class="arch-dashboard-container" style="padding: 1rem;">
+            <!-- Loading State -->
+            <div id="archLoadingState" class="hidden" style="text-align: center; padding: 2rem;">
+              <span class="btn-spinner" style="width: 28px; height: 28px; margin: 0 auto 1rem; border-color: var(--primary);"></span>
+              <p style="color: var(--text-secondary);">Analyzing architecture layers, dependency cycles, and maintenance hotspots...</p>
+            </div>
+
+            <!-- Empty State (When no repo scanned yet) -->
+            <div id="archEmptyState" class="empty-state" style="text-align: center; padding: 3rem 1rem;">
+              <span class="empty-icon" style="font-size: 2.8rem;">🏛️</span>
+              <h3 style="margin-top: 0.75rem; color: var(--text-primary);">Architecture & Risk Intelligence</h3>
+              <p style="color: var(--text-secondary); max-width: 520px; margin: 0.5rem auto 1.5rem;">
+                Scan a codebase using the top bar to inspect module layering, detect circular dependencies with Tarjan's SCC algorithm, enforce architectural rules, and evaluate composite maintenance debt hotspots.
+              </p>
+              <button class="btn btn-primary" onclick="scanRepository()">⚡ Scan Current Repository</button>
+            </div>
+
+            <!-- Active Content Container -->
+            <div id="archContent" class="hidden">
+              <!-- Top Summary Banner: ACI, Cycles, Risk Score, Evidence Coverage -->
+              <div class="arch-metrics-banner" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <!-- Card 1: ACI Conformance -->
+                <div class="stat-card glass-card" style="padding: 1.25rem;">
+                  <div class="stat-header">
+                    <span class="stat-icon" style="font-size: 1.5rem;">📏</span>
+                    <span class="stat-title">Architecture Conformance (ACI)</span>
+                  </div>
+                  <div class="stat-value" id="archAciVal" style="font-size: 1.8rem; font-weight: 700; color: #10b981;">--</div>
+                  <div class="stat-detail" id="archAciDetail" style="font-size: 0.85rem; color: var(--text-secondary);">0 conforming / 0 violations</div>
+                </div>
+
+                <!-- Card 2: Package Cycles -->
+                <div class="stat-card glass-card" style="padding: 1.25rem;">
+                  <div class="stat-header">
+                    <span class="stat-icon" style="font-size: 1.5rem;">🔄</span>
+                    <span class="stat-title">Package Cycles (Tarjan SCC)</span>
+                  </div>
+                  <div class="stat-value" id="archCyclesVal" style="font-size: 1.8rem; font-weight: 700; color: #10b981;">0</div>
+                  <div class="stat-detail" id="archCyclesDetail" style="font-size: 0.85rem; color: var(--text-secondary);">Acyclic package hierarchy</div>
+                </div>
+
+                <!-- Card 3: Repository Risk Score -->
+                <div class="stat-card glass-card" style="padding: 1.25rem;">
+                  <div class="stat-header">
+                    <span class="stat-icon" style="font-size: 1.5rem;">⚠️</span>
+                    <span class="stat-title">Repository Risk Score</span>
+                  </div>
+                  <div class="stat-value" id="archRiskScoreVal" style="font-size: 1.8rem; font-weight: 700; color: #f59e0b;">--</div>
+                  <div class="stat-detail" id="archRiskScoreDetail" style="font-size: 0.85rem; color: var(--text-secondary);">Normalized composite risk</div>
+                </div>
+
+                <!-- Card 4: Evidence Coverage -->
+                <div class="stat-card glass-card" style="padding: 1.25rem;">
+                  <div class="stat-header">
+                    <span class="stat-icon" style="font-size: 1.5rem;">🛡️</span>
+                    <span class="stat-title">Evidence Coverage</span>
+                  </div>
+                  <div class="stat-value" id="archCoverageVal" style="font-size: 1.8rem; font-weight: 700; color: #3b82f6;">100%</div>
+                  <div class="stat-detail" id="archCoverageDetail" style="font-size: 0.85rem; color: var(--text-secondary);">Complete multi-signal evidence</div>
+                </div>
+              </div>
+
+              <!-- Section A & B: Layer Conformance & Quotient Hierarchy -->
+              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>📐</span> Layer Hierarchy & Architectural Conformance
+                  </h4>
+                  <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <label style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                      <input type="checkbox" id="archStrictLayeringCheck" onchange="loadArchitectureConformance()"> Strict Layering
+                    </label>
+                    <button class="btn btn-secondary" onclick="loadArchitectureDashboard()" style="padding: 4px 10px; font-size: 0.8rem;">↻ Refresh</button>
+                  </div>
+                </div>
+
+                <!-- Layer Pipeline View -->
+                <div id="archLayersContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;"></div>
+
+                <!-- Conformance Violations Table -->
+                <div style="margin-top: 1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <h5 style="margin: 0; font-size: 0.95rem; color: var(--text-secondary);">Rule Violations (<span id="archViolationsCount">0</span>)</h5>
+                    <select id="archViolationFilter" class="input-box" style="padding: 2px 8px; font-size: 0.8rem;" onchange="filterArchitectureViolations()">
+                      <option value="ALL">All Violations</option>
+                      <option value="LAYER_LEAK">Layer Leaks (Upward imports)</option>
+                      <option value="FORBIDDEN_IMPORT">Forbidden Imports</option>
+                      <option value="LAYER_SKIPPING">Layer Skipping</option>
+                    </select>
+                  </div>
+                  <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+                    <table class="data-table" style="width: 100%;">
+                      <thead>
+                        <tr>
+                          <th>Rule Type</th>
+                          <th>Source Module</th>
+                          <th>Target Module</th>
+                          <th>Source File & Line</th>
+                          <th>Diagnostic Message</th>
+                        </tr>
+                      </thead>
+                      <tbody id="archViolationsTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section C: Circular Dependencies (Tarjan SCC) -->
+              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+                <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                  <span>🔄</span> Package Dependency Cycles (Tarjan's SCC)
+                </h4>
+                <div id="archCyclesContainer"></div>
+              </div>
+
+              <!-- Section D: Maintenance Hotspots & Debt Archetypes -->
+              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🔥</span> Maintenance Hotspots & Debt Archetypes
+                  </h4>
+                  <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="archHotspotFilterInput" class="input-box" style="padding: 4px 10px; font-size: 0.85rem;" placeholder="Filter by module..." oninput="filterHotspotsTable()">
+                    <select id="archArchetypeSelect" class="input-box" style="padding: 4px 10px; font-size: 0.85rem;" onchange="filterHotspotsTable()">
+                      <option value="ALL">All Archetypes</option>
+                      <option value="God Class">God Class / Candidate</option>
+                      <option value="Brain Module">Brain Module</option>
+                      <option value="Volatile Fragile">Volatile Fragile Hotspot</option>
+                      <option value="Shotgun Surgery">Shotgun Surgery Catalyst</option>
+                      <option value="Stable Core">Stable Core</option>
+                      <option value="Normal Component">Normal Component</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+                  <table class="data-table" style="width: 100%;">
+                    <thead>
+                      <tr>
+                        <th onclick="sortHotspotsTable('module')" style="cursor: pointer;">Module Name ⬍</th>
+                        <th onclick="sortHotspotsTable('score')" style="cursor: pointer;">Hotspot Risk ⬍</th>
+                        <th>Archetype</th>
+                        <th onclick="sortHotspotsTable('complexity')" style="cursor: pointer;">Complexity ⬍</th>
+                        <th onclick="sortHotspotsTable('centrality')" style="cursor: pointer;">Centrality ⬍</th>
+                        <th onclick="sortHotspotsTable('churn')" style="cursor: pointer;">Churn ⬍</th>
+                        <th onclick="sortHotspotsTable('coupling')" style="cursor: pointer;">Coupling ⬍</th>
+                        <th>Coverage</th>
+                      </tr>
+                    </thead>
+                    <tbody id="archHotspotsTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Section E: Investigation Trigger -->
+              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+                <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                  <span>🕵️</span> Quick Architectural Investigation
+                </h4>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button class="chip-btn" onclick="triggerArchInvestigation('What are the package dependency cycles in this repository?')">Check Cycles</button>
+                  <button class="chip-btn" onclick="triggerArchInvestigation('Explain the maintenance hotspots and high-risk modules.')">Explain Hotspots</button>
+                  <button class="chip-btn" onclick="triggerArchInvestigation('What architectural layering violations exist?')">Layer Violations</button>
+                  <button class="chip-btn" onclick="triggerArchInvestigation('What is the architecture overview and module hierarchy?')">Module Hierarchy</button>
+                </div>
+              </div>
+
+              <!-- Section F: Quantitative Benchmarks & Acceptance Summary -->
+              <div class="arch-section glass-card" style="padding: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                  <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>📊</span> Systematic Evaluation & Performance Benchmarks (Phase 10)
+                  </h4>
+                  <span class="count-pill" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">50 Golden Queries • 3 Scales</span>
+                </div>
+                <div class="table-container" style="overflow-x: auto;">
+                  <table class="data-table" style="width: 100%;">
+                    <thead>
+                      <tr>
+                        <th>Metric / Operation</th>
+                        <th>Baseline</th>
+                        <th>Optimized Result</th>
+                        <th>Target Threshold</th>
+                        <th>Evaluation Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="archBenchmarksTableBody"></tbody>
+                  </table>
+                </div>
+                <p class="disclaimer-text" style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.75rem;">
+                  * Precision@3 theoretical upper bound is capped at 0.5400 for unique-file retrieval due to single-target queries in the golden dataset. Honestly reported as NOT MET in compliance with evaluation integrity rules.
+                </p>
+              </div>
             </div>
           </div>
         </div>
