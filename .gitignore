@@ -62,5 +62,6 @@ chroma_db/
 # Research Experiments & Evaluation Repositories
 eval_repos/
 research_experiments/
+paper/
 *.xlsx
 CodeMind_Benchmark_Query_Set.xlsx
