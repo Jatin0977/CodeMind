@@ -1,0 +1,37 @@
+================================================================================
+RQ3 EXPERIMENT EXECUTION LOG
+Timestamp: 2026-11-24T20:02:36.125521+00:00
+Repository: eval_repos/ResilienceOS
+Git Commit Hash: f354dd9361eed0fb2dad6f34e25d04fc771993b3
+Python Version: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+Status: Completed successfully without errors.
+================================================================================
+
+System: Baseline_A_StructuralOnly
+  Total Predictions: 94, TP: 31, FP: 63, FN: 33
+  Micro Metrics: Precision=0.3298, Recall=0.4844, F1=0.3924
+  Macro Metrics: Precision=0.4244, Recall=0.5484, F1=0.4338
+  Code Components: Micro P=0.3298, R=0.5962 (31/52), F1=0.4247
+  Regression Tests: Micro P=0.0000, R=0.0000 (0/12), F1=0.0000
+
+System: Baseline_B_StructuralPlusTemporal
+  Total Predictions: 118, TP: 35, FP: 83, FN: 29
+  Micro Metrics: Precision=0.2966, Recall=0.5469, F1=0.3846
+  Macro Metrics: Precision=0.3255, Recall=0.5937, F1=0.4022
+  Code Components: Micro P=0.2966, R=0.6731 (35/52), F1=0.4118
+  Regression Tests: Micro P=0.0000, R=0.0000 (0/12), F1=0.0000
+
+System: CodeMind_Minus_Temporal_Coupling
+  Total Predictions: 159, TP: 41, FP: 118, FN: 23
+  Micro Metrics: Precision=0.2579, Recall=0.6406, F1=0.3677
+  Macro Metrics: Precision=0.3602, Recall=0.7014, F1=0.4255
+  Code Components: Micro P=0.3298, R=0.5962 (31/52), F1=0.4247
+  Regression Tests: Micro P=0.1538, R=0.8333 (10/12), F1=0.2597
+
+System: CodeMind_Full_MultiSignal
+  Total Predictions: 197, TP: 45, FP: 152, FN: 19
+  Micro Metrics: Precision=0.2284, Recall=0.7031, F1=0.3448
+  Macro Metrics: Precision=0.2503, Recall=0.7467, F1=0.3560
+  Code Components: Micro P=0.2966, R=0.6731 (35/52), F1=0.4118
+  Regression Tests: Micro P=0.1266, R=0.8333 (10/12), F1=0.2198
+

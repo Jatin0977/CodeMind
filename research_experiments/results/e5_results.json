@@ -1,0 +1,27 @@
+{
+  "experiment": "E5_Agentic_Tool_Planning",
+  "rq_tested": "RQ5",
+  "total_queries": 20,
+  "intent_classification_accuracy": 60.0,
+  "baseline_fixed_pipeline": {
+    "avg_tools_per_query": 5.0,
+    "tool_selection_accuracy": 23.0,
+    "unnecessary_tool_call_rate": 77.0,
+    "evidence_completeness": 41.67,
+    "investigation_efficiency": 8.33,
+    "mean_execution_latency_ms": 48.7
+  },
+  "codemind_agentic_planner": {
+    "avg_tools_per_query": 2.85,
+    "tool_selection_accuracy": 35.09,
+    "unnecessary_tool_call_rate": 64.91,
+    "evidence_completeness": 41.67,
+    "investigation_efficiency": 14.62,
+    "mean_execution_latency_ms": 19.23
+  },
+  "planning_advantages": {
+    "tool_call_reduction_pct": 43.0,
+    "efficiency_gain_pct": 75.4,
+    "latency_reduction_pct": 60.5
+  }
+}

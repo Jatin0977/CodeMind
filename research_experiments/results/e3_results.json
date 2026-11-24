@@ -1,0 +1,69 @@
+{
+  "experiment": "E3_Multi_Signal_Impact_Scoring",
+  "rq_tested": "RQ3",
+  "total_scenarios": 15,
+  "systems": {
+    "Baseline_A_DependencyOnly": {
+      "precision": 0.42444444444444446,
+      "recall": 0.5484126984126985,
+      "f1": 0.43381333642203207,
+      "micro_precision": 0.32978723404255317,
+      "micro_recall": 0.484375,
+      "micro_f1": 0.3924050632911392
+    },
+    "Baseline_B_StructuralPlusTemporal": {
+      "precision": 0.32554945054945056,
+      "recall": 0.5936507936507937,
+      "f1": 0.4022375048462005,
+      "micro_precision": 0.2966101694915254,
+      "micro_recall": 0.546875,
+      "micro_f1": 0.3846153846153846
+    },
+    "CodeMind_Full_MultiSignal": {
+      "precision": 0.2502529165046327,
+      "recall": 0.7466666666666666,
+      "f1": 0.35597476597476596,
+      "micro_precision": 0.22842639593908629,
+      "micro_recall": 0.703125,
+      "micro_f1": 0.3448275862068965
+    }
+  },
+  "performance_by_tier": {
+    "Leaf": {
+      "scenarios_count": 5,
+      "tp": 9,
+      "fp": 36,
+      "fn": 2,
+      "micro_precision": 0.2,
+      "micro_recall": 0.8181818181818182,
+      "micro_f1": 0.32142857142857145,
+      "macro_precision": 0.20623376623376624,
+      "macro_recall": 0.8333333333333334,
+      "macro_f1": 0.3262515262515263
+    },
+    "Service": {
+      "scenarios_count": 5,
+      "tp": 18,
+      "fp": 65,
+      "fn": 3,
+      "micro_precision": 0.21686746987951808,
+      "micro_recall": 0.8571428571428571,
+      "micro_f1": 0.3461538461538462,
+      "macro_precision": 0.2543963283093718,
+      "macro_recall": 0.86,
+      "macro_f1": 0.385006105006105
+    },
+    "Core": {
+      "scenarios_count": 5,
+      "tp": 18,
+      "fp": 51,
+      "fn": 14,
+      "micro_precision": 0.2608695652173913,
+      "micro_recall": 0.5625,
+      "micro_f1": 0.35643564356435636,
+      "macro_precision": 0.29012865497076024,
+      "macro_recall": 0.5466666666666666,
+      "macro_f1": 0.35666666666666663
+    }
+  }
+}

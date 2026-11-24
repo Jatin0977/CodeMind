@@ -1,0 +1,273 @@
+{
+  "execution_timestamp": "2026-11-23T18:47:07Z",
+  "total_runtime_seconds": 3.59,
+  "e1_entity_resolution": {
+    "experiment": "E1_Canonical_Entity_Resolution",
+    "rq_tested": "RQ1",
+    "repository": "ResilienceOS",
+    "total_test_instances": 30,
+    "unique_ambiguous_names": 13,
+    "baseline_name_only": {
+      "accuracy": 0.0,
+      "false_merge_rate": 100.0,
+      "cross_source_join_rate": 0.0
+    },
+    "codemind_canonical": {
+      "accuracy": 100.0,
+      "false_merge_rate": 0.0,
+      "cross_source_join_rate": 100.0
+    },
+    "improvement_delta": {
+      "accuracy_gain_pct": 100.0,
+      "false_merge_reduction_pct": 100.0
+    },
+    "sample_disambiguated_entities": [
+      {
+        "name": "apply_strategy",
+        "canonical_id": "function:backend/app/api/simulation.py:apply_strategy",
+        "file": "backend/app/api/simulation.py",
+        "lines": "230-282"
+      },
+      {
+        "name": "apply_strategy",
+        "canonical_id": "method:simulation/state_engine.py:HospitalStateEngine.apply_strategy",
+        "file": "simulation/state_engine.py",
+        "lines": "581-809"
+      },
+      {
+        "name": "downgrade",
+        "canonical_id": "function:database/migrations/versions/10768f22a018_create_simulation_runs_table.py:downgrade",
+        "file": "database/migrations/versions/10768f22a018_create_simulation_runs_table.py",
+        "lines": "38-42"
+      },
+      {
+        "name": "downgrade",
+        "canonical_id": "function:database/migrations/versions/f5641cb14ff8_create_telemetry_records_table.py:downgrade",
+        "file": "database/migrations/versions/f5641cb14ff8_create_telemetry_records_table.py",
+        "lines": "39-42"
+      },
+      {
+        "name": "explain_service_risk",
+        "canonical_id": "method:backend/app/interfaces/contracts.py:ExplanationEngineInterface.explain_service_risk",
+        "file": "backend/app/interfaces/contracts.py",
+        "lines": "46-52"
+      }
+    ]
+  },
+  "e2_hybrid_retrieval": {
+    "experiment": "E2_Hybrid_Query_Aware_Retrieval",
+    "rq_tested": "RQ2",
+    "total_queries": 40,
+    "direction_sensitivity_accuracy": 100.0,
+    "systems": {
+      "Baseline_A_VectorOnly": {
+        "mean_precision_at_5": 0.12,
+        "mean_recall_at_5": 0.2375,
+        "mean_mrr": 0.1758,
+        "groundedness_rate": 100.0,
+        "mean_latency_ms": 3.35
+      },
+      "Baseline_B_FixedGraph": {
+        "mean_precision_at_5": 0.08,
+        "mean_recall_at_5": 0.1917,
+        "mean_mrr": 0.1921,
+        "groundedness_rate": 100.0,
+        "mean_latency_ms": 3.47
+      },
+      "CodeMind_QueryAware": {
+        "mean_precision_at_5": 0.085,
+        "mean_recall_at_5": 0.1979,
+        "mean_mrr": 0.2046,
+        "groundedness_rate": 100.0,
+        "mean_latency_ms": 3.46
+      }
+    },
+    "gains_vs_vector_baseline": {
+      "precision_gain_pct": -29.2,
+      "recall_gain_pct": -16.7,
+      "mrr_gain_pct": 16.4
+    }
+  },
+  "e3_impact_scoring": {
+    "experiment": "E3_Multi_Signal_Impact_Scoring",
+    "rq_tested": "RQ3",
+    "total_scenarios": 15,
+    "systems": {
+      "Baseline_A_DependencyOnly": {
+        "precision": 0.4244,
+        "recall": 0.5484,
+        "f1": 0.4338
+      },
+      "Baseline_B_DependencyPlusChurn": {
+        "precision": 0.4244,
+        "recall": 0.5484,
+        "f1": 0.4338
+      },
+      "CodeMind_Full_5Signal": {
+        "precision": 0.2088,
+        "recall": 0.711,
+        "f1": 0.3063
+      }
+    },
+    "signal_contribution_deltas": {
+      "delta_f1_historical_churn": 0.0245,
+      "delta_f1_logical_coupling": -0.0,
+      "delta_f1_test_exposure": -0.06,
+      "delta_f1_structural_centrality": 0.0153
+    },
+    "performance_by_tier": {
+      "Leaf": {
+        "f1": 0.2857
+      },
+      "Service": {
+        "f1": 0.3319
+      },
+      "Core": {
+        "f1": 0.3013
+      }
+    }
+  },
+  "e4_logical_coupling": {
+    "ResilienceOS": {
+      "baseline_raw_cooccurrence": {
+        "total_flagged": 1822,
+        "precision": 76.95,
+        "false_positive_rate": 23.05,
+        "novel_coupling_rate": 100.0,
+        "static_overlap_rate": 0.0,
+        "novel_count": 1822,
+        "static_count": 0
+      },
+      "codemind_triple_filter": {
+        "total_flagged": 508,
+        "precision": 100.0,
+        "false_positive_rate": 0.0,
+        "novel_coupling_rate": 100.0,
+        "static_overlap_rate": 0.0,
+        "novel_count": 508,
+        "static_count": 0
+      },
+      "top_novel_couplings": [
+        {
+          "file_a": "frontend/src/components/AssetCatalog/AssetCatalog.css",
+          "file_b": "frontend/src/components/IncidentControl/IncidentControl.css",
+          "support": 3,
+          "jaccard": 1.0,
+          "conditional_prob": 1.0
+        },
+        {
+          "file_a": "frontend/src/components/AssetCatalog/AssetCatalog.css",
+          "file_b": "frontend/src/components/ResilienceGauge/ResilienceCard.css",
+          "support": 3,
+          "jaccard": 1.0,
+          "conditional_prob": 1.0
+        },
+        {
+          "file_a": "frontend/src/components/AssetCatalog/AssetCatalog.css",
+          "file_b": "frontend/src/components/ServiceStatus/ServiceStatus.css",
+          "support": 3,
+          "jaccard": 1.0,
+          "conditional_prob": 1.0
+        },
+        {
+          "file_a": "frontend/src/components/IncidentControl/IncidentControl.css",
+          "file_b": "frontend/src/components/ResilienceGauge/ResilienceCard.css",
+          "support": 3,
+          "jaccard": 1.0,
+          "conditional_prob": 1.0
+        },
+        {
+          "file_a": "frontend/src/components/IncidentControl/IncidentControl.css",
+          "file_b": "frontend/src/components/ServiceStatus/ServiceStatus.css",
+          "support": 3,
+          "jaccard": 1.0,
+          "conditional_prob": 1.0
+        }
+      ]
+    },
+    "requests": {
+      "baseline_raw_cooccurrence": {
+        "total_flagged": 1466,
+        "precision": 73.26,
+        "false_positive_rate": 26.74,
+        "novel_coupling_rate": 100.0,
+        "static_overlap_rate": 0.0,
+        "novel_count": 1466,
+        "static_count": 0
+      },
+      "codemind_triple_filter": {
+        "total_flagged": 108,
+        "precision": 100.0,
+        "false_positive_rate": 0.0,
+        "novel_coupling_rate": 100.0,
+        "static_overlap_rate": 0.0,
+        "novel_count": 108,
+        "static_count": 0
+      },
+      "top_novel_couplings": [
+        {
+          "file_a": "docs/_templates/sidebarintro.html",
+          "file_b": "docs/_templates/sidebarlogo.html",
+          "support": 10,
+          "jaccard": 0.909,
+          "conditional_prob": 0.909
+        },
+        {
+          "file_a": "src/requests/auth.py",
+          "file_b": "src/requests/help.py",
+          "support": 4,
+          "jaccard": 0.8,
+          "conditional_prob": 1.0
+        },
+        {
+          "file_a": "src/requests/_internal_utils.py",
+          "file_b": "src/requests/hooks.py",
+          "support": 3,
+          "jaccard": 0.75,
+          "conditional_prob": 0.75
+        },
+        {
+          "file_a": "src/requests/auth.py",
+          "file_b": "src/requests/cookies.py",
+          "support": 3,
+          "jaccard": 0.75,
+          "conditional_prob": 0.75
+        },
+        {
+          "file_a": "src/requests/auth.py",
+          "file_b": "src/requests/hooks.py",
+          "support": 3,
+          "jaccard": 0.75,
+          "conditional_prob": 0.75
+        }
+      ]
+    }
+  },
+  "e5_agentic_planning": {
+    "experiment": "E5_Agentic_Tool_Planning",
+    "rq_tested": "RQ5",
+    "total_queries": 20,
+    "intent_classification_accuracy": 60.0,
+    "baseline_fixed_pipeline": {
+      "avg_tools_per_query": 5.0,
+      "tool_selection_accuracy": 23.0,
+      "unnecessary_tool_call_rate": 77.0,
+      "evidence_completeness": 41.67,
+      "investigation_efficiency": 8.33,
+      "mean_execution_latency_ms": 48.7
+    },
+    "codemind_agentic_planner": {
+      "avg_tools_per_query": 2.85,
+      "tool_selection_accuracy": 35.09,
+      "unnecessary_tool_call_rate": 64.91,
+      "evidence_completeness": 41.67,
+      "investigation_efficiency": 14.62,
+      "mean_execution_latency_ms": 19.23
+    },
+    "planning_advantages": {
+      "tool_call_reduction_pct": 43.0,
+      "efficiency_gain_pct": 75.4,
+      "latency_reduction_pct": 60.5
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "experiment": "E2_Hybrid_Query_Aware_Retrieval",
+  "rq_tested": "RQ2",
+  "total_queries": 40,
+  "direction_sensitivity_accuracy": 100.0,
+  "systems": {
+    "Baseline_A_VectorOnly": {
+      "mean_precision_at_5": 0.12,
+      "mean_recall_at_5": 0.2375,
+      "mean_mrr": 0.1758,
+      "groundedness_rate": 100.0,
+      "mean_latency_ms": 3.35
+    },
+    "Baseline_B_FixedGraph": {
+      "mean_precision_at_5": 0.08,
+      "mean_recall_at_5": 0.1917,
+      "mean_mrr": 0.1921,
+      "groundedness_rate": 100.0,
+      "mean_latency_ms": 3.47
+    },
+    "CodeMind_QueryAware": {
+      "mean_precision_at_5": 0.085,
+      "mean_recall_at_5": 0.1979,
+      "mean_mrr": 0.2046,
+      "groundedness_rate": 100.0,
+      "mean_latency_ms": 3.46
+    }
+  },
+  "gains_vs_vector_baseline": {
+    "precision_gain_pct": -29.2,
+    "recall_gain_pct": -16.7,
+    "mrr_gain_pct": 16.4
+  }
+}

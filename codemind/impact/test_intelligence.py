@@ -324,13 +324,21 @@ class TestIntelligenceEngine:
         """Query logical coupling analyzer for test files co-committed with source_path."""
         matches = []
         couplings = getattr(self.coupling_analyzer, "couplings", [])
+        norm_source = source_path.replace("\\", "/").strip("/").lower()
+        while norm_source.startswith("./"):
+            norm_source = norm_source[2:]
+
         for c in couplings:
-            file_a = (getattr(c, "file_a", "") or "").replace("\\", "/")
-            file_b = (getattr(c, "file_b", "") or "").replace("\\", "/")
+            file_a = (getattr(c, "canonical_file_a", None) or getattr(c, "file_a", "") or "").replace("\\", "/").strip("/").lower()
+            file_b = (getattr(c, "canonical_file_b", None) or getattr(c, "file_b", "") or "").replace("\\", "/").strip("/").lower()
+            while file_a.startswith("./"):
+                file_a = file_a[2:]
+            while file_b.startswith("./"):
+                file_b = file_b[2:]
             jaccard = getattr(c, "jaccard_similarity", 0.0)
 
-            if source_path in (file_a, file_b) and jaccard >= 0.15:
-                other_file = file_b if source_path == file_a else file_a
+            if norm_source in (file_a, file_b) and jaccard >= 0.15:
+                other_file = file_b if norm_source == file_a else file_a
                 if "test" in other_file.lower():
                     matches.append((other_file, jaccard))
         return matches

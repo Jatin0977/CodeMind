@@ -384,37 +384,94 @@ class ChangeImpactEngine:
         Add strictly 1-hop logical co-change coupling.
         Never traverses CO_CHANGED_WITH transitively.
         """
+        from pathlib import Path
         target_file_id: Optional[str] = None
         if target.entity_type == NodeType.FILE:
             target_file_id = target.node_id
         else:
             target_file_id = self._find_parent_file_id(target.node_id, self.graph.nodes.get(target.node_id, {}))
 
-        if not target_file_id or target_file_id not in self.graph:
-            return
+        norm_target_file = (target.relative_path or target.file_path or "").replace("\\", "/").strip("/")
+        while norm_target_file.startswith("./"):
+            norm_target_file = norm_target_file[2:]
 
-        # Check graph CO_CHANGED_WITH edges
-        for neighbor in self.graph.neighbors(target_file_id):
-            edge_data = self.graph.get_edge_data(target_file_id, neighbor) or {}
-            if edge_data.get("edge_type") == EdgeType.CO_CHANGED_WITH:
-                if neighbor not in visited_nodes:
-                    visited_nodes.add(neighbor)
-                    n_data = self.graph.nodes[neighbor]
-                    impacted_nodes[neighbor] = BlastRadiusNode(
-                        node_id=neighbor,
-                        name=n_data.get("name", neighbor),
-                        entity_type=n_data.get("node_type", "file"),
-                        file_path=n_data.get("file_path") or n_data.get("relative_path"),
-                        depth=1,  # Strictly 1-hop
-                        direct_relationship=EdgeType.CO_CHANGED_WITH,
-                        path=[target.node_id, neighbor],
-                        tags=["TEMPORAL_CO_CHANGE"],
-                        metadata=dict(edge_data.get("metadata", {})),
-                    )
-                    impacted_edges.append(BlastRadiusEdge(
-                        source=target_file_id,
-                        target=neighbor,
-                        edge_type=EdgeType.CO_CHANGED_WITH,
-                        metadata=dict(edge_data.get("metadata", {})),
-                    ))
-                    # IMPORTANT: Not added to queue! Strictly 1-hop!
+        if not target_file_id and norm_target_file:
+            cand_id = f"file:{norm_target_file}"
+            if cand_id in self.graph:
+                target_file_id = cand_id
+
+        # Collect 1-hop coupled partners and metadata
+        coupled_candidates: List[Tuple[str, str, Dict[str, Any]]] = []
+
+        # 1. Discover via graph edges (both successors and predecessors for bidirectional completeness)
+        if target_file_id and target_file_id in self.graph:
+            for succ in self.graph.successors(target_file_id):
+                ed = self.graph.get_edge_data(target_file_id, succ) or {}
+                if ed.get("edge_type") == EdgeType.CO_CHANGED_WITH:
+                    p_path = (self.graph.nodes[succ].get("file_path") or self.graph.nodes[succ].get("relative_path") or "").replace("\\", "/")
+                    if not p_path and succ.startswith("file:"):
+                        p_path = succ[5:]
+                    coupled_candidates.append((p_path, succ, ed))
+
+            for pred in self.graph.predecessors(target_file_id):
+                ed = self.graph.get_edge_data(pred, target_file_id) or {}
+                if ed.get("edge_type") == EdgeType.CO_CHANGED_WITH:
+                    p_path = (self.graph.nodes[pred].get("file_path") or self.graph.nodes[pred].get("relative_path") or "").replace("\\", "/")
+                    if not p_path and pred.startswith("file:"):
+                        p_path = pred[5:]
+                    coupled_candidates.append((p_path, pred, ed))
+
+        # 2. Discover via coupling_analyzer if available
+        if self.coupling_analyzer and norm_target_file:
+            norm_target_lower = norm_target_file.lower()
+            couplings = getattr(self.coupling_analyzer, "couplings", [])
+            for c in couplings:
+                file_a = (getattr(c, "canonical_file_a", None) or getattr(c, "file_a", "") or "").replace("\\", "/").strip("/")
+                file_b = (getattr(c, "canonical_file_b", None) or getattr(c, "file_b", "") or "").replace("\\", "/").strip("/")
+                while file_a.startswith("./"):
+                    file_a = file_a[2:]
+                while file_b.startswith("./"):
+                    file_b = file_b[2:]
+
+                if norm_target_lower in (file_a.lower(), file_b.lower()):
+                    partner_file = file_b if norm_target_lower == file_a.lower() else file_a
+                    partner_node_id = f"file:{partner_file}"
+                    meta = {
+                        "canonical_file_a": file_a,
+                        "canonical_file_b": file_b,
+                        "support_count": getattr(c, "support_count", 0),
+                        "jaccard_similarity": getattr(c, "jaccard_similarity", 0.0),
+                        "confidence_a_to_b": getattr(c, "confidence_a_to_b", 0.0),
+                        "confidence_b_to_a": getattr(c, "confidence_b_to_a", 0.0),
+                        "last_co_change_date": getattr(c, "last_co_change_date", None),
+                        "is_temporal": True,
+                    }
+                    coupled_candidates.append((partner_file, partner_node_id, meta))
+
+        # 3. Add to blast radius deterministically without duplicates
+        for partner_file, partner_node_id, meta in coupled_candidates:
+            if not partner_file or partner_node_id in visited_nodes:
+                continue
+
+            visited_nodes.add(partner_node_id)
+            n_data = self.graph.nodes.get(partner_node_id, {})
+            display_name = n_data.get("name") or Path(partner_file).name
+
+            impacted_nodes[partner_node_id] = BlastRadiusNode(
+                node_id=partner_node_id,
+                name=display_name,
+                entity_type=n_data.get("node_type", NodeType.FILE),
+                file_path=partner_file,
+                depth=1,  # Strictly 1-hop
+                direct_relationship=EdgeType.CO_CHANGED_WITH,
+                path=[target.node_id, partner_node_id],
+                tags=["TEMPORAL_CO_CHANGE"],
+                metadata=dict(meta),
+            )
+            impacted_edges.append(BlastRadiusEdge(
+                source=target_file_id or target.node_id,
+                target=partner_node_id,
+                edge_type=EdgeType.CO_CHANGED_WITH,
+                metadata=dict(meta),
+            ))
+            # IMPORTANT: Not added to queue! Strictly 1-hop!

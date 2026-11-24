@@ -199,12 +199,22 @@ class MultiSignalImpactScorer:
         commits = 0
         file_path = target.relative_path or target.file_path or ""
         if self.churn_analyzer and file_path:
-            norm_path = file_path.replace("\\", "/").strip("/")
-            churn_data = getattr(self.churn_analyzer, "file_metrics", {})
-            if hasattr(churn_data, "get"):
-                file_metric = churn_data.get(norm_path)
-                if file_metric:
-                    commits = getattr(file_metric, "commit_frequency", 0)
+            norm_path = file_path.replace("\\", "/").strip("/").lower()
+            while norm_path.startswith("./"):
+                norm_path = norm_path[2:]
+            churn_data = getattr(self.churn_analyzer, "file_metrics", None)
+            if churn_data is None:
+                summary_obj = getattr(self.churn_analyzer, "summary", None) or getattr(self.churn_analyzer, "last_summary", None)
+                churn_data = getattr(summary_obj, "file_metrics", {}) if summary_obj else {}
+
+            if isinstance(churn_data, dict):
+                for k, v in churn_data.items():
+                    k_norm = k.replace("\\", "/").strip("/").lower()
+                    while k_norm.startswith("./"):
+                        k_norm = k_norm[2:]
+                    if k_norm == norm_path:
+                        commits = getattr(v, "commit_frequency", 0)
+                        break
 
         norm_score = min(1.0, float(commits) / self.config.volatility_sat)
         return ImpactSignal(
@@ -246,11 +256,17 @@ class MultiSignalImpactScorer:
         max_coupling = 0.0
         file_path = target.relative_path or target.file_path or ""
         if self.coupling_analyzer and file_path:
-            norm_path = file_path.replace("\\", "/").strip("/")
+            norm_path = file_path.replace("\\", "/").strip("/").lower()
+            while norm_path.startswith("./"):
+                norm_path = norm_path[2:]
             couplings = getattr(self.coupling_analyzer, "couplings", [])
             for c in couplings:
-                file_a = getattr(c, "file_a", "")
-                file_b = getattr(c, "file_b", "")
+                file_a = (getattr(c, "canonical_file_a", None) or getattr(c, "file_a", "") or "").replace("\\", "/").strip("/").lower()
+                file_b = (getattr(c, "canonical_file_b", None) or getattr(c, "file_b", "") or "").replace("\\", "/").strip("/").lower()
+                while file_a.startswith("./"):
+                    file_a = file_a[2:]
+                while file_b.startswith("./"):
+                    file_b = file_b[2:]
                 if norm_path in (file_a, file_b):
                     jaccard = getattr(c, "jaccard_similarity", 0.0)
                     conf = getattr(c, "confidence_a_to_b" if norm_path == file_a else "confidence_b_to_a", 1.0)

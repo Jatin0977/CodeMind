@@ -336,4 +336,4 @@ Comprehensive technical documentation is organized in the `docs/` directory:
 
 ## License
 
-CodeMind is open-source software released under the [MIT License](file:///c:/Users/user/Desktop/Codemind/CodeMind/pyproject.toml).
+CodeMind is open-source software released under the [MIT License](LICENSE).

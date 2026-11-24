@@ -51,7 +51,7 @@ htmlcov/
 .nox/
 .mypy_cache/
 
-# Environment Variables
+# Environment VariablesBBbBbB
 .env
 .env.local
 
@@ -59,9 +59,7 @@ htmlcov/
 .codemind_cache/
 chroma_db/
 
-# Research Experiments & Evaluation Repositories
+# Keep cloned evaluation repos and rough paper drafts out of the code repo
 eval_repos/
-research_experiments/
 paper/
-*.xlsx
-CodeMind_Benchmark_Query_Set.xlsx
+

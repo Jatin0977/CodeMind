@@ -1,0 +1,116 @@
+{
+  "ResilienceOS": {
+    "baseline_raw_cooccurrence": {
+      "total_flagged": 1822,
+      "precision": 76.95,
+      "false_positive_rate": 23.05,
+      "novel_coupling_rate": 100.0,
+      "static_overlap_rate": 0.0,
+      "novel_count": 1822,
+      "static_count": 0
+    },
+    "codemind_triple_filter": {
+      "total_flagged": 508,
+      "precision": 100.0,
+      "false_positive_rate": 0.0,
+      "novel_coupling_rate": 100.0,
+      "static_overlap_rate": 0.0,
+      "novel_count": 508,
+      "static_count": 0
+    },
+    "top_novel_couplings": [
+      {
+        "file_a": "frontend/src/components/AssetCatalog/AssetCatalog.css",
+        "file_b": "frontend/src/components/IncidentControl/IncidentControl.css",
+        "support": 3,
+        "jaccard": 1.0,
+        "conditional_prob": 1.0
+      },
+      {
+        "file_a": "frontend/src/components/AssetCatalog/AssetCatalog.css",
+        "file_b": "frontend/src/components/ResilienceGauge/ResilienceCard.css",
+        "support": 3,
+        "jaccard": 1.0,
+        "conditional_prob": 1.0
+      },
+      {
+        "file_a": "frontend/src/components/AssetCatalog/AssetCatalog.css",
+        "file_b": "frontend/src/components/ServiceStatus/ServiceStatus.css",
+        "support": 3,
+        "jaccard": 1.0,
+        "conditional_prob": 1.0
+      },
+      {
+        "file_a": "frontend/src/components/IncidentControl/IncidentControl.css",
+        "file_b": "frontend/src/components/ResilienceGauge/ResilienceCard.css",
+        "support": 3,
+        "jaccard": 1.0,
+        "conditional_prob": 1.0
+      },
+      {
+        "file_a": "frontend/src/components/IncidentControl/IncidentControl.css",
+        "file_b": "frontend/src/components/ServiceStatus/ServiceStatus.css",
+        "support": 3,
+        "jaccard": 1.0,
+        "conditional_prob": 1.0
+      }
+    ]
+  },
+  "requests": {
+    "baseline_raw_cooccurrence": {
+      "total_flagged": 1466,
+      "precision": 73.26,
+      "false_positive_rate": 26.74,
+      "novel_coupling_rate": 100.0,
+      "static_overlap_rate": 0.0,
+      "novel_count": 1466,
+      "static_count": 0
+    },
+    "codemind_triple_filter": {
+      "total_flagged": 108,
+      "precision": 100.0,
+      "false_positive_rate": 0.0,
+      "novel_coupling_rate": 100.0,
+      "static_overlap_rate": 0.0,
+      "novel_count": 108,
+      "static_count": 0
+    },
+    "top_novel_couplings": [
+      {
+        "file_a": "docs/_templates/sidebarintro.html",
+        "file_b": "docs/_templates/sidebarlogo.html",
+        "support": 10,
+        "jaccard": 0.909,
+        "conditional_prob": 0.909
+      },
+      {
+        "file_a": "src/requests/auth.py",
+        "file_b": "src/requests/help.py",
+        "support": 4,
+        "jaccard": 0.8,
+        "conditional_prob": 1.0
+      },
+      {
+        "file_a": "src/requests/_internal_utils.py",
+        "file_b": "src/requests/hooks.py",
+        "support": 3,
+        "jaccard": 0.75,
+        "conditional_prob": 0.75
+      },
+      {
+        "file_a": "src/requests/auth.py",
+        "file_b": "src/requests/cookies.py",
+        "support": 3,
+        "jaccard": 0.75,
+        "conditional_prob": 0.75
+      },
+      {
+        "file_a": "src/requests/auth.py",
+        "file_b": "src/requests/hooks.py",
+        "support": 3,
+        "jaccard": 0.75,
+        "conditional_prob": 0.75
+      }
+    ]
+  }
+}

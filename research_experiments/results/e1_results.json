@@ -1,0 +1,53 @@
+{
+  "experiment": "E1_Canonical_Entity_Resolution",
+  "rq_tested": "RQ1",
+  "repository": "ResilienceOS",
+  "total_test_instances": 30,
+  "unique_ambiguous_names": 13,
+  "baseline_name_only": {
+    "accuracy": 0.0,
+    "false_merge_rate": 100.0,
+    "cross_source_join_rate": 0.0
+  },
+  "codemind_canonical": {
+    "accuracy": 100.0,
+    "false_merge_rate": 0.0,
+    "cross_source_join_rate": 100.0
+  },
+  "improvement_delta": {
+    "accuracy_gain_pct": 100.0,
+    "false_merge_reduction_pct": 100.0
+  },
+  "sample_disambiguated_entities": [
+    {
+      "name": "apply_strategy",
+      "canonical_id": "function:backend/app/api/simulation.py:apply_strategy",
+      "file": "backend/app/api/simulation.py",
+      "lines": "230-282"
+    },
+    {
+      "name": "apply_strategy",
+      "canonical_id": "method:simulation/state_engine.py:HospitalStateEngine.apply_strategy",
+      "file": "simulation/state_engine.py",
+      "lines": "581-809"
+    },
+    {
+      "name": "downgrade",
+      "canonical_id": "function:database/migrations/versions/10768f22a018_create_simulation_runs_table.py:downgrade",
+      "file": "database/migrations/versions/10768f22a018_create_simulation_runs_table.py",
+      "lines": "38-42"
+    },
+    {
+      "name": "downgrade",
+      "canonical_id": "function:database/migrations/versions/f5641cb14ff8_create_telemetry_records_table.py:downgrade",
+      "file": "database/migrations/versions/f5641cb14ff8_create_telemetry_records_table.py",
+      "lines": "39-42"
+    },
+    {
+      "name": "explain_service_risk",
+      "canonical_id": "method:backend/app/interfaces/contracts.py:ExplanationEngineInterface.explain_service_risk",
+      "file": "backend/app/interfaces/contracts.py",
+      "lines": "46-52"
+    }
+  ]
+}
