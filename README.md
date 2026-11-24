@@ -2,6 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24516161.svg)](https://doi.org/10.5281/zenodo.24516161)
 ![Status](https://img.shields.io/badge/Status-Phases%201%E2%80%9310%20Complete-brightgreen.svg)
 ![Tests](https://img.shields.io/badge/Tests-385%20Passing-success.svg)
 ![Architecture Conformance](https://img.shields.io/badge/Architecture-Conformance%20Engine%20(ACI)-purple.svg)
@@ -331,6 +332,15 @@ Comprehensive technical documentation is organized in the `docs/` directory:
 3. **Information Retrieval Bounds:** On datasets with single ground-truth files, unique-file Precision@3 is mathematically capped at $0.5400$. CodeMind achieves $0.5133$ (+175% gain over baseline), with Recall@3 at $0.7117$ and MRR at $0.8333$.
 4. **Static Analysis Horizon:** Static AST cannot trace runtime metaprogramming (`eval`, `getattr`, dynamic monkey-patching).
 5. **Docker Execution State:** Dockerfile and CI workflow are statically verified against specification standards; live Docker container testing has not been executed on the host.
+
+---
+
+## Data & Code Availability
+
+The datasets generated and analyzed during the study, including **CodeMind-Bench v1.0** (40 verified ground-truth tasks across multi-dimensional repositories) and experimental evaluation runners, are openly available in this repository and permanently archived on Zenodo:
+- **Zenodo Archive:** [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24516161.svg)](https://doi.org/10.5281/zenodo.24516161)
+- **Direct DOI Link:** [https://doi.org/10.5281/zenodo.24516161](https://doi.org/10.5281/zenodo.24516161)
+- **Benchmark Dataset:** [`benchmarks/CodeMind_Bench_v1.0.xlsx`](benchmarks/CodeMind_Bench_v1.0.xlsx)
 
 ---
 
