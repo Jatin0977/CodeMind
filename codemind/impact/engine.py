@@ -391,9 +391,13 @@ class ChangeImpactEngine:
         else:
             target_file_id = self._find_parent_file_id(target.node_id, self.graph.nodes.get(target.node_id, {}))
 
-        norm_target_file = (target.relative_path or target.file_path or "").replace("\\", "/").strip("/")
-        while norm_target_file.startswith("./"):
-            norm_target_file = norm_target_file[2:]
+        norm_target_file = target.relative_path or target.file_path or ""
+        if isinstance(norm_target_file, str):
+            norm_target_file = norm_target_file.replace("\\", "/").strip("/")
+            while norm_target_file.startswith("./"):
+                norm_target_file = norm_target_file[2:]
+        else:
+            norm_target_file = ""
 
         if not target_file_id and norm_target_file:
             cand_id = f"file:{norm_target_file}"
@@ -425,28 +429,36 @@ class ChangeImpactEngine:
         if self.coupling_analyzer and norm_target_file:
             norm_target_lower = norm_target_file.lower()
             couplings = getattr(self.coupling_analyzer, "couplings", [])
-            for c in couplings:
-                file_a = (getattr(c, "canonical_file_a", None) or getattr(c, "file_a", "") or "").replace("\\", "/").strip("/")
-                file_b = (getattr(c, "canonical_file_b", None) or getattr(c, "file_b", "") or "").replace("\\", "/").strip("/")
-                while file_a.startswith("./"):
-                    file_a = file_a[2:]
-                while file_b.startswith("./"):
-                    file_b = file_b[2:]
+            if isinstance(couplings, (list, tuple, set)):
+                for c in couplings:
+                    raw_a = getattr(c, "canonical_file_a", None)
+                    if not isinstance(raw_a, str):
+                        raw_a = getattr(c, "file_a", "")
+                    raw_b = getattr(c, "canonical_file_b", None)
+                    if not isinstance(raw_b, str):
+                        raw_b = getattr(c, "file_b", "")
 
-                if norm_target_lower in (file_a.lower(), file_b.lower()):
-                    partner_file = file_b if norm_target_lower == file_a.lower() else file_a
-                    partner_node_id = f"file:{partner_file}"
-                    meta = {
-                        "canonical_file_a": file_a,
-                        "canonical_file_b": file_b,
-                        "support_count": getattr(c, "support_count", 0),
-                        "jaccard_similarity": getattr(c, "jaccard_similarity", 0.0),
-                        "confidence_a_to_b": getattr(c, "confidence_a_to_b", 0.0),
-                        "confidence_b_to_a": getattr(c, "confidence_b_to_a", 0.0),
-                        "last_co_change_date": getattr(c, "last_co_change_date", None),
-                        "is_temporal": True,
-                    }
-                    coupled_candidates.append((partner_file, partner_node_id, meta))
+                    file_a = raw_a.replace("\\", "/").strip("/") if isinstance(raw_a, str) else ""
+                    file_b = raw_b.replace("\\", "/").strip("/") if isinstance(raw_b, str) else ""
+                    while file_a.startswith("./"):
+                        file_a = file_a[2:]
+                    while file_b.startswith("./"):
+                        file_b = file_b[2:]
+
+                    if norm_target_lower in (file_a.lower(), file_b.lower()):
+                        partner_file = file_b if norm_target_lower == file_a.lower() else file_a
+                        partner_node_id = f"file:{partner_file}"
+                        meta = {
+                            "canonical_file_a": file_a,
+                            "canonical_file_b": file_b,
+                            "support_count": getattr(c, "support_count", 0),
+                            "jaccard_similarity": getattr(c, "jaccard_similarity", 0.0),
+                            "confidence_a_to_b": getattr(c, "confidence_a_to_b", 0.0),
+                            "confidence_b_to_a": getattr(c, "confidence_b_to_a", 0.0),
+                            "last_co_change_date": getattr(c, "last_co_change_date", None),
+                            "is_temporal": True,
+                        }
+                        coupled_candidates.append((partner_file, partner_node_id, meta))
 
         # 3. Add to blast radius deterministically without duplicates
         for partner_file, partner_node_id, meta in coupled_candidates:

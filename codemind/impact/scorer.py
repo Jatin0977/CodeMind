@@ -198,22 +198,26 @@ class MultiSignalImpactScorer:
 
         commits = 0
         file_path = target.relative_path or target.file_path or ""
-        if self.churn_analyzer and file_path:
+        if self.churn_analyzer and isinstance(file_path, str) and file_path:
             norm_path = file_path.replace("\\", "/").strip("/").lower()
             while norm_path.startswith("./"):
                 norm_path = norm_path[2:]
             churn_data = getattr(self.churn_analyzer, "file_metrics", None)
-            if churn_data is None:
+            if not isinstance(churn_data, dict):
                 summary_obj = getattr(self.churn_analyzer, "summary", None) or getattr(self.churn_analyzer, "last_summary", None)
                 churn_data = getattr(summary_obj, "file_metrics", {}) if summary_obj else {}
 
             if isinstance(churn_data, dict):
                 for k, v in churn_data.items():
+                    if not isinstance(k, str):
+                        continue
                     k_norm = k.replace("\\", "/").strip("/").lower()
                     while k_norm.startswith("./"):
                         k_norm = k_norm[2:]
                     if k_norm == norm_path:
                         commits = getattr(v, "commit_frequency", 0)
+                        if not isinstance(commits, (int, float)):
+                            commits = 0
                         break
 
         norm_score = min(1.0, float(commits) / self.config.volatility_sat)
@@ -255,24 +259,36 @@ class MultiSignalImpactScorer:
 
         max_coupling = 0.0
         file_path = target.relative_path or target.file_path or ""
-        if self.coupling_analyzer and file_path:
+        if self.coupling_analyzer and isinstance(file_path, str) and file_path:
             norm_path = file_path.replace("\\", "/").strip("/").lower()
             while norm_path.startswith("./"):
                 norm_path = norm_path[2:]
             couplings = getattr(self.coupling_analyzer, "couplings", [])
-            for c in couplings:
-                file_a = (getattr(c, "canonical_file_a", None) or getattr(c, "file_a", "") or "").replace("\\", "/").strip("/").lower()
-                file_b = (getattr(c, "canonical_file_b", None) or getattr(c, "file_b", "") or "").replace("\\", "/").strip("/").lower()
-                while file_a.startswith("./"):
-                    file_a = file_a[2:]
-                while file_b.startswith("./"):
-                    file_b = file_b[2:]
-                if norm_path in (file_a, file_b):
-                    jaccard = getattr(c, "jaccard_similarity", 0.0)
-                    conf = getattr(c, "confidence_a_to_b" if norm_path == file_a else "confidence_b_to_a", 1.0)
-                    strength = jaccard * conf
-                    if strength > max_coupling:
-                        max_coupling = strength
+            if isinstance(couplings, (list, tuple, set)):
+                for c in couplings:
+                    raw_a = getattr(c, "canonical_file_a", None)
+                    if not isinstance(raw_a, str):
+                        raw_a = getattr(c, "file_a", "")
+                    raw_b = getattr(c, "canonical_file_b", None)
+                    if not isinstance(raw_b, str):
+                        raw_b = getattr(c, "file_b", "")
+
+                    file_a = raw_a.replace("\\", "/").strip("/").lower() if isinstance(raw_a, str) else ""
+                    file_b = raw_b.replace("\\", "/").strip("/").lower() if isinstance(raw_b, str) else ""
+                    while file_a.startswith("./"):
+                        file_a = file_a[2:]
+                    while file_b.startswith("./"):
+                        file_b = file_b[2:]
+                    if norm_path in (file_a, file_b):
+                        jaccard = getattr(c, "jaccard_similarity", 0.0)
+                        if not isinstance(jaccard, (int, float)):
+                            jaccard = 0.0
+                        conf = getattr(c, "confidence_a_to_b" if norm_path == file_a else "confidence_b_to_a", 1.0)
+                        if not isinstance(conf, (int, float)):
+                            conf = 1.0
+                        strength = float(jaccard) * float(conf)
+                        if strength > max_coupling:
+                            max_coupling = strength
 
         norm_score = min(1.0, max(0.0, max_coupling))
         return ImpactSignal(

@@ -324,21 +324,33 @@ class TestIntelligenceEngine:
         """Query logical coupling analyzer for test files co-committed with source_path."""
         matches = []
         couplings = getattr(self.coupling_analyzer, "couplings", [])
+        if not isinstance(source_path, str) or not isinstance(couplings, (list, tuple, set)):
+            return matches
+
         norm_source = source_path.replace("\\", "/").strip("/").lower()
         while norm_source.startswith("./"):
             norm_source = norm_source[2:]
 
         for c in couplings:
-            file_a = (getattr(c, "canonical_file_a", None) or getattr(c, "file_a", "") or "").replace("\\", "/").strip("/").lower()
-            file_b = (getattr(c, "canonical_file_b", None) or getattr(c, "file_b", "") or "").replace("\\", "/").strip("/").lower()
+            raw_a = getattr(c, "canonical_file_a", None)
+            if not isinstance(raw_a, str):
+                raw_a = getattr(c, "file_a", "")
+            raw_b = getattr(c, "canonical_file_b", None)
+            if not isinstance(raw_b, str):
+                raw_b = getattr(c, "file_b", "")
+
+            file_a = raw_a.replace("\\", "/").strip("/").lower() if isinstance(raw_a, str) else ""
+            file_b = raw_b.replace("\\", "/").strip("/").lower() if isinstance(raw_b, str) else ""
             while file_a.startswith("./"):
                 file_a = file_a[2:]
             while file_b.startswith("./"):
                 file_b = file_b[2:]
             jaccard = getattr(c, "jaccard_similarity", 0.0)
+            if not isinstance(jaccard, (int, float)):
+                jaccard = 0.0
 
             if norm_source in (file_a, file_b) and jaccard >= 0.15:
                 other_file = file_b if norm_source == file_a else file_a
                 if "test" in other_file.lower():
-                    matches.append((other_file, jaccard))
+                    matches.append((other_file, float(jaccard)))
         return matches
