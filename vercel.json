@@ -1,0 +1,21 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/static/(.*)",
+      "destination": "/codemind/web/static/$1"
+    },
+    {
+      "source": "/style.css",
+      "destination": "/codemind/web/static/style.css"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/codemind/web/static/app.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/codemind/web/static/$1"
+    }
+  ]
+}

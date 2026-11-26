@@ -420,6 +420,20 @@ def create_app():
             return FileResponse(index_file)
         return HTMLResponse("<h1>CodeMind UI Initializing...</h1>")
 
+    @app.get("/style.css", include_in_schema=False)
+    async def get_root_css():
+        css_file = static_dir / "style.css"
+        if css_file.exists():
+            return FileResponse(css_file, media_type="text/css")
+        return Response(status_code=404)
+
+    @app.get("/app.js", include_in_schema=False)
+    async def get_root_js():
+        js_file = static_dir / "app.js"
+        if js_file.exists():
+            return FileResponse(js_file, media_type="application/javascript")
+        return Response(status_code=404)
+
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon():
         return Response(status_code=204)

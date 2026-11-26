@@ -74,11 +74,19 @@ class TestWebAPI(unittest.TestCase):
         self.assertIn("embedding_model", data)
 
     def test_root_serves_html(self):
-        """Test GET / returns HTML dashboard."""
+        """Test GET / returns HTML dashboard and static assets."""
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers.get("content-type", ""))
         self.assertIn("CodeMind", response.text)
+
+        # Verify root static asset access for Vercel and local parity
+        res_css = self.client.get("/style.css")
+        self.assertEqual(res_css.status_code, 200)
+        self.assertIn("text/css", res_css.headers.get("content-type", ""))
+
+        res_js = self.client.get("/app.js")
+        self.assertEqual(res_js.status_code, 200)
 
     def test_scan_repository_success(self):
         """Test POST /api/scan with valid repo path."""
