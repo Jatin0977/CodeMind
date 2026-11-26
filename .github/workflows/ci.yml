@@ -10,6 +10,8 @@ jobs:
   test:
     name: Test & Validate (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    env:
+      CODEMIND_EMBEDDING_PROVIDER: mock
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +33,11 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
+      - name: Configure Git for tests
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: CLI smoke check
         run: |
           codemind --help
@@ -38,10 +45,8 @@ jobs:
 
       - name: Run test suite with pytest
         run: |
-          pytest -v
+          pytest -v --tb=short -ra
 
       - name: Run milestone acceptance benchmarks smoke check
-        env:
-          CODEMIND_EMBEDDING_PROVIDER: mock
         run: |
           python scripts/benchmark_targets.py

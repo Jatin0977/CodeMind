@@ -14,6 +14,7 @@ Verifies:
 import os
 import tempfile
 import threading
+import subprocess
 from pathlib import Path
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -161,9 +162,10 @@ class TestSecurityHardening(unittest.TestCase):
             client.run_command("status")  # Must be List[str]
 
         # Timeout handling
-        with self.assertRaises(GitTimeoutError):
-            # Extremely short timeout (0.0001s) forces timeout
-            client.run_command(["log", "-n", "100"], timeout=0.000001)
+        from unittest.mock import patch
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=["git"], timeout=0.001)):
+            with self.assertRaises(GitTimeoutError):
+                client.run_command(["log", "-n", "100"], timeout=0.001)
 
         # Safe argument construction without shell injection
         safe_client = GitClient(self.repo_path, default_timeout_seconds=5.0)
