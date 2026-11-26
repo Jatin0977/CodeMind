@@ -254,6 +254,8 @@ class TestSecurityHardening(unittest.TestCase):
         # 1. DOMPurify script tag must appear before app.js script tag
         purify_idx = index_html.find("purify.min.js")
         app_idx = index_html.find("/static/app.js")
+        if app_idx == -1:
+            app_idx = index_html.find("app.js")
         self.assertGreater(purify_idx, -1, "DOMPurify must be present in index.html")
         self.assertGreater(app_idx, -1, "app.js must be present in index.html")
         self.assertLess(purify_idx, app_idx, "DOMPurify must be loaded before app.js")

@@ -38,7 +38,7 @@ jobs:
 
       - name: Run test suite with pytest
         run: |
-          pytest -v --cov=codemind --cov-report=xml --cov-report=term
+          pytest -v
 
       - name: Run milestone acceptance benchmarks smoke check
         env:
