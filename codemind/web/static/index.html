@@ -1,1008 +1,1581 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CodeMind — Repository Ingestion & Static Code Analysis</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
-  <!-- Google Fonts -->
+  <title>CodeMind — Understand • Analyze • Evolve</title>
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=10.5.4">
-  <link rel="stylesheet" href="/static/style.css?v=10.5.4">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=11.2.0">
+  <link rel="stylesheet" href="/static/style.css?v=11.2.0">
 </head>
-<body class="dark-theme">
-  <!-- Top Navigation Header -->
-  <header class="app-header">
-    <div class="header-left">
-      <div class="brand-logo">
-        <div class="logo-glow-orb"></div>
-        <span class="brand-icon">⚡</span>
+
+<body class="light-theme">
+  <div class="app-shell">
+    <!-- Left Navigation Sidebar -->
+    <aside class="app-sidebar">
+      <div class="sidebar-brand" onclick="showHomeView()">
+        <div class="brand-svg-icon">
+          <svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="brandLogoGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#4f46e5"/>
+                <stop offset="50%" stop-color="#7c3aed"/>
+                <stop offset="100%" stop-color="#d946ef"/>
+              </linearGradient>
+            </defs>
+            <!-- Left Brain Hemisphere -->
+            <path d="M29 15C24.5 11.5 17 13 15 18.5C10.5 19.5 7.5 24 8.5 29C6.5 33 8 38.5 12.5 40.5C12.5 46 17.5 50 23 48.5C25 51.5 29 51 29 47.5V15Z" stroke="url(#brandLogoGrad)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Right Brain Hemisphere -->
+            <path d="M35 15C39.5 11.5 47 13 49 18.5C53.5 19.5 56.5 24 55.5 29C57.5 33 56 38.5 51.5 40.5C51.5 46 46.5 50 41 48.5C39 51.5 35 51 35 47.5V15Z" stroke="url(#brandLogoGrad)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Circuit Nodes -->
+            <path d="M16 25L21 22M14 35L20 38M48 25L43 22M50 35L44 38" stroke="url(#brandLogoGrad)" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="21.5" cy="22" r="2.2" fill="#7c3aed"/>
+            <circle cx="20.5" cy="38" r="2.2" fill="#6366f1"/>
+            <circle cx="42.5" cy="22" r="2.2" fill="#d946ef"/>
+            <circle cx="43.5" cy="38" r="2.2" fill="#9333ea"/>
+            <!-- Center </> Code Emblem -->
+            <path d="M26 28.5L21.5 32L26 35.5" stroke="url(#brandLogoGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M38 28.5L42.5 32L38 35.5" stroke="url(#brandLogoGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M33.5 26.5L30.5 37.5" stroke="url(#brandLogoGrad)" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+        </div>
         <div class="brand-text">
-          <span class="brand-title">CodeMind</span>
-          <span class="brand-subtitle">Repository Ingestion, Static Analysis & Knowledge Graph</span>
+          <span class="brand-title"><span style="color:#1e1b4b;">Code</span><span style="background:linear-gradient(135deg,#6366f1,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Mind</span></span>
+          <span class="brand-subtitle">Repository Intelligence Platform</span>
         </div>
       </div>
-      <div class="milestone-badge">
-        <span class="badge-dot"></span>
-        <span>Phases 1–10 Active · Production Baseline</span>
-      </div>
-    </div>
 
-    <div class="header-right">
-      <div class="status-chip" id="ingestionEngineChip">
-        <span class="chip-icon">📁</span>
-        <span class="chip-label">Ingestion:</span>
-        <span class="chip-val highlight-green">Active</span>
-      </div>
-      <div class="status-chip" id="astEngineChip">
-        <span class="chip-icon">🔍</span>
-        <span class="chip-label">Static AST:</span>
-        <span class="chip-val highlight-cyan">Python AST</span>
-      </div>
-      <div class="status-chip" id="graphEngineChip">
-        <span class="chip-icon">🕸️</span>
-        <span class="chip-label">Graph:</span>
-        <span class="chip-val highlight-purple" id="graphStatusLabel">Active</span>
-      </div>
-      <div class="status-chip" id="gitEngineChip">
-        <span class="chip-icon">⏳</span>
-        <span class="chip-label">Temporal:</span>
-        <span class="chip-val highlight-green" id="gitStatusLabel">Git Mining</span>
-      </div>
-      <div class="status-chip" id="embeddingStatus">
-        <span class="chip-icon">🧠</span>
-        <span class="chip-label">Embedding:</span>
-        <span class="chip-val" id="embeddingModelLabel">all-MiniLM-L6-v2</span>
-      </div>
-      <div class="status-chip" id="llmStatus">
-        <span class="chip-icon">✨</span>
-        <span class="chip-label">LLM:</span>
-        <span class="chip-val" id="llmStatusLabel">Detecting...</span>
-      </div>
-    </div>
-  </header>
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active" id="navHomeBtn" onclick="showHomeView()">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          </span>
+          <span>Home</span>
+        </button>
+        <button class="sidebar-item" id="navAnalysisBtn" onclick="openWorkspaceTab('analysis', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+          </span>
+          <span>Static Analysis</span>
+        </button>
+        <button class="sidebar-item" id="navSymbolsBtn" onclick="openWorkspaceTab('symbols', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          </span>
+          <span>Structural Analysis</span>
+        </button>
+        <button class="sidebar-item" id="navEvolutionBtn" onclick="openWorkspaceTab('evolution', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="3" x2="6" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+          </span>
+          <span>Evolution and Git Intelligence</span>
+        </button>
+        <button class="sidebar-item" id="navQaBtn" onclick="openWorkspaceTab('qa', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <span>Semantic Understanding</span>
+        </button>
+        <button class="sidebar-item" id="navGraphBtn" onclick="openWorkspaceTab('graph', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          </span>
+          <span>Software Knowledge Graph</span>
+        </button>
+        <button class="sidebar-item" id="tabArchitectureBtn" onclick="openWorkspaceTab('architecture', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="22" x2="21" y2="22" />
+              <line x1="6" y1="18" x2="6" y2="11" />
+              <line x1="10" y1="18" x2="10" y2="11" />
+              <line x1="14" y1="18" x2="14" y2="11" />
+              <line x1="18" y1="18" x2="18" y2="11" />
+              <polygon points="12 2 20 7 4 7" />
+            </svg>
+          </span>
+          <span>Architecture and Risk Dashboard</span>
+        </button>
+        <button class="sidebar-item" id="navImpactBtn" onclick="openWorkspaceTab('impact', this)">
+          <span class="nav-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+          </span>
+          <span>Reports</span>
+        </button>
+      </nav>
 
-  <!-- Main Container -->
-  <main class="app-main">
-    <!-- Top Control Bar (Repository Source Input) -->
-    <section class="control-panel glass-card">
-      <div class="repo-input-group">
-        <label for="repoPathInput" class="input-label">
-          <span>📁 Repository:</span>
-        </label>
-        <div class="input-with-action">
-          <input
-            type="text"
-            id="repoPathInput"
-            class="glow-input"
-            value="."
-            placeholder="Enter local folder path (e.g. .), .zip archive, or Git clone URL..."
-          />
-          <button id="scanBtn" class="btn btn-primary" title="Scan and index codebase (Ctrl+Enter)">
+      <!-- Bottom Agentic Analysis Card -->
+      <div class="sidebar-promo-wrapper">
+        <div class="sidebar-isometric-cube">
+          <svg width="74" height="64" viewBox="0 0 80 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M40 42L12 28L40 14L68 28L40 42Z" fill="url(#isoBase)" opacity="0.5" />
+            <path d="M40 34L12 20L40 6L68 20L40 34Z" fill="url(#isoMid)" opacity="0.85" />
+            <path d="M40 28L14 15L40 2L66 15L40 28Z" fill="url(#isoTop)" />
+            <path d="M14 15V22L40 35V28L14 15Z" fill="#5b21b6" />
+            <path d="M66 15V22L40 35V28L66 15Z" fill="#7c3aed" />
+            <path d="M12 24V30L40 44V38L12 24Z" fill="#4c1d95" opacity="0.7" />
+            <path d="M68 24V30L40 44V38L68 24Z" fill="#6d28d9" opacity="0.7" />
+            <defs>
+              <linearGradient id="isoTop" x1="14" y1="2" x2="66" y2="28" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8b5cf6" />
+                <stop offset="1" stop-color="#6366f1" />
+              </linearGradient>
+              <linearGradient id="isoMid" x1="12" y1="6" x2="68" y2="34" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#a78bfa" />
+                <stop offset="1" stop-color="#818cf8" />
+              </linearGradient>
+              <linearGradient id="isoBase" x1="12" y1="14" x2="68" y2="42" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#c4b5fd" />
+                <stop offset="1" stop-color="#a5b4fc" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="sidebar-promo-card">
+          <div class="promo-title">Agentic Analysis</div>
+          <div class="promo-subtitle">Multi-tool • Evidence-driven<br>• Explainable</div>
+        </div>
+      </div>
+
+      <!-- Hidden live status labels preserved for app.js compatibility -->
+      <div class="hidden" aria-hidden="true">
+        <span id="graphStatusLabel">Active</span>
+        <span id="gitStatusLabel">Git Mining</span>
+        <span id="embeddingModelLabel">all-MiniLM-L6-v2</span>
+        <span id="llmStatusLabel">Detecting...</span>
+      </div>
+    </aside>
+
+    <!-- Main Dashboard Area -->
+    <main class="app-main">
+      <!-- Top Hero Banner -->
+      <section class="hero-banner" id="heroBannerTop">
+        <div class="hero-wave-bg" aria-hidden="true">
+          <svg viewBox="0 0 900 160" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 120C180 60 320 150 540 90C720 40 820 110 900 75V160H0V120Z" fill="url(#wave1)" opacity="0.35" />
+            <path d="M220 160C380 80 540 135 720 65C810 30 870 50 900 45V160H220Z" fill="url(#wave2)" opacity="0.28" />
+            <defs>
+              <linearGradient id="wave1" x1="0" y1="60" x2="900" y2="160" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ede9fe" />
+                <stop offset="1" stop-color="#c4b5fd" />
+              </linearGradient>
+              <linearGradient id="wave2" x1="220" y1="45" x2="900" y2="160" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ddd6fe" />
+                <stop offset="1" stop-color="#a78bfa" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="hero-content">
+          <h1 class="hero-title"><span class="hero-title-dark">Code</span><span class="hero-title-purple">Mind</span>
+          </h1>
+          <p class="hero-subtitle">A Unified Agentic Framework for Repository Understanding,<br>Change Impact Analysis,
+            and Software Evolution Intelligence.</p>
+        </div>
+        <div class="hero-illustration">
+          <svg width="210" height="142" viewBox="0 0 220 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Base Glow Shadow -->
+            <ellipse cx="110" cy="118" rx="68" ry="22" fill="#8b5cf6" opacity="0.18" />
+            <!-- Layer 3 (Bottom Base) -->
+            <path d="M110 128L42 94L110 60L178 94L110 128Z" fill="url(#heroL3)" stroke="#ddd6fe" stroke-width="1" />
+            <path d="M42 94V102L110 136V128L42 94Z" fill="#7c3aed" opacity="0.45" />
+            <path d="M178 94V102L110 136V128L178 94Z" fill="#6d28d9" opacity="0.55" />
+            <!-- Layer 2 (Middle) -->
+            <path d="M110 104L50 74L110 44L170 74L110 104Z" fill="url(#heroL2)" />
+            <path d="M50 74V83L110 113V104L50 74Z" fill="#5b21b6" opacity="0.85" />
+            <path d="M170 74V83L110 113V104L170 74Z" fill="#6d28d9" opacity="0.9" />
+            <!-- Layer 1 (Top Active) -->
+            <path d="M110 80L56 53L110 26L164 53L110 80Z" fill="url(#heroL1)" stroke="#c4b5fd" stroke-width="1" />
+            <path d="M56 53V62L110 89V80L56 53Z" fill="#4c1d95" />
+            <path d="M164 53V62L110 89V80L164 53Z" fill="#6d28d9" />
+            <!-- Brain emblem on top face -->
+            <g transform="translate(94, 38) scale(0.9)">
+              <path
+                d="M18 5C14.5 5 11.8 7.3 11.2 10.3C8.5 10.9 6.5 13.3 6.5 16.2C6.5 17.8 7.1 19.2 8.1 20.3C7.4 21.4 7 22.7 7 24.1C7 27.9 10.1 31 13.9 31C15.5 31 17 30.4 18 29.4C19 30.4 20.5 31 22.1 31C25.9 31 29 27.9 29 24.1C29 22.7 28.6 21.4 27.9 20.3C28.9 19.2 29.5 17.8 29.5 16.2C29.5 13.3 27.5 10.9 24.8 10.3C24.2 7.3 21.5 5 18 5Z"
+                stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+              <path d="M18 6V29M12 13L18 16M24 13L18 16M11 21L18 18.5M25 21L18 18.5" stroke="#ffffff" stroke-width="1.6"
+                stroke-linecap="round" />
+            </g>
+            <defs>
+              <linearGradient id="heroL1" x1="56" y1="26" x2="164" y2="80" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8b5cf6" />
+                <stop offset="1" stop-color="#5b21b6" />
+              </linearGradient>
+              <linearGradient id="heroL2" x1="50" y1="44" x2="170" y2="104" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#a78bfa" />
+                <stop offset="1" stop-color="#7c3aed" />
+              </linearGradient>
+              <linearGradient id="heroL3" x1="42" y1="60" x2="178" y2="128" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ede9fe" />
+                <stop offset="1" stop-color="#c4b5fd" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Repository Control Bar -->
+      <section class="control-panel" id="controlPanelTop">
+        <div class="control-repo-group">
+          <span class="control-label">Repository</span>
+          <div class="repo-selector-box">
+            <svg class="octocat-icon" width="17" height="17" viewBox="0 0 24 24" fill="#1e293b">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            <input type="text" id="repoPathInput" class="repo-inline-input" value=""
+              placeholder="Enter GitHub URL, .zip archive, or local folder path..." />
+            <span class="chevron-down">▾</span>
+          </div>
+
+          <div class="branch-pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="3" x2="6" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+            <span id="homeBranchLabel">--</span>
+            <span class="chevron-down">▾</span>
+          </div>
+
+          <div class="status-pill-analyzed" id="scanStatusBadge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>Ready</span>
+          </div>
+        </div>
+
+        <div class="control-actions-group">
+          <div class="last-analyzed-text">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Last Analyzed: <strong id="lastAnalyzedLabel">Click Scan to analyze</strong></span>
+          </div>
+
+          <button id="scanBtn" class="btn btn-primary btn-scan-gradient">
             <span class="btn-spinner hidden" id="scanSpinner"></span>
-            <span class="btn-icon" id="scanIcon">⚡</span>
-            <span class="btn-text" id="scanText">Scan Codebase</span>
+            <span id="scanIcon">⚡</span>
+            <span id="scanText">Scan & Analyze Codebase</span>
           </button>
-        </div>
-        <div class="preset-chips-row">
-          <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">Presets:</span>
-          <span class="preset-chip" onclick="document.getElementById('repoPathInput').value='.'; document.getElementById('scanBtn').click();">. (Current)</span>
-          <span class="preset-chip" onclick="document.getElementById('repoPathInput').value='eval_repos/ResilienceOS'; document.getElementById('scanBtn').click();">ResilienceOS</span>
-          <span class="preset-chip" onclick="document.getElementById('repoPathInput').value='eval_repos/requests'; document.getElementById('scanBtn').click();">requests</span>
-        </div>
-      </div>
 
-      <div class="options-group">
-        <label class="toggle-control" title="Use deterministic offline mock embeddings and mock LLM reasoning">
-          <input type="checkbox" id="mockModeToggle">
-          <span class="toggle-slider"></span>
-          <span class="toggle-label">Offline / Mock LLM Mode</span>
-        </label>
-      </div>
-    </section>
+          <input type="checkbox" id="mockModeToggle" class="hidden">
+        </div>
+      </section>
 
-    <!-- Overview Statistics Cards (Phase 1 & Phase 2) -->
-    <section class="metrics-grid" id="metricsGrid">
-      <div class="stat-card glass-card">
-        <div class="stat-header">
-          <span class="stat-icon">📄</span>
-          <span class="stat-title">Files & Code Lines</span>
-        </div>
-        <div class="stat-value" id="statFiles">0</div>
-        <div class="stat-detail" id="statLines">0 total code lines</div>
-      </div>
-
-      <div class="stat-card glass-card">
-        <div class="stat-header">
-          <span class="stat-icon">🌐</span>
-          <span class="stat-title">Languages & Size</span>
-        </div>
-        <div class="stat-value" id="statLanguages">0</div>
-        <div class="stat-detail" id="statSize">0 KB codebase size</div>
-      </div>
-
-      <div class="stat-card glass-card">
-        <div class="stat-header">
-          <span class="stat-icon">🏛️</span>
-          <span class="stat-title">AST Classes & Methods</span>
-        </div>
-        <div class="stat-value" id="statClasses">0</div>
-        <div class="stat-detail" id="statMethods">0 methods extracted</div>
-      </div>
-
-      <div class="stat-card glass-card">
-        <div class="stat-header">
-          <span class="stat-icon">⚙️</span>
-          <span class="stat-title">Functions & Imports</span>
-        </div>
-        <div class="stat-value" id="statFunctions">0</div>
-        <div class="stat-detail" id="statImports">0 imports & 0 docstrings</div>
-      </div>
-
-      <div class="stat-card glass-card">
-        <div class="stat-header">
-          <span class="stat-icon">🧩</span>
-          <span class="stat-title">Semantic Chunks</span>
-        </div>
-        <div class="stat-value" id="statChunks">0</div>
-        <div class="stat-detail" id="statChunksDetail">Indexed in vector store</div>
-      </div>
-
-      <div class="stat-card glass-card">
-        <div class="stat-header">
-          <span class="stat-icon">🕸️</span>
-          <span class="stat-title">Knowledge Graph</span>
-        </div>
-        <div class="stat-value" id="statGraphNodes">0</div>
-        <div class="stat-detail" id="statGraphEdges">0 edges (CONTAINS, CALLS, IMPORTS, INHERITS)</div>
-      </div>
-    </section>
-
-    <!-- Workspace 3-Pane Explorer -->
-    <section class="workspace-grid">
-      <!-- Left Pane: File Explorer -->
-      <aside class="panel glass-card file-explorer-panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <span>📁</span> File Explorer
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="count-pill" id="fileCountPill">0 files</span>
-            <button class="panel-action-btn" id="toggleFileExplorerBtn" onclick="toggleFileExplorer()" title="Collapse File Explorer">◀</button>
-          </div>
-        </div>
-        <div class="search-box">
-          <input type="text" id="fileFilterInput" class="compact-input" placeholder="Filter files by name or path...">
-        </div>
-        <div class="file-list-container" id="fileList">
-          <div class="empty-state">
-            <span class="empty-icon">📂</span>
-            <p>Click "Scan & Analyze Codebase" to ingest repository files.</p>
-          </div>
-        </div>
-      </aside>
-
-      <!-- Center Pane: AST Symbol Inspector & Static Analysis Overview -->
-      <section class="panel glass-card center-panel">
-        <!-- Tabs Header Navigation Container with Slide Arrows -->
-        <div class="tabs-nav-container">
-          <button class="tabs-nav-arrow" id="tabsScrollLeft" title="Slide tabs left" aria-label="Slide tabs left">&#x2039;</button>
-          <div class="tabs-header">
-            <button class="tab-btn active" id="tabSymbolsBtn" onclick="switchTab('symbols')">
-              <span>🔍</span> AST Symbol Inspector
-            </button>
-            <button class="tab-btn" id="tabAnalysisBtn" onclick="switchTab('analysis')">
-              <span>📊</span> Static Analysis Overview
-            </button>
-            <button class="tab-btn" id="tabQABtn" onclick="switchTab('qa')">
-              <span>🤖</span> Grounded Codebase Q&A
-            </button>
-            <button class="tab-btn" id="tabGraphBtn" onclick="switchTab('graph')">
-              <span>🕸️</span> Software Knowledge Graph
-            </button>
-            <button class="tab-btn" id="tabInvestigateBtn" onclick="switchTab('investigate')">
-              <span>🕵️</span> Agentic Investigation
-            </button>
-            <button class="tab-btn" id="tabEvolutionBtn" onclick="switchTab('evolution')">
-              <span>⏳</span> Evolution & Git Intelligence
-            </button>
-            <button class="tab-btn" id="tabImpactBtn" onclick="switchTab('impact')">
-              <span>🎯</span> Change Impact & Tests
-            </button>
-            <button class="tab-btn" id="tabArchitectureBtn" onclick="switchTab('architecture')">
-              <span>🏛️</span> Architecture & Risk Dashboard
-            </button>
-          </div>
-          <button class="tabs-nav-arrow" id="tabsScrollRight" title="Slide tabs right" aria-label="Slide tabs right">&#x203A;</button>
-        </div>
-
-        <!-- Tab 1: AST Symbol Inspector -->
-        <div class="tab-content active" id="tabSymbols">
-          <div class="symbols-view-container" id="symbolsContainer">
-            <div class="empty-state">
-              <span class="empty-icon">🔍</span>
-              <p>Select a Python file from the left File Explorer to inspect its AST classes, methods, functions, and imports.</p>
+      <!-- 6-Column KPI Metrics Row -->
+      <section class="metrics-grid" id="metricsGrid">
+        <div class="stat-card">
+          <div class="stat-card-body">
+            <div class="stat-icon-circle icon-blue">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">Files & Code Lines</div>
+              <div class="stat-value-row">
+                <span class="stat-value" id="statFiles">0</span>
+                <span class="stat-delta-pill hidden" id="statFilesDelta">↑ 100%</span>
+              </div>
+              <div class="stat-detail" id="statLines">0 total code lines</div>
             </div>
           </div>
         </div>
 
-        <!-- Tab 2: Static Analysis Overview -->
-        <div class="tab-content" id="tabAnalysis">
-          <div class="analysis-view-container" id="analysisContainer">
-            <div class="empty-state">
-              <span class="empty-icon">📊</span>
-              <p>Scan a repository to view static code analysis metrics and file breakdown.</p>
+        <div class="stat-card">
+          <div class="stat-card-body">
+            <div class="stat-icon-circle icon-indigo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">Languages & Size</div>
+              <div class="stat-value" id="statLanguages">0</div>
+              <div class="stat-detail" id="statSize">0 KB codebase size</div>
             </div>
           </div>
         </div>
 
-        <!-- Tab 3: Grounded Q&A Assistant -->
-        <div class="tab-content" id="tabQA">
-          <div class="qa-input-card">
-            <div class="example-chips">
-              <span class="chip-hint">Try:</span>
-              <button class="chip-btn" onclick="setExampleQuery('How does the file filter ignore directories and binary files?')">Ignore Filters</button>
-              <button class="chip-btn" onclick="setExampleQuery('Explain how Python AST parses classes and function calls.')">Python AST</button>
-              <button class="chip-btn" onclick="setExampleQuery('How does the ASTCodeChunker split code boundaries?')">Code Chunking</button>
+        <div class="stat-card">
+          <div class="stat-card-body">
+            <div class="stat-icon-circle icon-purple">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="6" rx="1" />
+                <rect x="2" y="16" width="6" height="6" rx="1" />
+                <rect x="16" y="16" width="6" height="6" rx="1" />
+                <path d="M12 8v4m0 0H5v4m7-4h7v4" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">AST Classes & Methods</div>
+              <div class="stat-value" id="statClasses">0</div>
+              <div class="stat-detail" id="statMethods">0 methods extracted</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-body">
+            <div class="stat-icon-circle icon-violet">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">Functions & Imports</div>
+              <div class="stat-value" id="statFunctions">0</div>
+              <div class="stat-detail" id="statImports">0 imports & 0 docstrings</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-body">
+            <div class="stat-icon-circle icon-green">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <circle cx="19" cy="5" r="2" />
+                <circle cx="5" cy="5" r="2" />
+                <circle cx="19" cy="19" r="2" />
+                <circle cx="5" cy="19" r="2" />
+                <line x1="14.2" y1="9.8" x2="17.6" y2="6.4" />
+                <line x1="9.8" y1="9.8" x2="6.4" y2="6.4" />
+                <line x1="14.2" y1="14.2" x2="17.6" y2="17.6" />
+                <line x1="9.8" y1="14.2" x2="6.4" y2="17.6" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">Semantic Chunks</div>
+              <div class="stat-value" id="statChunks">0</div>
+              <div class="stat-detail" id="statChunksDetail">Indexed in vector store</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-body">
+            <div class="stat-icon-circle icon-magenta">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">Knowledge Graph</div>
+              <div class="stat-value" id="statGraphNodes">0</div>
+              <div class="stat-detail" id="statGraphEdges">0 edges (CONTAINS, CALLS, IMPORTS, INHERITS)</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HOME DASHBOARD VIEW (Matches Reference Design) -->
+      <section id="homeDashboardView">
+        <!-- Middle 2-Column Split: File Explorer + Repository Overview -->
+        <div class="home-middle-grid">
+          <!-- Left: File Explorer -->
+          <aside class="panel file-explorer-panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <span class="folder-badge-icon">📁</span> File Explorer
+              </div>
+              <span class="count-pill" id="fileCountPill">0 files</span>
+            </div>
+            <div class="search-box">
+              <div class="search-input-wrap">
+                <svg class="search-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
+                  stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input type="text" id="fileFilterInput" class="compact-input"
+                  placeholder="Filter files by name or path...">
+              </div>
+            </div>
+            <div class="file-list-container" id="fileList">
+              <div class="empty-state">
+                <span class="empty-icon">📂</span>
+                <p>Click "Scan & Analyze Codebase" to ingest repository files.</p>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Right: Repository Overview Interactive Mind-Map -->
+          <section class="panel repo-overview-card">
+            <div class="panel-header">
+              <div class="panel-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+                <span>Repository Overview</span>
+              </div>
             </div>
 
-            <div class="qa-textarea-wrapper">
-              <textarea
-                id="questionInput"
-                class="glow-textarea"
-                rows="3"
-                placeholder="Ask any question about this codebase..."
-              ></textarea>
-              <div class="qa-action-row">
-                <div class="top-k-selector">
-                  <label for="topKSelect">Evidence Chunks:</label>
-                  <select id="topKSelect" class="compact-select">
-                    <option value="3">3 Chunks</option>
-                    <option value="4" selected>4 Chunks</option>
-                    <option value="6">6 Chunks</option>
-                  </select>
-                </div>
-                <div class="hybrid-toggle-wrapper" style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text-muted);margin-left:8px;">
-                  <input type="checkbox" id="hybridToggle" checked style="accent-color:var(--accent-color);cursor:pointer;" />
-                  <label for="hybridToggle" style="cursor:pointer;" title="Combine vector similarity search with Knowledge Graph relationship expansion">Hybrid Graph Retrieval</label>
-                </div>
-                <button id="askBtn" class="btn btn-accent">
-                  <span class="btn-spinner hidden" id="askSpinner"></span>
-                  <span class="btn-icon" id="askIcon">💬</span>
-                  <span class="btn-text" id="askText">Ask CodeMind</span>
+            <div class="overview-mindmap">
+              <!-- Curved SVG Connector Lines -->
+              <svg class="mindmap-connectors" viewBox="0 0 700 280" preserveAspectRatio="none" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M 295 130 C 245 130, 235 48, 175 48" stroke="#a78bfa" stroke-width="1.5" />
+                <path d="M 285 142 L 185 142" stroke="#a78bfa" stroke-width="1.5" />
+                <path d="M 295 154 C 245 154, 235 232, 175 232" stroke="#a78bfa" stroke-width="1.5" />
+                <path d="M 405 130 C 455 130, 465 48, 525 48" stroke="#a78bfa" stroke-width="1.5" />
+                <path d="M 415 142 L 515 142" stroke="#a78bfa" stroke-width="1.5" />
+                <path d="M 405 154 C 455 154, 465 232, 525 232" stroke="#a78bfa" stroke-width="1.5" />
+              </svg>
+
+              <!-- Left Column Nodes -->
+              <div class="mindmap-col left-col">
+                <button class="mindmap-pill" onclick="openWorkspaceTab('architecture')">
+                  <span class="pill-icon-wrap icon-purple">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+                      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                      <polyline points="2 17 12 22 22 17" />
+                      <polyline points="2 12 12 17 22 12" />
+                    </svg>
+                  </span>
+                  <span>Architecture</span>
                 </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="answer-container hidden" id="answerContainer">
-            <div class="answer-card">
-              <div class="answer-meta-row">
-                <div class="answer-badge">
-                  <span class="badge-dot green"></span>
-                  <span id="answerModelBadge">Grounded Answer</span>
-                </div>
-                <div class="retrieval-mode-badge" id="answerModeBadge" style="display:none;"></div>
-                <div class="latency-badge" id="answerLatencyBadge">0ms</div>
-              </div>
-
-              <div class="markdown-body" id="answerBody"></div>
-
-              <div class="citations-section" id="citationsSection">
-                <div class="citations-title">
-                  <span>📌</span> Verified Source References (Click to view code):
-                </div>
-                <div class="citations-list" id="citationsList"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 4: Software Knowledge Graph -->
-        <div class="tab-content" id="tabGraph">
-          <!-- Graph Toolbar -->
-          <div class="graph-toolbar-card">
-            <div class="graph-toolbar-row">
-              <div class="graph-search-box">
-                <span class="search-icon">🔍</span>
-                <input
-                  type="text"
-                  id="graphSearchInput"
-                  class="compact-input"
-                  placeholder="Filter nodes by name, ID, or file path..."
-                />
-              </div>
-
-              <div class="graph-filter-item">
-                <label for="graphNodeTypeFilter" class="filter-lbl">Node Type:</label>
-                <select id="graphNodeTypeFilter" class="compact-select">
-                  <option value="">All Types (Files, Classes, Funcs, Methods)</option>
-                  <option value="file">Files Only</option>
-                  <option value="class">Classes Only</option>
-                  <option value="function">Top-Level Functions Only</option>
-                  <option value="method">Methods Only</option>
-                </select>
-              </div>
-
-              <div class="graph-filter-item">
-                <label for="graphEdgeTypeFilter" class="filter-lbl">Edge Type:</label>
-                <select id="graphEdgeTypeFilter" class="compact-select">
-                  <option value="">All Relationships</option>
-                  <option value="CALLS">CALLS (Invocations)</option>
-                  <option value="IMPORTS">IMPORTS (Module Dependencies)</option>
-                  <option value="INHERITS">INHERITS (Class Hierarchy)</option>
-                  <option value="CONTAINS">CONTAINS (Scope Hierarchy)</option>
-                </select>
-              </div>
-
-              <div class="graph-toolbar-actions">
-                <button id="resetGraphBtn" class="chip-btn" title="Reset View and Centering">
-                  <span>🔄</span> Reset
+                <button class="mindmap-pill pill-wide" onclick="openWorkspaceTab('symbols')">
+                  <span class="pill-icon-wrap icon-blue">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                      <polyline points="16 18 22 12 16 6" />
+                      <polyline points="8 6 2 12 8 18" />
+                    </svg>
+                  </span>
+                  <span>Code Structure</span>
                 </button>
-                <button id="cyclesGraphBtn" class="chip-btn" title="Inspect Circular Dependencies">
-                  <span>🔁</span> Check Cycles
-                </button>
-                <button id="clearImpactBtn" class="chip-btn hidden" title="Clear Impact Highlight">
-                  <span>✖️</span> Clear Impact
-                </button>
-              </div>
-            </div>
-
-            <!-- Graph Legend Bar -->
-            <div class="graph-legend-row">
-              <span class="legend-title">Nodes:</span>
-              <span class="legend-chip chip-file"><span class="legend-dot dot-file"></span> File</span>
-              <span class="legend-chip chip-class"><span class="legend-dot dot-class"></span> Class</span>
-              <span class="legend-chip chip-func"><span class="legend-dot dot-func"></span> Function</span>
-              <span class="legend-chip chip-method"><span class="legend-dot dot-method"></span> Method</span>
-              <span class="legend-sep">|</span>
-              <span class="legend-title">Edges:</span>
-              <span class="legend-chip edge-calls"><span class="legend-line line-calls"></span> CALLS</span>
-              <span class="legend-chip edge-imports"><span class="legend-line line-imports"></span> IMPORTS</span>
-              <span class="legend-chip edge-inherits"><span class="legend-line line-inherits"></span> INHERITS</span>
-              <span class="legend-chip edge-contains"><span class="legend-line line-contains"></span> CONTAINS</span>
-            </div>
-          </div>
-
-          <!-- Graph Interactive Workspace (Canvas + Inspection Card) -->
-          <div class="graph-workspace-container">
-            <!-- Canvas Viewport -->
-            <div class="graph-canvas-container" id="graphCanvasContainer">
-              <canvas id="graphCanvas"></canvas>
-              <div class="graph-hud-overlay">
-                <span class="hud-stat" id="hudNodeCount">0 nodes</span>
-                <span class="hud-stat" id="hudEdgeCount">0 edges</span>
-                <span class="hud-hint">Scroll to Zoom • Drag to Pan / Move Nodes • Click Node to Inspect</span>
-              </div>
-              <div class="graph-zoom-controls">
-                <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
-                <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">-</button>
-                <button class="zoom-btn" id="zoomFitBtn" title="Fit to Screen">⛶</button>
-              </div>
-            </div>
-
-            <!-- Side Inspection & Impact Panel -->
-            <div class="graph-details-pane" id="graphDetailsPane">
-              <!-- Default Prompt State -->
-              <div class="empty-state" id="graphNoSelectionPrompt">
-                <span class="empty-icon">🕸️</span>
-                <p>Click any node in the graph above to inspect callers, callees, dependencies, and trace structural reachability impact.</p>
-              </div>
-
-              <!-- Selected Node Details Card -->
-              <div class="node-details-card hidden" id="nodeDetailsCard">
-                <div class="node-details-header">
-                  <div class="node-header-title-row">
-                    <span class="node-type-badge" id="selectedNodeTypeBadge">CLASS</span>
-                    <span class="node-name" id="selectedNodeName">NodeName</span>
-                  </div>
-                  <div class="node-path" id="selectedNodePath">path/to/file.py (L1-10)</div>
-                </div>
-
-                <div class="node-actions-row">
-                  <button class="btn btn-accent btn-sm" id="traceImpactBtn">
-                    <span>⚡</span> Trace Structural Reachability
-                  </button>
-                  <button class="btn btn-secondary btn-sm" id="viewSourceBtn">
-                    <span>📄</span> View Source
-                  </button>
-                </div>
-
-                <!-- Callers Section -->
-                <div class="node-relation-section">
-                  <div class="relation-section-title">
-                    <span>📞</span> Incoming Callers <span class="relation-count" id="callersCount">0</span>
-                  </div>
-                  <div class="relation-chips-list" id="callersList">
-                    <span class="empty-relation">No incoming callers recorded.</span>
-                  </div>
-                </div>
-
-                <!-- Callees Section -->
-                <div class="node-relation-section">
-                  <div class="relation-section-title">
-                    <span>⚡</span> Outgoing Invocations (Callees) <span class="relation-count" id="calleesCount">0</span>
-                  </div>
-                  <div class="relation-chips-list" id="calleesList">
-                    <span class="empty-relation">No outgoing callees recorded.</span>
-                  </div>
-                </div>
-
-                <!-- Dependencies & Depth Section -->
-                <div class="node-relation-section">
-                  <div class="relation-section-title">
-                    <span>🔗</span> Dependencies & Depth
-                  </div>
-                  <div class="dependency-stats-row">
-                    <span class="dep-stat-badge" id="depDepthBadge">Max Depth: 0</span>
-                    <span class="dep-stat-badge" id="depCountBadge">0 Dependencies</span>
-                    <span class="dep-stat-badge" id="dependentsCountBadge">0 Dependents</span>
-                  </div>
-                  <div class="relation-chips-list" id="dependenciesList"></div>
-                </div>
-              </div>
-
-              <!-- Impact Analysis Report Panel -->
-              <div class="impact-report-panel hidden" id="impactReportPanel">
-                <div class="impact-panel-header">
-                  <div class="impact-panel-title">
-                    <span>⚡</span> Structural Reachability Impact Analysis
-                  </div>
-                  <button class="close-card-btn" id="closeImpactBtn" title="Close Impact Report">✕</button>
-                </div>
-
-                <div class="impact-disclaimer-alert">
-                  <span class="alert-icon">ℹ️</span>
-                  <span><strong>Structural Reachability:</strong> Traces deterministic static relationships in the AST graph (incoming CALLS, INHERITS, IMPORTS). This is not an advanced predictive or statistical impact score.</span>
-                </div>
-
-                <div class="impact-summary-stats">
-                  <div class="impact-stat-item">
-                    <span class="impact-stat-label">Total Impacted</span>
-                    <span class="impact-stat-val" id="impactTotalVal">0</span>
-                  </div>
-                  <div class="impact-stat-item">
-                    <span class="impact-stat-label">Max Traversal</span>
-                    <span class="impact-stat-val" id="impactDepthVal">3 Levels</span>
-                  </div>
-                  <div class="impact-stat-item">
-                    <span class="impact-stat-label">Breakdown</span>
-                    <span class="impact-stat-breakdown" id="impactBreakdownVal">Files: 0, Classes: 0, Funcs: 0, Methods: 0</span>
-                  </div>
-                </div>
-
-                <div class="impact-entities-title">Structurally Reachable Entities:</div>
-                <div class="impact-entities-list" id="impactEntitiesList"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 5: Agentic Investigation Engine -->
-        <div class="tab-content" id="tabInvestigate">
-          <div class="qa-input-card">
-            <div class="example-chips">
-              <span class="chip-hint">Try:</span>
-              <button class="chip-btn" onclick="setInvestigateExample('Where is FileFilter defined?')">Where is FileFilter?</button>
-              <button class="chip-btn" onclick="setInvestigateExample('Who calls verify_token in the codebase?')">Who calls verify_token?</button>
-              <button class="chip-btn" onclick="setInvestigateExample('What depends on IngestedRepository?')">IngestedRepository Impact</button>
-              <button class="chip-btn" onclick="setInvestigateExample('Show Git commit history for file_filter.py')">Git History (Deferred)</button>
-              <button class="chip-btn" onclick="setInvestigateExample('Check architecture conformance of web module')">Architecture Conformance (Deferred)</button>
-            </div>
-
-            <div class="investigate-textarea-wrapper">
-              <textarea
-                id="investigateQueryInput"
-                class="glow-textarea"
-                rows="3"
-                placeholder="Ask an investigative question (e.g. 'Where is FileFilter defined?', 'Who calls verify_token?', 'What depends on IngestedRepository?')..."
-              ></textarea>
-              <div class="investigate-action-row">
-                <div class="investigate-status-info">
-                  <span class="info-label">⚡ Multi-step investigation with tool execution, reference resolution & structured evidence</span>
-                </div>
-                <button id="investigateBtn" class="btn btn-accent">
-                  <span class="btn-spinner hidden" id="investigateSpinner"></span>
-                  <span class="btn-icon" id="investigateIcon">🕵️</span>
-                  <span class="btn-text" id="investigateBtnText">Investigate</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="investigate-result-container hidden" id="investigateResultContainer">
-            <div class="investigate-result-card">
-              <div class="investigate-meta-row">
-                <div class="meta-left-badges">
-                  <div class="status-badge" id="investigateStatusBadge">SUCCESS</div>
-                  <div class="intent-badge" id="investigateIntentBadge">UNDERSTAND (0.95)</div>
-                  <div class="entities-badge" id="investigateEntitiesBadge"></div>
-                </div>
-                <div class="latency-badge" id="investigateLatencyBadge">0ms</div>
-              </div>
-
-              <!-- Execution Plan & Provenance Section -->
-              <div class="investigate-plan-section" id="investigatePlanSection">
-                <div class="section-title">
-                  <span>📋</span> Investigation Plan & Tool Execution Provenance:
-                </div>
-                <div class="investigate-steps-list" id="investigateStepsList"></div>
-              </div>
-
-              <!-- Synthesized Answer Body -->
-              <div class="investigate-answer-section">
-                <div class="section-title">
-                  <span>💡</span> Synthesized Investigation Findings:
-                </div>
-                <div class="markdown-body" id="investigateAnswerBody"></div>
-              </div>
-
-              <!-- Verified Citations -->
-              <div class="citations-section" id="investigateCitationsSection">
-                <div class="citations-title">
-                  <span>📌</span> Verified Grounded Citations (Click to view code):
-                </div>
-                <div class="citations-list" id="investigateCitationsList"></div>
-              </div>
-
-              <!-- Limitations & Deferred Capabilities Section -->
-              <div class="investigate-limitations-section hidden" id="investigateLimitationsSection">
-                <div class="limitations-title">
-                  <span>⚠️</span> Deferred Capabilities & Investigation Limitations:
-                </div>
-                <div class="limitations-list" id="investigateLimitationsList"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 6: Git Temporal Intelligence & Evolution (Phase 7) -->
-        <div class="tab-content" id="tabEvolution">
-          <div class="evolution-container">
-            <!-- Evolution Top Controls & Summary -->
-            <div class="evolution-header-card glass-card">
-              <div class="evolution-status-row">
-                <div class="evo-stat-badge" id="evoRepoStatusBadge">
-                  <span class="badge-dot"></span>
-                  <span id="evoRepoStatusText">Git: Ready</span>
-                </div>
-                <div class="evo-stat-badge">
-                  <span class="stat-icon">📅</span>
-                  <span id="evoCommitsCountText">0 Commits Mined</span>
-                </div>
-                <div class="evo-stat-badge">
-                  <span class="stat-icon">🔥</span>
-                  <span id="evoChurnTotalText">0 Total Churn Lines</span>
-                </div>
-                <div class="evo-stat-badge">
-                  <span class="stat-icon">🔗</span>
-                  <span id="evoCouplingCountText">0 Logical Couplings</span>
-                </div>
-                <button class="btn btn-secondary btn-sm" id="refreshEvolutionBtn" onclick="loadEvolutionData()">
-                  <span>🔄</span> Refresh Analytics
+                <button class="mindmap-pill" onclick="openWorkspaceTab('impact')">
+                  <span class="pill-icon-wrap icon-indigo">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                  </span>
+                  <span>Change Impact</span>
                 </button>
               </div>
 
-              <div class="evolution-filter-row">
-                <input
-                  type="text"
-                  id="evoFileFilterInput"
-                  class="compact-input"
-                  placeholder="Filter by file path (e.g. src/ or specific file)..."
-                  oninput="onEvolutionFilterChanged()"
-                />
-                <select id="evoSortSelect" class="compact-select" onchange="onEvolutionFilterChanged()">
-                  <option value="commits">Rank Churn by Commits</option>
-                  <option value="total_churn">Rank Churn by Total Churn</option>
-                  <option value="additions">Rank Churn by Additions</option>
-                  <option value="deletions">Rank Churn by Deletions</option>
-                  <option value="authors">Rank Churn by Author Diversity</option>
-                </select>
+              <!-- Center 3D Isometric Stack -->
+              <div class="mindmap-center">
+                <svg width="160" height="145" viewBox="0 0 220 175" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <ellipse cx="110" cy="146" rx="76" ry="22" fill="#8b5cf6" opacity="0.16" />
+                  <!-- Layer 3 -->
+                  <path d="M110 148L36 111L110 74L184 111L110 148Z" fill="url(#mmL3)" stroke="#ddd6fe"
+                    stroke-width="1" />
+                  <path d="M36 111V120L110 157V148L36 111Z" fill="#7c3aed" opacity="0.4" />
+                  <path d="M184 111V120L110 157V148L184 111Z" fill="#6d28d9" opacity="0.5" />
+                  <!-- Layer 2 -->
+                  <path d="M110 118L44 85L110 52L176 85L110 118Z" fill="url(#mmL2)" />
+                  <path d="M44 85V95L110 128V118L44 85Z" fill="#5b21b6" opacity="0.88" />
+                  <path d="M176 85V95L110 128V118L176 85Z" fill="#6d28d9" opacity="0.92" />
+                  <!-- Layer 1 -->
+                  <path d="M110 88L50 58L110 28L170 58L110 88Z" fill="url(#mmL1)" stroke="#c4b5fd" stroke-width="1" />
+                  <path d="M50 58V68L110 98V88L50 58Z" fill="#4c1d95" />
+                  <path d="M170 58V68L110 98V88L170 58Z" fill="#6d28d9" />
+                  <g transform="translate(92, 42)">
+                    <path
+                      d="M18 5C14.5 5 11.8 7.3 11.2 10.3C8.5 10.9 6.5 13.3 6.5 16.2C6.5 17.8 7.1 19.2 8.1 20.3C7.4 21.4 7 22.7 7 24.1C7 27.9 10.1 31 13.9 31C15.5 31 17 30.4 18 29.4C19 30.4 20.5 31 22.1 31C25.9 31 29 27.9 29 24.1C29 22.7 28.6 21.4 27.9 20.3C28.9 19.2 29.5 17.8 29.5 16.2C29.5 13.3 27.5 10.9 24.8 10.3C24.2 7.3 21.5 5 18 5Z"
+                      stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                    <path d="M18 6V29M12 13L18 16M24 13L18 16M11 21L18 18.5M25 21L18 18.5" stroke="#ffffff"
+                      stroke-width="1.6" stroke-linecap="round" />
+                  </g>
+                  <defs>
+                    <linearGradient id="mmL1" x1="50" y1="28" x2="170" y2="88" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#8b5cf6" />
+                      <stop offset="1" stop-color="#4f46e5" />
+                    </linearGradient>
+                    <linearGradient id="mmL2" x1="44" y1="52" x2="176" y2="118" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#a78bfa" />
+                      <stop offset="1" stop-color="#7c3aed" />
+                    </linearGradient>
+                    <linearGradient id="mmL3" x1="36" y1="74" x2="184" y2="148" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#ede9fe" />
+                      <stop offset="1" stop-color="#c4b5fd" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+
+              <!-- Right Column Nodes -->
+              <div class="mindmap-col right-col">
+                <button class="mindmap-pill" onclick="openWorkspaceTab('graph')">
+                  <span class="pill-icon-wrap icon-purple">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                  </span>
+                  <span>Dependencies</span>
+                </button>
+                <button class="mindmap-pill pill-wide" onclick="openWorkspaceTab('analysis')">
+                  <span class="pill-icon-wrap icon-blue">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  </span>
+                  <span>Test Coverage</span>
+                </button>
+                <button class="mindmap-pill" onclick="openWorkspaceTab('evolution')">
+                  <span class="pill-icon-wrap icon-violet">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                  </span>
+                  <span>Evolution</span>
+                </button>
               </div>
             </div>
+          </section>
+        </div>
 
-            <!-- Evolution Sub-Views Grid -->
-            <div class="evolution-sections-grid">
-              <!-- Section 1: Code Churn Hotspots -->
-              <div class="evolution-card glass-card">
-                <div class="card-title-row">
-                  <div class="card-title"><span>🔥</span> Code Churn Hotspots</div>
-                  <span class="count-pill" id="churnCountPill">0 files</span>
-                </div>
-                <div class="table-scroll-container" id="churnTableContainer">
-                  <div class="empty-state">
-                    <span class="empty-icon">⏳</span>
-                    <p>Scan a Git repository to calculate code churn hotspots.</p>
-                  </div>
+        <!-- Bottom 5-Column Analytics Cards Row -->
+        <div class="home-analytics-grid">
+          <!-- Card 1: Code Metrics -->
+          <div class="analytics-card">
+            <div class="analytics-card-header">
+              <div class="analytics-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2">
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+                <span>Code Metrics</span>
+              </div>
+            </div>
+            <div class="code-metrics-list">
+              <div class="metric-bar-item">
+                <div class="metric-bar-label"><span>Maintainability</span><strong id="homeMetricMaintainability">--%</strong></div>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill fill-teal" id="homeBarMaintainability" style="width: 0%"></div>
                 </div>
               </div>
-
-              <!-- Section 2: Logical Coupling Discovery -->
-              <div class="evolution-card glass-card">
-                <div class="card-title-row">
-                  <div class="card-title"><span>🔗</span> Logical Coupling (Co-Changes)</div>
-                  <span class="count-pill" id="couplingCountPill">0 pairs</span>
-                </div>
-                <div class="table-scroll-container" id="couplingTableContainer">
-                  <div class="empty-state">
-                    <span class="empty-icon">⏳</span>
-                    <p>Scan a Git repository to discover files that co-change together.</p>
-                  </div>
+              <div class="metric-bar-item">
+                <div class="metric-bar-label"><span>ACI Conformance</span><strong id="homeMetricComplexity">--%</strong></div>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill fill-blue" id="homeBarComplexity" style="width: 0%"></div>
                 </div>
               </div>
-
-              <!-- Section 3: Recent Commit History Stream -->
-              <div class="evolution-card glass-card full-width">
-                <div class="card-title-row">
-                  <div class="card-title"><span>📜</span> Git Commit History Stream</div>
-                  <span class="count-pill" id="historyCountPill">0 commits</span>
+              <div class="metric-bar-item">
+                <div class="metric-bar-label"><span>Test Coverage</span><strong id="homeMetricCoverage">--%</strong></div>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill fill-purple" id="homeBarCoverage" style="width: 0%"></div>
                 </div>
-                <div class="history-stream-container" id="historyStreamContainer">
-                  <div class="empty-state">
-                    <span class="empty-icon">⏳</span>
-                    <p>Scan a Git repository to stream commit history.</p>
-                  </div>
+              </div>
+              <div class="metric-bar-item">
+                <div class="metric-bar-label"><span>Graph Stability</span><strong id="homeMetricSecurity">--%</strong></div>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill fill-pink" id="homeBarSecurity" style="width: 0%"></div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Tab 7: Change Impact & Test Intelligence (Phase 8) -->
-        <div class="tab-content" id="tabImpact">
-          <div class="impact-container" style="padding: 1rem;">
-            <div class="impact-query-bar" style="display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;">
-              <input
-                type="text"
-                class="input-box"
-                id="impactTargetInput"
-                style="flex: 1; min-width: 250px;"
-                placeholder="Target symbol, class, function, or file (e.g. verify_token, auth.py, UserService)..."
-              />
-              <select class="input-box" id="impactDepthSelect" style="max-width: 140px;">
-                <option value="1">Depth 1</option>
-                <option value="2">Depth 2</option>
-                <option value="3" selected>Depth 3</option>
-                <option value="4">Depth 4</option>
-                <option value="5">Depth 5</option>
-              </select>
-              <label class="checkbox-label" style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
-                <input type="checkbox" id="impactTemporalCheck" checked /> Co-Change
-              </label>
-              <button class="btn btn-primary" id="runImpactBtn" onclick="runImpactAnalysis()">
-                <span>⚡</span> Analyze Impact
-              </button>
-            </div>
-
-            <!-- Impact Results View -->
-            <div class="impact-results" id="impactResults" style="display: none;">
-              <!-- Summary Score Cards -->
-              <div class="metrics-grid" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
-                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
-                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Impact Risk Level</div>
-                  <div class="metric-value" id="impactRiskBadge" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">-</div>
-                  <div class="metric-subtext" id="impactScoreText" style="font-size: 0.8rem; color: var(--text-tertiary);">Composite: -</div>
-                </div>
-                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
-                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Reachable Blast Radius</div>
-                  <div class="metric-value" id="impactBlastCount" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">0</div>
-                  <div class="metric-subtext" id="impactBlastBreakdown" style="font-size: 0.8rem; color: var(--text-tertiary);">-</div>
-                </div>
-                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
-                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Confidence Score</div>
-                  <div class="metric-value" id="impactConfidence" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">1.00</div>
-                  <div class="metric-subtext" id="impactConfidenceCategory" style="font-size: 0.8rem; color: var(--text-tertiary);">HIGH</div>
-                </div>
-                <div class="metric-card glass-card" style="padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03);">
-                  <div class="metric-label" style="font-size: 0.8rem; color: var(--text-secondary);">Recommended Tests</div>
-                  <div class="metric-value" id="impactTestCount" style="font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;">0</div>
-                  <div class="metric-subtext" style="font-size: 0.8rem; color: var(--text-tertiary);">Regression candidates</div>
-                </div>
-              </div>
-
-              <!-- Diagnostic callout -->
-              <div class="alert alert-info hidden" id="impactDiagnosticAlert" style="margin-bottom: 1.5rem; padding: 0.75rem; border-radius: 6px; background: rgba(59,130,246,0.1); border-left: 3px solid #3b82f6;"></div>
-
-              <!-- Multi-Signal Breakdown -->
-              <div class="glass-card" style="padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
-                <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: var(--text-primary);">📊 Multi-Signal Impact Breakdown</h4>
-                <div class="table-scroll-container">
-                  <table class="data-table" style="width: 100%;">
-                    <thead>
-                      <tr>
-                        <th>Signal</th>
-                        <th>Raw Value</th>
-                        <th>Normalized</th>
-                        <th>Effective Weight</th>
-                        <th>Status</th>
-                        <th>Description</th>
-                      </tr>
-                    </thead>
-                    <tbody id="impactSignalsTableBody"></tbody>
-                  </table>
-                </div>
-              </div>
-
-              <!-- Blast Radius Table -->
-              <div class="glass-card" style="padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
-                <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: var(--text-primary);">💥 Reverse Dependency Blast Radius</h4>
-                <div class="table-scroll-container">
-                  <table class="data-table" style="width: 100%;">
-                    <thead>
-                      <tr>
-                        <th>Depth</th>
-                        <th>Entity</th>
-                        <th>Type</th>
-                        <th>Relationship</th>
-                        <th>Tags</th>
-                        <th>File Location</th>
-                      </tr>
-                    </thead>
-                    <tbody id="impactBlastTableBody"></tbody>
-                  </table>
-                </div>
-              </div>
-
-              <!-- Prioritized Tests Table -->
-              <div class="glass-card" style="padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
-                <h4 style="margin-top: 0; margin-bottom: 0.75rem; color: var(--text-primary);">🧪 Prioritized Regression Test Recommendations</h4>
-                <div class="table-scroll-container">
-                  <table class="data-table" style="width: 100%;">
-                    <thead>
-                      <tr>
-                        <th>Tier</th>
-                        <th>Evidence Type</th>
-                        <th>Priority Score</th>
-                        <th>Test Target</th>
-                        <th>Test File</th>
-                        <th>Evidence Description</th>
-                      </tr>
-                    </thead>
-                    <tbody id="impactTestsTableBody"></tbody>
-                  </table>
-                </div>
-                <p class="disclaimer-text" style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.5rem;" id="impactTestDisclaimer"></p>
+          <!-- Card 2: Language Breakdown -->
+          <div class="analytics-card">
+            <div class="analytics-card-header">
+              <div class="analytics-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                  <polyline points="2 17 12 22 22 17" />
+                  <polyline points="2 12 12 17 22 12" />
+                </svg>
+                <span>Language Breakdown</span>
               </div>
             </div>
-
-            <!-- Empty State -->
-            <div class="empty-state" id="impactEmptyState" style="text-align: center; padding: 3rem 1rem;">
-              <span class="empty-icon" style="font-size: 2.5rem;">🎯</span>
-              <p style="color: var(--text-secondary); margin-top: 0.5rem;">Enter any symbol name, class, function, or file path above to calculate its multi-signal blast radius and prioritized test candidates.</p>
+            <div class="donut-widget">
+              <div class="donut-svg-wrap">
+                <svg width="78" height="78" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" stroke-width="14" />
+                  <circle id="langDonutTertiary" cx="50" cy="50" r="38" fill="none" stroke="#14b8a6" stroke-width="14"
+                    stroke-dasharray="0 238.76" stroke-dashoffset="0" transform="rotate(-90 50 50)" />
+                  <circle id="langDonutSecondary" cx="50" cy="50" r="38" fill="none" stroke="#3b82f6" stroke-width="14"
+                    stroke-dasharray="0 238.76" stroke-dashoffset="0" transform="rotate(-90 50 50)" />
+                  <circle id="langDonutPrimary" cx="50" cy="50" r="38" fill="none" stroke="url(#langGrad)"
+                    stroke-width="14" stroke-dasharray="0 238.76" stroke-dashoffset="0" stroke-linecap="round"
+                    transform="rotate(-90 50 50)" />
+                  <defs>
+                    <linearGradient id="langGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#8b5cf6" />
+                      <stop offset="1" stop-color="#6366f1" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="donut-center-text">
+                  <span class="donut-lang-name" id="homePrimaryLangName">--</span>
+                  <strong class="donut-lang-pct" id="homePrimaryLangPct">0%</strong>
+                </div>
+              </div>
+              <div class="donut-legend" id="homeLangLegend">
+                <div class="legend-row"><span class="dot dot-purple"></span><span class="leg-name">Pending scan</span><strong>--</strong></div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Tab 8: Architecture Intelligence & Risk Dashboard (Phase 10.5) -->
-        <div class="tab-content" id="tabArchitecture">
-          <div class="arch-dashboard-container" style="padding: 1rem;">
-            <!-- Loading State -->
-            <div id="archLoadingState" class="hidden" style="text-align: center; padding: 2rem;">
-              <span class="btn-spinner" style="width: 28px; height: 28px; margin: 0 auto 1rem; border-color: var(--primary);"></span>
-              <p style="color: var(--text-secondary);">Analyzing architecture layers, dependency cycles, and maintenance hotspots...</p>
+          <!-- Card 3: Dependency Graph (Core) -->
+          <div class="analytics-card">
+            <div class="analytics-card-header">
+              <div class="analytics-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+                <span>Dependency Graph <span class="muted-sub" id="homeDepSub">(Core)</span></span>
+              </div>
+              <button class="link-action-btn" onclick="openWorkspaceTab('graph')">View Full Graph ↗</button>
             </div>
-
-            <!-- Empty State (When no repo scanned yet) -->
-            <div id="archEmptyState" class="empty-state" style="text-align: center; padding: 3rem 1rem;">
-              <span class="empty-icon" style="font-size: 2.8rem;">🏛️</span>
-              <h3 style="margin-top: 0.75rem; color: var(--text-primary);">Architecture & Risk Intelligence</h3>
-              <p style="color: var(--text-secondary); max-width: 520px; margin: 0.5rem auto 1.5rem;">
-                Scan a codebase using the top bar to inspect module layering, detect circular dependencies with Tarjan's SCC algorithm, enforce architectural rules, and evaluate composite maintenance debt hotspots.
-              </p>
-              <button class="btn btn-primary" onclick="scanRepository()">⚡ Scan Current Repository</button>
+            <div class="mini-dep-graph" id="homeMiniDepGraph">
+              <div class="empty-state" style="padding: 18px 8px; font-size: 0.74rem;">
+                <p>Scan a repository to map module dependencies.</p>
+              </div>
             </div>
+          </div>
 
-            <!-- Active Content Container -->
-            <div id="archContent" class="hidden">
-              <!-- Top Summary Banner: ACI, Cycles, Risk Score, Evidence Coverage -->
-              <div class="arch-metrics-banner" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                <!-- Card 1: ACI Conformance -->
-                <div class="stat-card glass-card" style="padding: 1.25rem;">
-                  <div class="stat-header">
-                    <span class="stat-icon" style="font-size: 1.5rem;">📏</span>
-                    <span class="stat-title">Architecture Conformance (ACI)</span>
-                  </div>
-                  <div class="stat-value" id="archAciVal" style="font-size: 1.8rem; font-weight: 700; color: #10b981;">--</div>
-                  <div class="stat-detail" id="archAciDetail" style="font-size: 0.85rem; color: var(--text-secondary);">0 conforming / 0 violations</div>
-                </div>
+          <!-- Card 4: Change Impact & Risk -->
+          <div class="analytics-card">
+            <div class="analytics-card-header">
+              <div class="analytics-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+                <span>Change Impact <span class="muted-sub">(Risk)</span></span>
+              </div>
+            </div>
+            <div class="impact-summary-list">
+              <div class="impact-summary-row" onclick="openWorkspaceTab('impact')">
+                <span class="imp-label"><span class="imp-icon-dot dot-red">◎</span> High Risk</span>
+                <span class="imp-badge badge-red" id="homeImpactHigh">0</span>
+              </div>
+              <div class="impact-summary-row" onclick="openWorkspaceTab('impact')">
+                <span class="imp-label"><span class="imp-icon-dot dot-amber">▲</span> Medium Risk</span>
+                <span class="imp-badge badge-amber" id="homeImpactMedium">0</span>
+              </div>
+              <div class="impact-summary-row" onclick="openWorkspaceTab('impact')">
+                <span class="imp-label"><span class="imp-icon-dot dot-green">▲</span> Low Risk</span>
+                <span class="imp-badge badge-green" id="homeImpactLow">0</span>
+              </div>
+              <div class="impact-summary-row" onclick="openWorkspaceTab('architecture')">
+                <span class="imp-label"><span class="imp-icon-dot dot-blue">❖</span> Analyzed Modules</span>
+                <span class="imp-badge badge-neutral" id="homeImpactModules">0</span>
+              </div>
+            </div>
+          </div>
 
-                <!-- Card 2: Package Cycles -->
-                <div class="stat-card glass-card" style="padding: 1.25rem;">
-                  <div class="stat-header">
-                    <span class="stat-icon" style="font-size: 1.5rem;">🔄</span>
-                    <span class="stat-title">Package Cycles (Tarjan SCC)</span>
-                  </div>
-                  <div class="stat-value" id="archCyclesVal" style="font-size: 1.8rem; font-weight: 700; color: #10b981;">0</div>
-                  <div class="stat-detail" id="archCyclesDetail" style="font-size: 0.85rem; color: var(--text-secondary);">Acyclic package hierarchy</div>
-                </div>
-
-                <!-- Card 3: Repository Risk Score -->
-                <div class="stat-card glass-card" style="padding: 1.25rem;">
-                  <div class="stat-header">
-                    <span class="stat-icon" style="font-size: 1.5rem;">⚠️</span>
-                    <span class="stat-title">Repository Risk Score</span>
-                  </div>
-                  <div class="stat-value" id="archRiskScoreVal" style="font-size: 1.8rem; font-weight: 700; color: #f59e0b;">--</div>
-                  <div class="stat-detail" id="archRiskScoreDetail" style="font-size: 0.85rem; color: var(--text-secondary);">Normalized composite risk</div>
-                </div>
-
-                <!-- Card 4: Evidence Coverage -->
-                <div class="stat-card glass-card" style="padding: 1.25rem;">
-                  <div class="stat-header">
-                    <span class="stat-icon" style="font-size: 1.5rem;">🛡️</span>
-                    <span class="stat-title">Evidence Coverage</span>
-                  </div>
-                  <div class="stat-value" id="archCoverageVal" style="font-size: 1.8rem; font-weight: 700; color: #3b82f6;">100%</div>
-                  <div class="stat-detail" id="archCoverageDetail" style="font-size: 0.85rem; color: var(--text-secondary);">Complete multi-signal evidence</div>
+          <!-- Card 5: Test & Quality -->
+          <div class="analytics-card">
+            <div class="analytics-card-header">
+              <div class="analytics-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>Test & Quality</span>
+              </div>
+            </div>
+            <div class="test-quality-widget">
+              <div class="donut-svg-wrap">
+                <svg width="78" height="78" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" stroke-width="14" />
+                  <circle id="homeTestCovRing" cx="50" cy="50" r="38" fill="none" stroke="url(#covGrad)" stroke-width="14"
+                    stroke-dasharray="0 238.76" stroke-dashoffset="0" stroke-linecap="round"
+                    transform="rotate(-90 50 50)" />
+                  <defs>
+                    <linearGradient id="covGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#14b8a6" />
+                      <stop offset="0.55" stop-color="#3b82f6" />
+                      <stop offset="1" stop-color="#8b5cf6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="donut-center-text">
+                  <strong class="donut-cov-pct" id="homeTestCovPct">--%</strong>
+                  <span class="donut-cov-sub">Test Coverage</span>
                 </div>
               </div>
-
-              <!-- Section A & B: Layer Conformance & Quotient Hierarchy -->
-              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-                  <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                    <span>📐</span> Layer Hierarchy & Architectural Conformance
-                  </h4>
-                  <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <label style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
-                      <input type="checkbox" id="archStrictLayeringCheck" onchange="loadArchitectureConformance()"> Strict Layering
-                    </label>
-                    <button class="btn btn-secondary" onclick="loadArchitectureDashboard()" style="padding: 4px 10px; font-size: 0.8rem;">↻ Refresh</button>
-                  </div>
-                </div>
-
-                <!-- Layer Pipeline View -->
-                <div id="archLayersContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;"></div>
-
-                <!-- Conformance Violations Table -->
-                <div style="margin-top: 1rem;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <h5 style="margin: 0; font-size: 0.95rem; color: var(--text-secondary);">Rule Violations (<span id="archViolationsCount">0</span>)</h5>
-                    <select id="archViolationFilter" class="input-box" style="padding: 2px 8px; font-size: 0.8rem;" onchange="filterArchitectureViolations()">
-                      <option value="ALL">All Violations</option>
-                      <option value="LAYER_LEAK">Layer Leaks (Upward imports)</option>
-                      <option value="FORBIDDEN_IMPORT">Forbidden Imports</option>
-                      <option value="LAYER_SKIPPING">Layer Skipping</option>
-                    </select>
-                  </div>
-                  <div class="table-container" style="max-height: 240px; overflow-y: auto;">
-                    <table class="data-table" style="width: 100%;">
-                      <thead>
-                        <tr>
-                          <th>Rule Type</th>
-                          <th>Source Module</th>
-                          <th>Target Module</th>
-                          <th>Source File & Line</th>
-                          <th>Diagnostic Message</th>
-                        </tr>
-                      </thead>
-                      <tbody id="archViolationsTableBody"></tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Section C: Circular Dependencies (Tarjan SCC) -->
-              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
-                <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                  <span>🔄</span> Package Dependency Cycles (Tarjan's SCC)
-                </h4>
-                <div id="archCyclesContainer"></div>
-              </div>
-
-              <!-- Section D: Maintenance Hotspots & Debt Archetypes -->
-              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-                  <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                    <span>🔥</span> Maintenance Hotspots & Debt Archetypes
-                  </h4>
-                  <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                    <input type="text" id="archHotspotFilterInput" class="input-box" style="padding: 4px 10px; font-size: 0.85rem;" placeholder="Filter by module..." oninput="filterHotspotsTable()">
-                    <select id="archArchetypeSelect" class="input-box" style="padding: 4px 10px; font-size: 0.85rem;" onchange="filterHotspotsTable()">
-                      <option value="ALL">All Archetypes</option>
-                      <option value="God Class">God Class / Candidate</option>
-                      <option value="Brain Module">Brain Module</option>
-                      <option value="Volatile Fragile">Volatile Fragile Hotspot</option>
-                      <option value="Shotgun Surgery">Shotgun Surgery Catalyst</option>
-                      <option value="Stable Core">Stable Core</option>
-                      <option value="Normal Component">Normal Component</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="table-container" style="max-height: 320px; overflow-y: auto;">
-                  <table class="data-table" style="width: 100%;">
-                    <thead>
-                      <tr>
-                        <th onclick="sortHotspotsTable('module')" style="cursor: pointer;">Module Name ⬍</th>
-                        <th onclick="sortHotspotsTable('score')" style="cursor: pointer;">Hotspot Risk ⬍</th>
-                        <th>Archetype</th>
-                        <th onclick="sortHotspotsTable('complexity')" style="cursor: pointer;">Complexity ⬍</th>
-                        <th onclick="sortHotspotsTable('centrality')" style="cursor: pointer;">Centrality ⬍</th>
-                        <th onclick="sortHotspotsTable('churn')" style="cursor: pointer;">Churn ⬍</th>
-                        <th onclick="sortHotspotsTable('coupling')" style="cursor: pointer;">Coupling ⬍</th>
-                        <th>Coverage</th>
-                      </tr>
-                    </thead>
-                    <tbody id="archHotspotsTableBody"></tbody>
-                  </table>
-                </div>
-              </div>
-
-              <!-- Section E: Investigation Trigger -->
-              <div class="arch-section glass-card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
-                <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                  <span>🕵️</span> Quick Architectural Investigation
-                </h4>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                  <button class="chip-btn" onclick="triggerArchInvestigation('What are the package dependency cycles in this repository?')">Check Cycles</button>
-                  <button class="chip-btn" onclick="triggerArchInvestigation('Explain the maintenance hotspots and high-risk modules.')">Explain Hotspots</button>
-                  <button class="chip-btn" onclick="triggerArchInvestigation('What architectural layering violations exist?')">Layer Violations</button>
-                  <button class="chip-btn" onclick="triggerArchInvestigation('What is the architecture overview and module hierarchy?')">Module Hierarchy</button>
-                </div>
-              </div>
-
-              <!-- Section F: Quantitative Benchmarks & Acceptance Summary -->
-              <div class="arch-section glass-card" style="padding: 1.25rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
-                  <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                    <span>📊</span> Systematic Evaluation & Performance Benchmarks (Phase 10)
-                  </h4>
-                  <span class="count-pill" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">50 Golden Queries • 3 Scales</span>
-                </div>
-                <div class="table-container" style="overflow-x: auto;">
-                  <table class="data-table" style="width: 100%;">
-                    <thead>
-                      <tr>
-                        <th>Metric / Operation</th>
-                        <th>Baseline</th>
-                        <th>Optimized Result</th>
-                        <th>Target Threshold</th>
-                        <th>Evaluation Status</th>
-                      </tr>
-                    </thead>
-                    <tbody id="archBenchmarksTableBody"></tbody>
-                  </table>
-                </div>
-                <p class="disclaimer-text" style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.75rem;">
-                  * Precision@3 theoretical upper bound is capped at 0.5400 for unique-file retrieval due to single-target queries in the golden dataset. Honestly reported as NOT MET in compliance with evaluation integrity rules.
-                </p>
+              <div class="test-stats-list">
+                <div class="test-stat-row"><span>Test Files</span><strong id="homeStatTestFiles">0</strong></div>
+                <div class="test-stat-row"><span class="ts-label"><span class="ts-dot ts-green">✓</span>
+                    Source Files</span><strong id="homeStatSourceFiles">0</strong></div>
+                <div class="test-stat-row"><span class="ts-label"><span class="ts-dot ts-red">⚡</span>
+                    AST Symbols</span><strong id="homeStatAstSymbols">0</strong></div>
+                <div class="test-stat-row"><span class="ts-label"><span class="ts-dot ts-gray">◎</span>
+                    Violations</span><strong id="homeStatViolations">0</strong></div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Right Pane: Source Code Viewer -->
-      <aside class="panel glass-card code-viewer-panel" id="codeViewerPanel">
-        <div class="panel-header">
-          <div class="panel-title" id="codeViewerTitle">
-            <span>📄</span> Source Code Viewer
+      <!-- Workspace Detail View (Shown when navigating to analysis tabs or selecting a file) -->
+      <div class="workspace-detail-wrapper hidden" id="workspaceDetailView" style="display: none;">
+        <!-- Page 2: Structural Analysis (AST + Source Code Viewer IDE) -->
+        <div class="tab-content" id="tabSymbols">
+          <div class="subpage-hero">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </div>
+              <div>
+                <h2 class="subpage-hero-title">Structural Analysis</h2>
+                <p class="subpage-hero-desc">Analyze code structure to understand the system's architectural organization, components, and relationships.</p>
+              </div>
+            </div>
+            <div class="subpage-hero-right">
+              <div class="hero-pills-col">
+                <span class="hero-feature-pill">📦 Modules</span>
+                <span class="hero-feature-pill">🏛️ Classes</span>
+                <span class="hero-feature-pill">𝑓() Functions</span>
+                <span class="hero-feature-pill">📥 Imports</span>
+              </div>
+            </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="code-line-badge" id="codeLineSpanBadge">No file selected</span>
-            <button class="panel-action-btn" id="copyCodeBtn" onclick="copyCurrentCode()" title="Copy Source Code">📋 Copy</button>
-            <button class="panel-action-btn" id="toggleCodeViewerBtn" onclick="toggleCodeViewer()" title="Collapse Code Viewer">▶</button>
+
+          <div class="subpage-kpi-row">
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-purple">📦</div><div><div class="subpage-kpi-val" id="structKpiClasses">0</div><div class="subpage-kpi-lbl">AST Classes</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-indigo">𝑓()</div><div><div class="subpage-kpi-val" id="structKpiFuncs">0</div><div class="subpage-kpi-lbl">Functions</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-blue">📥</div><div><div class="subpage-kpi-val" id="structKpiImports">0</div><div class="subpage-kpi-lbl">Imports</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-violet">⚡</div><div><div class="subpage-kpi-val" id="structKpiMethods">0</div><div class="subpage-kpi-lbl">Methods</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-magenta">🧩</div><div><div class="subpage-kpi-val" id="structKpiChunks">0</div><div class="subpage-kpi-lbl">Semantic Chunks</div></div></div>
+          </div>
+
+          <div class="sp-card">
+            <div class="sp-card-header">
+              <div class="sp-card-title"><span>&lt;/&gt;</span> Source Code Viewer &amp; AST Inspector</div>
+              <button class="link-action-btn" onclick="document.getElementById('structSymbolsDrawer').classList.toggle('hidden')">Toggle AST Symbols Panel ▾</button>
+            </div>
+            <div id="structSymbolsDrawer" class="hidden" style="margin-bottom: 12px; padding: 12px; background: #fafbfe; border: 1px solid #e2e8f0; border-radius: 10px;">
+              <div class="symbols-view-container" id="symbolsContainer">
+                <div class="empty-state"><span class="empty-icon">🔍</span><p>Select a Python file to inspect AST classes, methods, functions, and imports.</p></div>
+              </div>
+            </div>
+            <div class="struct-ide-grid">
+              <div class="sp-card" style="padding: 10px;">
+                <div class="search-input-wrap">
+                  <input type="text" id="structFileFilterInput" class="compact-input" placeholder="Search files..." oninput="filterStructFiles()">
+                </div>
+                <div class="file-list-container" id="structFileList" style="max-height: 390px;">
+                  <div class="empty-state"><p>Scan a repository to browse files.</p></div>
+                </div>
+              </div>
+              <div id="codeViewerPanel">
+                <div class="ide-tabs-bar">
+                  <div class="ide-file-tabs" id="structOpenTabs">
+                    <span class="ide-file-tab active" id="codeViewerTitle">No file selected</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px; padding-bottom: 6px;">
+                    <span class="code-line-badge" id="codeLineSpanBadge">None</span>
+                    <button class="panel-action-btn" id="copyCodeBtn" onclick="copyCurrentCode()" title="Copy Code">📋</button>
+                  </div>
+                </div>
+                <div class="ide-code-surface code-viewer-container" id="codeViewerContainer">
+                  <div class="empty-state"><span class="empty-icon">💻</span><p>Select a file from the left tree to view source lines.</p></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="code-viewer-container" id="codeViewerContainer">
+        <!-- Page 1: Static Analysis -->
+        <div class="tab-content" id="tabAnalysis">
+          <div class="subpage-hero">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">&lt;/&gt;</div>
+              <div>
+                <h2 class="subpage-hero-title">Static Analysis</h2>
+                <p class="subpage-hero-desc">Analyze the repository using AST parsing and static code analysis to extract structural code elements, language distribution, and code quality insights.</p>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-view-container" id="analysisContainer">
+            <div class="sp-card">
+              <div class="empty-state"><span class="empty-icon">📊</span><p>Scan a repository on Home to view Repository Ingestion Summary, Languages Detected, and Python AST Metrics.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 4: Semantic Understanding (Grounded Q&A) -->
+        <div class="tab-content" id="tabQA">
+          <div class="subpage-hero">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">🔍</div>
+              <div>
+                <h2 class="subpage-hero-title">Semantic Understanding</h2>
+                <p class="subpage-hero-desc">Ask repository questions, retrieve relevant code meaning, and generate grounded answers from semantic evidence.</p>
+              </div>
+            </div>
+            <div class="subpage-hero-right">
+              <div class="hero-pills-col">
+                <span class="hero-feature-pill">🎯 Query Understanding</span>
+                <span class="hero-feature-pill">🧬 Embeddings</span>
+                <span class="hero-feature-pill">🕸️ Vector Retrieval</span>
+                <span class="hero-feature-pill">💬 Grounded Q&amp;A</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="subpage-kpi-row">
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-purple">🧩</div><div><div class="subpage-kpi-val" id="qaKpiChunks">0</div><div class="subpage-kpi-lbl">Semantic Chunks</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-indigo">🧠</div><div><div class="subpage-kpi-val" id="qaKpiModel" style="font-size:0.95rem;">all-MiniLM-L6-v2</div><div class="subpage-kpi-lbl">Embedding Model</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-blue">📄</div><div><div class="subpage-kpi-val" id="qaKpiFiles">0</div><div class="subpage-kpi-lbl">Indexed Files</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-green">🛡️</div><div><div class="subpage-kpi-val" id="qaKpiConf">--</div><div class="subpage-kpi-lbl">Grounding Status</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-violet">⚡</div><div><div class="subpage-kpi-val" id="qaKpiTopK">4</div><div class="subpage-kpi-lbl">Top-k Retrieval</div></div></div>
+          </div>
+
+          <div class="sp-grid-2">
+            <div class="sp-card">
+              <div class="sp-card-header"><div class="sp-card-title">💬 Ask the Codebase</div></div>
+              <div class="qa-ask-row">
+                <input type="text" id="questionInput" class="qa-ask-input" placeholder="Ask any question about this repository..." onkeydown="if(event.key==='Enter'){ askCodebase(); }">
+                <button id="askBtn" class="btn btn-primary btn-scan-gradient">
+                  <span class="btn-spinner hidden" id="askSpinner"></span>
+                  <span id="askIcon">🔍</span>
+                  <span id="askText">Run Semantic Search</span>
+                </button>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
+                <div class="example-chips" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                  <span style="font-size:0.74rem; color:#64748b;">Suggested prompts:</span>
+                  <button class="chip-btn" onclick="setExampleQuery('How does file filtering ignore binary files?')">Ignore Filters</button>
+                  <button class="chip-btn" onclick="setExampleQuery('Explain how AST parsing extracts classes and methods.')">AST Parsing</button>
+                  <button class="chip-btn" onclick="setExampleQuery('How does hybrid graph retrieval rank code chunks?')">Hybrid Retrieval</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <select id="topKSelect" class="compact-select" onchange="document.getElementById('qaKpiTopK').textContent=this.value">
+                    <option value="3">3 Chunks</option>
+                    <option value="4" selected>4 Chunks</option>
+                    <option value="6">6 Chunks</option>
+                  </select>
+                  <label style="font-size:0.76rem; color:#475569; display:flex; align-items:center; gap:4px;">
+                    <input type="checkbox" id="hybridToggle" checked /> Hybrid Graph
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="sp-card">
+              <div class="sp-card-header"><div class="sp-card-title">⚙️ Retrieval Pipeline</div></div>
+              <div class="pipeline-4steps">
+                <div class="pipeline-step-box"><div class="pipeline-step-title">1. Query Intent</div><div class="pipeline-step-desc">Extract search intent &amp; canonical entities.</div></div>
+                <div class="pipeline-step-box"><div class="pipeline-step-title">2. Embedding Search</div><div class="pipeline-step-desc">Retrieve semantically relevant vector chunks.</div></div>
+                <div class="pipeline-step-box"><div class="pipeline-step-title">3. Re-rank Results</div><div class="pipeline-step-desc">Fuse BM25 + graph topology scores.</div></div>
+                <div class="pipeline-step-box"><div class="pipeline-step-title">4. Grounded Answer</div><div class="pipeline-step-desc">Synthesize answer with cited files.</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="answer-container hidden" id="answerContainer">
+            <div class="sp-grid-2">
+              <div class="sp-card">
+                <div class="sp-card-header">
+                  <span id="answerModelBadge" class="sp-card-title" style="color:#15803d;">Grounded Answer</span>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="answerModeBadge" style="display:none;"></span>
+                    <span id="answerLatencyBadge" class="count-pill">0ms</span>
+                  </div>
+                </div>
+                <div class="markdown-body" id="answerBody"></div>
+              </div>
+              <div class="sp-card">
+                <div class="sp-card-header"><div class="sp-card-title">📌 Top Semantic Matches &amp; Citations</div></div>
+                <div class="citations-section" id="citationsSection">
+                  <div id="citationsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+  <!-- Knowledge Graph -->
+  <div class="tab-content" id="tabGraph">
+          <div class="subpage-hero">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">🕸️</div>
+              <div>
+                <h2 class="subpage-hero-title">Software Knowledge Graph</h2>
+                <p class="subpage-hero-desc">A unified, multi-relational graph of the repository that connects code entities (modules, classes, functions) with their dependencies, semantics, and evolution.</p>
+              </div>
+            </div>
+            <div class="subpage-hero-right">
+              <div class="hero-pills-col">
+                <span class="hero-feature-pill">📦 Code Entities</span>
+                <span class="hero-feature-pill">🔗 Dependencies</span>
+                <span class="hero-feature-pill">✨ Semantic Links</span>
+                <span class="hero-feature-pill">⏳ Evolution Links</span>
+              </div>
+            </div>
+          </div>
+          <div class="subpage-kpi-row cols-6" style="margin-bottom:14px;">
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-purple">📦</div><div><div class="subpage-kpi-val" id="graphKpiEntities">0</div><div class="subpage-kpi-lbl">Code Entities</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-blue">🧩</div><div><div class="subpage-kpi-val" id="graphKpiChunks">0</div><div class="subpage-kpi-lbl">Semantic Chunks</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-indigo">🔗</div><div><div class="subpage-kpi-val" id="graphKpiDeps">0</div><div class="subpage-kpi-lbl">Dependencies</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-violet">🫧</div><div><div class="subpage-kpi-val" id="graphKpiCommunities">--</div><div class="subpage-kpi-lbl">Communities</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-green">📄</div><div><div class="subpage-kpi-val" id="graphKpiIsolated">0</div><div class="subpage-kpi-lbl">Isolated Nodes</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-magenta">◎</div><div><div class="subpage-kpi-val" id="graphKpiDensity">--</div><div class="subpage-kpi-lbl">Graph Density</div></div></div>
+          </div>
+    <div class="graph-toolbar-card">
+      <div class="graph-toolbar-row">
+        <input type="text" id="graphSearchInput" class="compact-input" style="max-width:220px;"
+          placeholder="Search node, class, or file..." />
+        <select id="graphNodeTypeFilter" class="compact-select">
+          <option value="overview" selected>🏛️ Clean Architecture (Files &amp; Classes)</option>
+          <option value="file">📁 Modules Only (Files &amp; Imports)</option>
+          <option value="class">📦 Classes Only</option>
+          <option value="function">⚙️ Functions Only</option>
+          <option value="">🌐 Full Symbol Graph (All Nodes)</option>
+        </select>
+        <select id="graphEdgeTypeFilter" class="compact-select">
+          <option value="">All Relationships</option>
+          <option value="CALLS">CALLS (Invocations)</option>
+          <option value="IMPORTS">IMPORTS (Module Links)</option>
+          <option value="INHERITS">INHERITS (Hierarchy)</option>
+          <option value="CONTAINS">CONTAINS (Containment)</option>
+        </select>
+        <button id="isolateNeighborhoodBtn" class="chip-btn" onclick="toggleFocusNeighborhood()"
+          title="Isolate selected node &amp; direct neighbors">🎯 Focus 1-Hop</button>
+        <button id="resetGraphBtn" class="chip-btn">🔄 Re-Center</button>
+        <button id="cyclesGraphBtn" class="chip-btn">🔁 Check Cycles</button>
+        <button id="clearImpactBtn" class="chip-btn hidden">✖️ Clear Impact</button>
+      </div>
+      <div class="graph-legend-row" style="justify-content:space-between;">
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span
+              style="width:9px;height:9px;border-radius:50%;background:#22d3ee;"></span> File</span>
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span
+              style="width:9px;height:9px;border-radius:50%;background:#c084fc;"></span> Class</span>
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span
+              style="width:9px;height:9px;border-radius:50%;background:#34d399;"></span> Function</span>
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span
+              style="width:9px;height:9px;border-radius:50%;background:#60a5fa;"></span> Method</span>
+          <span style="opacity:0.4;">|</span>
+          <span style="color:#22d3ee;">— CALLS</span>
+          <span style="color:#fbbf24;">— IMPORTS</span>
+          <span style="color:#fb7185;">- - INHERITS</span>
+        </div>
+        <span style="font-size:0.7rem; color:var(--text-tertiary);">Hover to highlight connections • Click node to
+          inspect • Scroll to zoom</span>
+      </div>
+    </div>
+
+    <div class="graph-workspace-container">
+      <div class="graph-canvas-container" id="graphCanvasContainer">
+        <canvas id="graphCanvas"></canvas>
+        <div class="graph-hud-overlay">
+          <span id="hudNodeCount">0 nodes</span> • <span id="hudEdgeCount">0 edges</span>
+        </div>
+        <div class="graph-zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
+          <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">-</button>
+          <button class="zoom-btn" id="zoomFitBtn" title="Fit Graph">⛶</button>
+        </div>
+      </div>
+
+      <div class="graph-details-pane" id="graphDetailsPane">
+        <div class="empty-state" id="graphNoSelectionPrompt">
+          <span class="empty-icon">🕸️</span>
+          <p>Click any node in the graph to inspect its callers, callees, dependencies, or isolate its 1-hop
+            neighborhood.</p>
+        </div>
+        <div class="node-details-card hidden" id="nodeDetailsCard">
+          <div style="margin-bottom:10px;">
+            <span class="archetype-pill" id="selectedNodeTypeBadge">CLASS</span>
+            <h4 id="selectedNodeName" style="margin:4px 0; color:#fff;">NodeName</h4>
+            <div id="selectedNodePath" style="font-size:0.74rem; color:var(--text-muted);">path/to/file.py</div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+            <button class="btn btn-accent btn-sm" id="traceImpactBtn">⚡ Trace Impact</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleFocusNeighborhood(true)">🎯 Isolate
+              Neighborhood</button>
+            <button class="btn btn-secondary btn-sm" id="viewSourceBtn">📄 Source</button>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:0.76rem; color:var(--text-muted);">Incoming Callers (<span id="callersCount">0</span>)
+            </div>
+            <div id="callersList" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;"></div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:0.76rem; color:var(--text-muted);">Outgoing Callees (<span id="calleesCount">0</span>)
+            </div>
+            <div id="calleesList" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;"></div>
+          </div>
+          <div>
+            <span id="depDepthBadge" class="count-pill">Max Depth: 0</span>
+            <span id="depCountBadge" class="count-pill">0 Dependencies</span>
+            <span id="dependentsCountBadge" class="count-pill">0 Dependents</span>
+            <div id="dependenciesList" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;"></div>
+          </div>
+        </div>
+
+        <div class="impact-report-panel hidden" id="impactReportPanel">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <strong style="color:#fff;">⚡ Structural Reachability</strong>
+            <button class="panel-action-btn" id="closeImpactBtn">✕</button>
+          </div>
+          <div style="font-size:0.74rem; color:var(--text-muted); margin-bottom:8px;">
+            Total: <strong id="impactTotalVal">0</strong> | Depth: <strong id="impactDepthVal">3</strong> | <span
+              id="impactBreakdownVal"></span>
+          </div>
+          <div id="impactEntitiesList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agentic Investigation -->
+  <div class="tab-content" id="tabInvestigate">
+    <div class="qa-input-card">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+        <span style="font-size:0.74rem; color:var(--text-muted);">Try:</span>
+        <button class="chip-btn" onclick="setInvestigateExample('Where is FileFilter defined?')">Where is
+          FileFilter?</button>
+        <button class="chip-btn" onclick="setInvestigateExample('Who calls verify_token in the codebase?')">Who
+          calls verify_token?</button>
+        <button class="chip-btn"
+          onclick="setInvestigateExample('What depends on IngestedRepository?')">IngestedRepository
+          Impact</button>
+      </div>
+      <textarea id="investigateQueryInput" class="glow-textarea" rows="3"
+        placeholder="Ask a complex codebase investigation question..."></textarea>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+        <span style="font-size:0.75rem; color:var(--text-muted);">⚡ Intent-driven planner with multi-step tool
+          provenance</span>
+        <button id="investigateBtn" class="btn btn-accent">
+          <span class="btn-spinner hidden" id="investigateSpinner"></span>
+          <span id="investigateIcon">🕵️</span>
+          <span id="investigateBtnText">Investigate</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="investigate-result-container hidden" id="investigateResultContainer">
+      <div class="bento-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; gap:8px;">
+            <span class="status-badge status-badge-met" id="investigateStatusBadge">SUCCESS</span>
+            <span class="archetype-pill" id="investigateIntentBadge">UNDERSTAND</span>
+            <span id="investigateEntitiesBadge"></span>
+          </div>
+          <span id="investigateLatencyBadge" style="font-family:var(--font-mono); color:var(--text-muted);">0ms</span>
+        </div>
+        <div id="investigatePlanSection">
+          <div style="font-weight:600; margin-bottom:6px; color:#fff;">📋 Execution Plan &amp; Tool Provenance
+          </div>
+          <div id="investigateStepsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+        <div>
+          <div style="font-weight:600; margin-bottom:6px; color:#fff;">💡 Synthesized Investigation Findings</div>
+          <div class="markdown-body" id="investigateAnswerBody"></div>
+        </div>
+        <div id="investigateCitationsSection">
+          <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px;">📌 Grounded Citations:</div>
+          <div id="investigateCitationsList" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+        </div>
+        <div id="investigateLimitationsSection" class="hidden">
+          <div style="font-weight:600; color:var(--accent-amber-light);">⚠️ Investigation Limitations</div>
+          <div id="investigateLimitationsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evolution & Git Intelligence -->
+  <div class="tab-content" id="tabEvolution">
+          <div class="subpage-hero" style="margin-bottom:14px;">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">⏳</div>
+              <div>
+                <h2 class="subpage-hero-title">Evolution and Git Intelligence</h2>
+                <p class="subpage-hero-desc">Analyze the repository's evolutionary history, development patterns, and code change intelligence from Git data.</p>
+              </div>
+            </div>
+            <div class="subpage-hero-right">
+              <div class="hero-pills-col">
+                <span class="hero-feature-pill">🔀 Commits</span>
+                <span class="hero-feature-pill">⚡ Change Impact</span>
+                <span class="hero-feature-pill">🔗 Co-Change Analysis</span>
+                <span class="hero-feature-pill">📈 Evolution Trends</span>
+              </div>
+            </div>
+          </div>
+    <div class="evolution-header-card glass-card">
+      <div class="evolution-status-row">
+        <span class="status-badge status-badge-met" id="evoRepoStatusBadge"><span id="evoRepoStatusText">Git:
+            Ready</span></span>
+        <span class="count-pill" id="evoCommitsCountText">0 Commits Mined</span>
+        <span class="count-pill" id="evoChurnTotalText">0 Total Churn Lines</span>
+        <span class="count-pill" id="evoCouplingCountText">0 Logical Couplings</span>
+        <button class="btn btn-secondary btn-sm" id="refreshEvolutionBtn" onclick="loadEvolutionData()">🔄
+          Refresh</button>
+      </div>
+      <div class="evolution-filter-row">
+        <input type="text" id="evoFileFilterInput" class="compact-input" style="max-width:300px;"
+          placeholder="Filter by file path..." oninput="onEvolutionFilterChanged()" />
+        <select id="evoSortSelect" class="compact-select" onchange="onEvolutionFilterChanged()">
+          <option value="commits">Rank Churn by Commits</option>
+          <option value="total_churn">Rank Churn by Total Churn</option>
+          <option value="additions">Rank Churn by Additions</option>
+          <option value="deletions">Rank Churn by Deletions</option>
+          <option value="authors">Rank Churn by Authors</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="evolution-sections-grid">
+      <div class="evolution-card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <strong style="color:#fff;">🔥 Code Churn Hotspots</strong>
+          <span class="count-pill" id="churnCountPill">0 files</span>
+        </div>
+        <div class="table-scroll-container" id="churnTableContainer">
           <div class="empty-state">
-            <span class="empty-icon">💻</span>
-            <p>Select any file from the File Explorer to view its full source code and line numbers.</p>
+            <p>Scan a Git repository to view churn hotspots.</p>
           </div>
         </div>
-      </aside>
-    </section>
-  </main>
+      </div>
 
-  <!-- Notification Toast -->
+      <div class="evolution-card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <strong style="color:#fff;">🔗 Logical Coupling (Co-Changes)</strong>
+          <span class="count-pill" id="couplingCountPill">0 pairs</span>
+        </div>
+        <div class="table-scroll-container" id="couplingTableContainer">
+          <div class="empty-state">
+            <p>Scan a Git repository to discover co-changes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="evolution-card full-width">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <strong style="color:#fff;">📜 Git Commit History Stream</strong>
+          <span class="count-pill" id="historyCountPill">0 commits</span>
+        </div>
+        <div class="table-scroll-container" id="historyStreamContainer">
+          <div class="empty-state">
+            <p>Scan a Git repository to stream commit history.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Impact & Test Intelligence -->
+  <div class="tab-content" id="tabImpact">
+          <div class="subpage-hero" style="margin-bottom:14px;">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">📄</div>
+              <div>
+                <h2 class="subpage-hero-title">Reports</h2>
+                <p class="subpage-hero-desc">Generate, view, and export comprehensive analysis reports for the repository with insights across code, structure, evolution, semantics, and risks.</p>
+              </div>
+            </div>
+            <div class="subpage-hero-right">
+              <div class="hero-pills-col">
+                <span class="hero-feature-pill">✅ Comprehensive Analysis</span>
+                <span class="hero-feature-pill">🛠️ Custom Report Builder</span>
+                <span class="hero-feature-pill">📤 Multiple Export Formats</span>
+                <span class="hero-feature-pill">🕒 Analysis History</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="subpage-kpi-row" style="margin-bottom:14px;">
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-purple">📄</div><div><div class="subpage-kpi-val" id="reportsKpiCount">0</div><div class="subpage-kpi-lbl">Reports Generated</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-indigo">⚡</div><div><div class="subpage-kpi-val" id="reportsKpiRuns">1</div><div class="subpage-kpi-lbl">Analysis Runs</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-blue">📚</div><div><div class="subpage-kpi-val">2</div><div class="subpage-kpi-lbl">Export Formats</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-violet">🛠️</div><div><div class="subpage-kpi-val">4</div><div class="subpage-kpi-lbl">Report Templates</div></div></div>
+            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-green">📅</div><div><div class="subpage-kpi-val" id="reportsKpiLast" style="font-size:0.95rem;">Ready</div><div class="subpage-kpi-lbl">Last Report Generated</div></div></div>
+          </div>
+
+          <div class="sp-grid-2" style="margin-bottom:14px;">
+            <div class="sp-card">
+              <div class="sp-card-header"><div class="sp-card-title">✨ Generate New Report</div></div>
+              <div class="report-builder-grid">
+                <div>
+                  <label class="kv-lbl">Report Sections</label>
+                  <div class="report-check-list">
+                    <label class="report-check-item"><input type="checkbox" class="report-section-cb" value="Static Analysis" checked> Static Analysis (Code Metrics)</label>
+                    <label class="report-check-item"><input type="checkbox" class="report-section-cb" value="Structural Analysis" checked> Structural Analysis (AST Symbols)</label>
+                    <label class="report-check-item"><input type="checkbox" class="report-section-cb" value="Evolution & Git" checked> Evolution &amp; Git Intelligence</label>
+                    <label class="report-check-item"><input type="checkbox" class="report-section-cb" value="Knowledge Graph" checked> Software Knowledge Graph</label>
+                    <label class="report-check-item"><input type="checkbox" class="report-section-cb" value="Architecture & Risk" checked> Architecture &amp; Risk Assessment</label>
+                  </div>
+                </div>
+                <div>
+                  <label class="kv-lbl">Report Title</label>
+                  <input type="text" id="reportTitleInput" class="compact-input" style="padding-left:10px; margin:4px 0 10px;" placeholder="CodeMind Repository Analysis Report">
+                  <label class="kv-lbl">Output Format</label>
+                  <input type="hidden" id="reportFormatInput" value="HTML">
+                  <div class="report-format-grid">
+                    <div class="report-format-card active" onclick="selectReportFormat('HTML', this)">&lt;/&gt; HTML<br><span style="font-weight:400;font-size:0.68rem;">(Web Report)</span></div>
+                    <div class="report-format-card" onclick="selectReportFormat('JSON', this)">{ } JSON<br><span style="font-weight:400;font-size:0.68rem;">(Structured)</span></div>
+                    <div class="report-format-card" onclick="window.print()">🖨️ Print<br><span style="font-weight:400;font-size:0.68rem;">(Save as PDF)</span></div>
+                  </div>
+                  <button class="btn btn-primary btn-scan-gradient" style="width:100%; justify-content:center;" onclick="generateCustomReport()">✨ Generate Report</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="sp-card">
+              <div class="sp-card-header"><div class="sp-card-title">📋 Recent Reports</div></div>
+              <div class="analysis-table-wrapper" style="max-height:210px;">
+                <table class="data-table">
+                  <thead><tr><th>Report Name</th><th>Run</th><th>Generated On</th><th>Size</th><th>Format</th><th>Action</th></tr></thead>
+                  <tbody id="recentReportsTableBody">
+                    <tr><td colspan="6" style="text-align:center;color:#64748b;padding:18px;">No reports generated yet. Click "Generate Report" to export live repository insights.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+    <div class="bento-card">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input type="text" class="input-box" id="impactTargetInput" style="flex:1; min-width:240px;"
+          placeholder="Target symbol, class, function, or file (e.g. AuthService, auth.py)..." />
+        <select class="input-box" id="impactDepthSelect">
+          <option value="1">Depth 1</option>
+          <option value="2">Depth 2</option>
+          <option value="3" selected>Depth 3</option>
+          <option value="4">Depth 4</option>
+          <option value="5">Depth 5</option>
+        </select>
+        <label style="font-size:0.8rem; color:var(--text-secondary); display:flex; align-items:center; gap:5px;">
+          <input type="checkbox" id="impactTemporalCheck" checked /> Co-Change
+        </label>
+        <button class="btn btn-primary" id="runImpactBtn" onclick="runImpactAnalysis()">⚡ Analyze Impact</button>
+      </div>
+    </div>
+
+    <div id="impactResults" style="display:none; flex-direction:column; gap:14px;">
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Risk Level</span>
+          <strong id="impactRiskBadge" style="font-size:1.3rem;">-</strong>
+          <span id="impactScoreText" style="font-size:0.72rem; color:var(--text-tertiary);">Composite: -</span>
+        </div>
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Blast Radius</span>
+          <strong id="impactBlastCount" style="font-size:1.3rem;">0</strong>
+          <span id="impactBlastBreakdown" style="font-size:0.72rem; color:var(--text-tertiary);">-</span>
+        </div>
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Confidence</span>
+          <strong id="impactConfidence" style="font-size:1.3rem;">1.00</strong>
+          <span id="impactConfidenceCategory" style="font-size:0.72rem; color:var(--text-tertiary);">HIGH</span>
+        </div>
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Recommended Tests</span>
+          <strong id="impactTestCount" style="font-size:1.3rem;">0</strong>
+          <span style="font-size:0.72rem; color:var(--text-tertiary);">Regression candidates</span>
+        </div>
+      </div>
+
+      <div class="hidden" id="impactDiagnosticAlert"></div>
+
+      <div class="bento-card">
+        <strong style="color:#fff;">📊 Multi-Signal Breakdown</strong>
+        <div class="table-scroll-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Signal</th>
+                <th>Raw</th>
+                <th>Normalized</th>
+                <th>Weight</th>
+                <th>Status</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody id="impactSignalsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bento-card">
+        <strong style="color:#fff;">💥 Reverse Dependency Blast Radius</strong>
+        <div class="table-scroll-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Depth</th>
+                <th>Entity</th>
+                <th>Type</th>
+                <th>Relationship</th>
+                <th>Tags</th>
+                <th>File</th>
+              </tr>
+            </thead>
+            <tbody id="impactBlastTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bento-card">
+        <strong style="color:#fff;">🧪 Prioritized Regression Tests</strong>
+        <div class="table-scroll-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Evidence</th>
+                <th>Score</th>
+                <th>Test Target</th>
+                <th>Test File</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody id="impactTestsTableBody"></tbody>
+          </table>
+        </div>
+        <p id="impactTestDisclaimer" style="font-size:0.72rem; color:var(--text-tertiary);"></p>
+      </div>
+    </div>
+
+    <div class="empty-state" id="impactEmptyState">
+      <span class="empty-icon">🎯</span>
+      <p>Enter any symbol, class, or file path above to compute multi-signal blast radius &amp; regression test
+        candidates.</p>
+    </div>
+  </div>
+
+  <!-- Architecture & Risk Dashboard -->
+  <div class="tab-content" id="tabArchitecture">
+          <div class="subpage-hero" style="margin-bottom:14px;">
+            <div class="subpage-hero-left">
+              <div class="subpage-hero-icon">🏛️</div>
+              <div>
+                <h2 class="subpage-hero-title">Architecture and Risk Dashboard</h2>
+                <p class="subpage-hero-desc">Understand the system architecture, component interactions, and assess architectural risks to ensure maintainability, reliability, and evolution safety.</p>
+              </div>
+            </div>
+            <div class="subpage-hero-right">
+              <div class="hero-pills-col">
+                <span class="hero-feature-pill">📦 System Architecture</span>
+                <span class="hero-feature-pill">🛡️ Risk Assessment</span>
+                <span class="hero-feature-pill">🔗 Component Relationships</span>
+                <span class="hero-feature-pill">📊 Architectural Insights</span>
+              </div>
+            </div>
+          </div>
+    <div id="archLoadingState" class="hidden" style="text-align:center; padding:2rem;">
+      <p style="color:var(--text-secondary);">Analyzing architecture layers, dependency cycles, and hotspots...
+      </p>
+    </div>
+
+    <div id="archEmptyState" class="empty-state">
+      <span class="empty-icon">🏛️</span>
+      <h3 style="color:#fff;">Architecture &amp; Risk Intelligence</h3>
+      <p>Paste a GitHub repository link in the top bar and click Analyze Repo to inspect layer conformance, Tarjan
+        SCC cycles, and debt hotspots.</p>
+    </div>
+
+    <div id="archContent" class="hidden" style="display:flex; flex-direction:column; gap:14px;">
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Architecture Conformance (ACI)</span>
+          <strong id="archAciVal" style="font-size:1.45rem; color:#10b981;">--</strong>
+          <span id="archAciDetail" style="font-size:0.72rem; color:var(--text-secondary);">0 conforming / 0
+            violations</span>
+        </div>
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Package Cycles (Tarjan SCC)</span>
+          <strong id="archCyclesVal" style="font-size:1.45rem; color:#10b981;">0</strong>
+          <span id="archCyclesDetail" style="font-size:0.72rem; color:var(--text-secondary);">Acyclic
+            hierarchy</span>
+        </div>
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Repository Risk Score</span>
+          <strong id="archRiskScoreVal" style="font-size:1.45rem; color:#f59e0b;">--</strong>
+          <span id="archRiskScoreDetail" style="font-size:0.72rem; color:var(--text-secondary);">Normalized
+            composite risk</span>
+        </div>
+        <div class="bento-card">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Evidence Coverage</span>
+          <strong id="archCoverageVal" style="font-size:1.45rem; color:#38bdf8;">100%</strong>
+          <span id="archCoverageDetail" style="font-size:0.72rem; color:var(--text-secondary);">Multi-signal
+            telemetry</span>
+        </div>
+      </div>
+
+      <div class="bento-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="color:#fff;">📐 Layer Hierarchy &amp; Conformance</strong>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <label style="font-size:0.78rem; color:var(--text-secondary);"><input type="checkbox"
+                id="archStrictLayeringCheck" onchange="loadArchitectureConformance()"> Strict Layering</label>
+            <button class="btn btn-secondary btn-sm" onclick="loadArchitectureDashboard()">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="archLayersContainer"
+          style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px;"></div>
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-size:0.8rem; color:var(--text-secondary);">Rule Violations (<span
+                id="archViolationsCount">0</span>)</span>
+            <select id="archViolationFilter" class="compact-select" onchange="filterArchitectureViolations()">
+              <option value="ALL">All Violations</option>
+              <option value="LAYER_LEAK">Layer Leaks</option>
+              <option value="FORBIDDEN_IMPORT">Forbidden Imports</option>
+              <option value="LAYER_SKIPPING">Layer Skipping</option>
+            </select>
+          </div>
+          <div class="table-scroll-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Rule Type</th>
+                  <th>Source</th>
+                  <th>Target</th>
+                  <th>File &amp; Line</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="archViolationsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="bento-card">
+        <strong style="color:#fff;">🔄 Package Dependency Cycles</strong>
+        <div id="archCyclesContainer"></div>
+      </div>
+
+      <div class="bento-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <strong style="color:#fff;">🔥 Maintenance Hotspots &amp; Debt Archetypes</strong>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="archHotspotFilterInput" class="compact-input" placeholder="Filter by module..."
+              oninput="filterHotspotsTable()" />
+            <select id="archArchetypeSelect" class="compact-select" onchange="filterHotspotsTable()">
+              <option value="ALL">All Archetypes</option>
+              <option value="God Class">God Class / Candidate</option>
+              <option value="Brain Module">Brain Module</option>
+              <option value="Volatile Fragile">Volatile Fragile Hotspot</option>
+              <option value="Shotgun Surgery">Shotgun Surgery Catalyst</option>
+              <option value="Stable Core">Stable Core</option>
+              <option value="Normal Component">Normal Component</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-scroll-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th onclick="sortHotspotsTable('module')" style="cursor:pointer;">Module ⬍</th>
+                <th onclick="sortHotspotsTable('score')" style="cursor:pointer;">Risk ⬍</th>
+                <th>Archetype</th>
+                <th onclick="sortHotspotsTable('complexity')" style="cursor:pointer;">Complexity ⬍</th>
+                <th onclick="sortHotspotsTable('centrality')" style="cursor:pointer;">Centrality ⬍</th>
+                <th onclick="sortHotspotsTable('churn')" style="cursor:pointer;">Churn ⬍</th>
+                <th onclick="sortHotspotsTable('coupling')" style="cursor:pointer;">Coupling ⬍</th>
+                <th>Coverage</th>
+              </tr>
+            </thead>
+            <tbody id="archHotspotsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bento-card">
+        <strong style="color:#fff;">📊 Evaluation Benchmarks</strong>
+        <div class="table-scroll-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Baseline</th>
+                <th>Optimized</th>
+                <th>Target</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="archBenchmarksTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+      </div>
+    </main>
+  </div>
+
   <div class="toast hidden" id="toast"></div>
 
   <!-- Sanitization & Client Application -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
-  <script src="/static/app.js?v=10.5.4"></script>
+  <script src="/static/app.js?v=11.2.0"></script>
 </body>
+
 </html>

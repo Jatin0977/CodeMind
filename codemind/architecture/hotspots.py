@@ -506,16 +506,22 @@ class MaintenanceHotspotDetector:
             except Exception as e:
                 logger.debug(f"Git churn analysis failed or skipped: {e}")
 
-        if eff_churn_summary and eff_churn_summary.file_metrics:
+        file_metrics_map = (
+            eff_churn_summary.get("file_metrics")
+            if isinstance(eff_churn_summary, dict)
+            else getattr(eff_churn_summary, "file_metrics", None)
+        )
+        if file_metrics_map:
             has_git_churn = True
             for m in mod_names:
                 entity = mod_map[m]
                 mod_churn = 0
                 for f in entity.files:
                     norm_f = f.replace("\\", "/")
-                    if norm_f in eff_churn_summary.file_metrics:
-                        fm = eff_churn_summary.file_metrics[norm_f]
-                        mod_churn += fm.total_churn
+                    if norm_f in file_metrics_map:
+                        fm = file_metrics_map[norm_f]
+                        churn_val = fm.get("total_churn", 0) if isinstance(fm, dict) else getattr(fm, "total_churn", 0)
+                        mod_churn += churn_val
                 raw_churn[m] = float(mod_churn)
 
         # D. Hybrid Coupling Intensity
@@ -538,8 +544,11 @@ class MaintenanceHotspotDetector:
         file_temp_coupling: Dict[str, float] = {}
         if eff_couplings:
             for c in eff_couplings:
-                file_temp_coupling[c.canonical_file_a] = file_temp_coupling.get(c.canonical_file_a, 0.0) + c.jaccard_similarity
-                file_temp_coupling[c.canonical_file_b] = file_temp_coupling.get(c.canonical_file_b, 0.0) + c.jaccard_similarity
+                fa = c.get("canonical_file_a", "") if isinstance(c, dict) else getattr(c, "canonical_file_a", "")
+                fb = c.get("canonical_file_b", "") if isinstance(c, dict) else getattr(c, "canonical_file_b", "")
+                jacc = c.get("jaccard_similarity", 0.0) if isinstance(c, dict) else getattr(c, "jaccard_similarity", 0.0)
+                file_temp_coupling[fa] = file_temp_coupling.get(fa, 0.0) + jacc
+                file_temp_coupling[fb] = file_temp_coupling.get(fb, 0.0) + jacc
 
         for m in mod_names:
             entity = mod_map[m]

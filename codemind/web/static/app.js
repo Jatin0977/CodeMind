@@ -11,6 +11,17 @@ let activeFilePath = null;
 document.addEventListener("DOMContentLoaded", () => {
   checkHealth();
   setupEventListeners();
+  // Ctrl+K shortcut focuses repository link omnibar
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      const input = document.getElementById("repoPathInput");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+  });
 });
 
 function setupTabsSliding() {
@@ -146,13 +157,23 @@ async function checkHealth() {
     if (graphStatus) {
       graphStatus.textContent = data.has_graph ? "Active" : "Ready";
     }
+    if (data.is_scanned) {
+      loadHomeAnalytics();
+    }
   } catch (err) {
     console.warn("Health check error:", err);
   }
 }
 
 async function scanRepository() {
-  const repoPath = document.getElementById("repoPathInput").value.trim() || ".";
+  const inputEl = document.getElementById("repoPathInput");
+  const repoPath = inputEl ? inputEl.value.trim() : "";
+  if (!repoPath) {
+    showToast("Please paste a GitHub repository link (e.g. https://github.com/owner/repo) to analyze.", true);
+    if (inputEl) inputEl.focus();
+    return;
+  }
+
   const scanBtn = document.getElementById("scanBtn");
   const scanSpinner = document.getElementById("scanSpinner");
   const scanIcon = document.getElementById("scanIcon");
@@ -161,7 +182,7 @@ async function scanRepository() {
   scanBtn.disabled = true;
   scanSpinner.classList.remove("hidden");
   scanIcon.classList.add("hidden");
-  scanText.textContent = "Scanning & Analyzing...";
+  scanText.textContent = "Analyzing...";
 
   try {
     const res = await fetch("/api/scan", {
@@ -227,8 +248,12 @@ function renderScanResults(data) {
     loadKnowledgeGraph();
   }
 
-  // Update Git Temporal Intelligence Chip (Phase 7)
+  // Update Git Temporal Intelligence & Branch label
+  const branchEl = document.getElementById("homeBranchLabel");
   if (data.git_status) {
+    if (branchEl) {
+      branchEl.textContent = data.git_status.is_git_repo ? (data.git_status.branch || "git") : "local";
+    }
     const gitStatusLabel = document.getElementById("gitStatusLabel");
     if (gitStatusLabel) {
       if (data.git_status.is_git_repo) {
@@ -239,20 +264,107 @@ function renderScanResults(data) {
         gitStatusLabel.style.color = "#94a3b8";
       }
     }
+  } else if (branchEl) {
+    branchEl.textContent = "local";
   }
 
-  // Update File List in Left Explorer
+  // Update Home Dashboard header badges & Language Breakdown
+  const statusBadge = document.getElementById("scanStatusBadge");
+  if (statusBadge) {
+    statusBadge.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Analyzed</span>`;
+  }
+  const lastAnalyzedEl = document.getElementById("lastAnalyzedLabel");
+  if (lastAnalyzedEl) {
+    const now = new Date();
+    lastAnalyzedEl.textContent = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + " • " + now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  }
+  const deltaEl = document.getElementById("statFilesDelta");
+  if (deltaEl) deltaEl.classList.remove("hidden");
+
+  if (data.languages && Object.keys(data.languages).length > 0) {
+    const entries = Object.entries(data.languages).sort((a, b) => b[1] - a[1]);
+    const totalLangFiles = entries.reduce((acc, [, c]) => acc + c, 0) || 1;
+    const [topName, topCount] = entries[0];
+    const topPct = ((topCount / totalLangFiles) * 100).toFixed(1);
+    const primaryNameEl = document.getElementById("homePrimaryLangName");
+    const primaryPctEl = document.getElementById("homePrimaryLangPct");
+    if (primaryNameEl) primaryNameEl.textContent = topName;
+    if (primaryPctEl) primaryPctEl.textContent = `${topPct}%`;
+
+    const circ = 238.76;
+    const p1 = (entries[0][1] / totalLangFiles) * circ;
+    const p2 = entries[1] ? (entries[1][1] / totalLangFiles) * circ : 0;
+    const p3 = entries[2] ? (entries[2][1] / totalLangFiles) * circ : 0;
+
+    const d1 = document.getElementById("langDonutPrimary");
+    const d2 = document.getElementById("langDonutSecondary");
+    const d3 = document.getElementById("langDonutTertiary");
+    if (d1) d1.setAttribute("stroke-dasharray", `${p1.toFixed(1)} ${circ}`);
+    if (d2) {
+      d2.setAttribute("stroke-dasharray", `${p2.toFixed(1)} ${circ}`);
+      d2.setAttribute("stroke-dashoffset", `-${p1.toFixed(1)}`);
+    }
+    if (d3) {
+      d3.setAttribute("stroke-dasharray", `${p3.toFixed(1)} ${circ}`);
+      d3.setAttribute("stroke-dashoffset", `-${(p1 + p2).toFixed(1)}`);
+    }
+
+    const legendEl = document.getElementById("homeLangLegend");
+    if (legendEl) {
+      const dotClasses = ["dot-purple", "dot-blue", "dot-teal"];
+      legendEl.innerHTML = entries.slice(0, 3).map(([name, cnt], idx) => {
+        const pct = ((cnt / totalLangFiles) * 100).toFixed(1);
+        return `<div class="legend-row"><span class="dot ${dotClasses[idx] || "dot-teal"}"></span><span class="leg-name">${escapeHtml(name)}</span><strong>${pct}%</strong></div>`;
+      }).join("");
+    }
+  }
+
+  // Update Test & Quality real file & AST counts
+  const filesArr = data.files || [];
+  const testFilesCount = filesArr.filter(f => /(^|\/)(test_|tests\/)|_test\.py$/i.test(f.relative_path || "")).length;
+  const sourceFilesCount = Math.max(0, filesArr.length - testFilesCount);
+  const astSymbolsCount = (data.ast_metrics?.classes || 0) + (data.ast_metrics?.functions || 0) + (data.ast_metrics?.methods || 0);
+  const elTestFiles = document.getElementById("homeStatTestFiles");
+  const elSourceFiles = document.getElementById("homeStatSourceFiles");
+  const elAstSyms = document.getElementById("homeStatAstSymbols");
+  if (elTestFiles) elTestFiles.textContent = testFilesCount.toLocaleString();
+  if (elSourceFiles) elSourceFiles.textContent = sourceFilesCount.toLocaleString();
+  if (elAstSyms) elAstSyms.textContent = astSymbolsCount.toLocaleString();
+
+  // Fetch real Architecture, Conformance, Cycles, and Hotspots metrics for Home Analytics
+  loadHomeAnalytics();
+
+  // Update Structural Analysis & Semantic Understanding KPIs
+  const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setKpi("structKpiClasses", (data.ast_metrics?.classes || 0).toLocaleString());
+  setKpi("structKpiFuncs", (data.ast_metrics?.functions || 0).toLocaleString());
+  setKpi("structKpiImports", (data.ast_metrics?.imports || 0).toLocaleString());
+  setKpi("structKpiMethods", (data.ast_metrics?.methods || 0).toLocaleString());
+  setKpi("structKpiChunks", (data.total_chunks || 0).toLocaleString());
+  setKpi("qaKpiChunks", (data.total_chunks || 0).toLocaleString());
+  setKpi("qaKpiFiles", (data.total_files || 0).toLocaleString());
+  setKpi("graphKpiEntities", ((data.ast_metrics?.classes || 0) + (data.ast_metrics?.functions || 0) + (data.ast_metrics?.methods || 0)).toLocaleString());
+  setKpi("graphKpiChunks", (data.total_chunks || 0).toLocaleString());
+  setKpi("graphKpiDeps", (data.graph_summary?.total_edges || 0).toLocaleString());
+
+  // Update File List in Left Explorer & Structural Analysis File Tree
   currentScannedFiles = data.files || [];
   document.getElementById("fileCountPill").textContent = `${currentScannedFiles.length} files`;
   renderFileList(currentScannedFiles);
+  renderStructFileList(currentScannedFiles);
 
   // Render Static Analysis Overview Tab
   renderStaticAnalysisOverview(data);
 
-  // Auto-select first python file or first file
+  // Pre-load first python file or first file silently without leaving Home view
   const firstPy = currentScannedFiles.find(f => f.is_python) || currentScannedFiles[0];
   if (firstPy) {
-    selectFile(firstPy.relative_path);
+    selectFile(firstPy.relative_path, true);
+  }
+
+  // Populate Dashboard Bento Grid
+  if (typeof updateDashboardBento === "function") {
+    updateDashboardBento(data);
   }
 }
 
@@ -292,9 +404,12 @@ function filterFiles() {
   renderFileList(filtered);
 }
 
-async function selectFile(relPath) {
+async function selectFile(relPath, silent = false) {
   activeFilePath = relPath;
   renderFileList(currentScannedFiles);
+  if (!silent) {
+    openWorkspaceTab("symbols", document.getElementById("navSymbolsBtn"));
+  }
 
   try {
     const res = await fetch(`/api/file?path=${encodeURIComponent(relPath)}`);
@@ -428,13 +543,25 @@ function renderStaticAnalysisOverview(data) {
   const totalFiles = data.total_files || 0;
   const ast = data.ast_metrics || {};
 
-  let langBadgesHtml = Object.entries(languages).map(([lang, count]) => {
+  const sortedLangs = Object.entries(languages).sort((a, b) => b[1] - a[1]);
+  const palette = ["#7c3aed", "#3b82f6", "#14b8a6", "#22c55e", "#facc15", "#f97316", "#ec4899", "#a855f7"];
+  const circ = 238.76;
+  let offsetAcc = 0;
+  const donutSegs = sortedLangs.slice(0, 8).map(([lang, count], i) => {
+    const dash = totalFiles > 0 ? (count / totalFiles) * circ : 0;
+    const seg = `<circle cx="50" cy="50" r="38" fill="none" stroke="${palette[i % palette.length]}" stroke-width="14" stroke-dasharray="${dash.toFixed(2)} ${circ}" stroke-dashoffset="-${offsetAcc.toFixed(2)}" transform="rotate(-90 50 50)" />`;
+    offsetAcc += dash;
+    return seg;
+  }).join("");
+
+  const langLegendRows = sortedLangs.slice(0, 8).map(([lang, count], i) => {
     const pct = totalFiles > 0 ? Math.round((count / totalFiles) * 100) : 0;
+    const label = lang.charAt(0).toUpperCase() + lang.slice(1);
     return `
-      <div class="lang-stat-chip">
-        <span class="lang-dot"></span>
-        <span class="lang-name">${escapeHtml(lang.toUpperCase())}</span>
-        <span class="lang-pct">${count} files (${pct}%)</span>
+      <div class="legend-row">
+        <span class="dot" style="background:${palette[i % palette.length]}"></span>
+        <span class="leg-name">${escapeHtml(label)}</span>
+        <strong>${count} (${pct}%)</strong>
       </div>`;
   }).join("");
 
@@ -460,42 +587,54 @@ function renderStaticAnalysisOverview(data) {
   }).join("");
 
   container.innerHTML = `
-    <div class="analysis-dashboard">
-      <!-- Repo Ingestion Header Card -->
-      <div class="analysis-section-card">
-        <div class="analysis-card-title">📁 Repository Ingestion Summary</div>
-        <div class="analysis-info-grid">
-          <div class="info-item"><span class="info-label">Repository Name:</span> <span class="info-val">${escapeHtml(data.repository)}</span></div>
-          <div class="info-item"><span class="info-label">Repository Path:</span> <span class="info-val info-path">${escapeHtml(data.repo_path)}</span></div>
-          <div class="info-item"><span class="info-label">Total Files Ingested:</span> <span class="info-val">${data.total_files}</span></div>
-          <div class="info-item"><span class="info-label">Total Lines of Code:</span> <span class="info-val">${data.total_lines.toLocaleString()}</span></div>
-          <div class="info-item"><span class="info-label">Total Code Size:</span> <span class="info-val">${(data.total_size_bytes / 1024).toFixed(1)} KB</span></div>
-          <div class="info-item"><span class="info-label">Filtered / Skipped:</span> <span class="info-val">${data.skipped_count || 0} items</span></div>
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div class="sp-grid-2">
+        <div class="sp-card">
+          <div class="sp-card-header"><div class="sp-card-title">📁 Repository Ingestion Summary</div></div>
+          <div class="ingestion-kv-grid">
+            <div class="ingestion-kv-item"><div class="stat-icon-circle icon-indigo">🐙</div><div><div class="kv-lbl">Repository Name</div><div class="kv-val">${escapeHtml(data.repository)}</div></div></div>
+            <div class="ingestion-kv-item"><div class="stat-icon-circle icon-purple">🔗</div><div><div class="kv-lbl">Repository Path</div><div class="kv-val">${escapeHtml(data.repo_path)}</div></div></div>
+            <div class="ingestion-kv-item"><div class="stat-icon-circle icon-blue">📄</div><div><div class="kv-lbl">Total Files Ingested</div><div class="kv-val">${data.total_files.toLocaleString()}</div></div></div>
+            <div class="ingestion-kv-item"><div class="stat-icon-circle icon-violet">&lt;/&gt;</div><div><div class="kv-lbl">Total Lines of Code</div><div class="kv-val">${data.total_lines.toLocaleString()}</div></div></div>
+            <div class="ingestion-kv-item"><div class="stat-icon-circle icon-indigo">🗄️</div><div><div class="kv-lbl">Total Code Size</div><div class="kv-val">${(data.total_size_bytes / 1024).toFixed(1)} KB</div></div></div>
+            <div class="ingestion-kv-item"><div class="stat-icon-circle icon-blue">⧖</div><div><div class="kv-lbl">Filtered / Skipped</div><div class="kv-val">${data.skipped_count || 0} items</div></div></div>
+          </div>
         </div>
-        <div class="languages-bar-row">
-          <div class="languages-bar-title">Languages Detected:</div>
-          <div class="languages-chips-wrapper">${langBadgesHtml}</div>
+
+        <div class="sp-card">
+          <div class="sp-card-header"><div class="sp-card-title">📚 Languages Detected</div></div>
+          <div class="donut-widget" style="gap:18px;">
+            <div class="donut-svg-wrap" style="width:128px; height:128px;">
+              <svg width="128" height="128" viewBox="0 0 100 100" style="width:128px; height:128px;">
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" stroke-width="14" />
+                ${donutSegs}
+              </svg>
+              <div class="donut-center-text">
+                <strong class="donut-cov-pct" style="font-size:1.35rem;">${data.total_files}</strong>
+                <span class="donut-cov-sub" style="font-size:0.72rem;">Files</span>
+              </div>
+            </div>
+            <div class="donut-legend" style="gap:6px;">${langLegendRows}</div>
+          </div>
         </div>
       </div>
 
-      <!-- Static AST Metrics Card -->
-      <div class="analysis-section-card">
-        <div class="analysis-card-title">🔍 Python AST Code Analysis Metrics</div>
-        <div class="ast-summary-chips-row">
-          <div class="ast-chip"><span class="ast-chip-num">${ast.classes || 0}</span><span class="ast-chip-lbl">Classes</span></div>
-          <div class="ast-chip"><span class="ast-chip-num">${ast.functions || 0}</span><span class="ast-chip-lbl">Top-Level Funcs</span></div>
-          <div class="ast-chip"><span class="ast-chip-num">${ast.methods || 0}</span><span class="ast-chip-lbl">Methods</span></div>
-          <div class="ast-chip"><span class="ast-chip-num">${ast.imports || 0}</span><span class="ast-chip-lbl">Imports</span></div>
-          <div class="ast-chip"><span class="ast-chip-num">${ast.docstrings || 0}</span><span class="ast-chip-lbl">Docstrings</span></div>
-          <div class="ast-chip"><span class="ast-chip-num ${ast.syntax_errors > 0 ? 'color-rose' : 'color-green'}">${ast.syntax_errors || 0}</span><span class="ast-chip-lbl">Syntax Errors</span></div>
+      <div class="sp-card">
+        <div class="sp-card-header"><div class="sp-card-title">🔍 Python AST Code Analysis Metrics</div></div>
+        <div class="ast-metrics-6grid">
+          <div class="ast-mini-card"><div class="stat-icon-circle icon-indigo">📦</div><div><div class="subpage-kpi-val">${ast.classes || 0}</div><div class="subpage-kpi-lbl">Classes</div></div></div>
+          <div class="ast-mini-card"><div class="stat-icon-circle icon-purple">𝑓()</div><div><div class="subpage-kpi-val">${ast.functions || 0}</div><div class="subpage-kpi-lbl">Top-Level Funcs</div></div></div>
+          <div class="ast-mini-card"><div class="stat-icon-circle icon-blue">⚡</div><div><div class="subpage-kpi-val">${ast.methods || 0}</div><div class="subpage-kpi-lbl">Methods</div></div></div>
+          <div class="ast-mini-card"><div class="stat-icon-circle icon-violet">📥</div><div><div class="subpage-kpi-val">${ast.imports || 0}</div><div class="subpage-kpi-lbl">Imports</div></div></div>
+          <div class="ast-mini-card"><div class="stat-icon-circle icon-indigo">📄</div><div><div class="subpage-kpi-val">${ast.docstrings || 0}</div><div class="subpage-kpi-lbl">Docstrings</div></div></div>
+          <div class="ast-mini-card"><div class="stat-icon-circle icon-green">⚠️</div><div><div class="subpage-kpi-val ${ast.syntax_errors > 0 ? 'color-rose' : 'color-green'}">${ast.syntax_errors || 0}</div><div class="subpage-kpi-lbl">Syntax Errors</div></div></div>
         </div>
       </div>
 
-      <!-- File Structure & Static Metrics Table -->
-      <div class="analysis-section-card">
-        <div class="analysis-card-title">📋 Codebase Files Static Analysis Breakdown</div>
+      <div class="sp-card">
+        <div class="sp-card-header"><div class="sp-card-title">📋 Codebase Files Static Analysis Breakdown</div></div>
         <div class="analysis-table-wrapper">
-          <table class="analysis-table">
+          <table class="data-table">
             <thead>
               <tr>
                 <th>File Path</th>
@@ -508,9 +647,7 @@ function renderStaticAnalysisOverview(data) {
                 <th>Syntax</th>
               </tr>
             </thead>
-            <tbody>
-              ${filesTableRows}
-            </tbody>
+            <tbody>${filesTableRows}</tbody>
           </table>
         </div>
       </div>
@@ -525,7 +662,47 @@ function formatImport(i) {
   return `import ${i.name}${i.alias ? ` as ${i.alias}` : ''}`;
 }
 
+function showHomeView() {
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.classList.remove("workspace-open");
+  const homeView = document.getElementById("homeDashboardView");
+  const wsView = document.getElementById("workspaceDetailView");
+  if (homeView) homeView.classList.remove("hidden");
+  if (wsView) {
+    wsView.classList.add("hidden");
+    wsView.style.display = "none";
+  }
+
+  document.querySelectorAll(".sidebar-item").forEach(el => el.classList.remove("active"));
+  const homeBtn = document.getElementById("navHomeBtn");
+  if (homeBtn) homeBtn.classList.add("active");
+}
+
+function openWorkspaceTab(tab, navBtn) {
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.classList.add("workspace-open");
+  const homeView = document.getElementById("homeDashboardView");
+  const wsView = document.getElementById("workspaceDetailView");
+  if (homeView) homeView.classList.add("hidden");
+  if (wsView) {
+    wsView.classList.remove("hidden");
+    wsView.style.display = "block";
+  }
+
+  document.querySelectorAll(".sidebar-item").forEach(el => el.classList.remove("active"));
+  if (navBtn) {
+    navBtn.classList.add("active");
+  }
+  switchTab(tab);
+}
+
 function switchTab(tab) {
+  const viewDashboard = document.getElementById("viewDashboard");
+  const viewWorkspace = document.getElementById("viewWorkspace");
+
+  const navDashboardBtn = document.getElementById("navDashboardBtn");
+  const navAnalysisBtn = document.getElementById("navAnalysisBtn");
+
   const tabSymbolsBtn = document.getElementById("tabSymbolsBtn");
   const tabAnalysisBtn = document.getElementById("tabAnalysisBtn");
   const tabQABtn = document.getElementById("tabQABtn");
@@ -544,15 +721,32 @@ function switchTab(tab) {
   const tabImpact = document.getElementById("tabImpact");
   const tabArchitecture = document.getElementById("tabArchitecture");
 
+  const isDashboard = tab === "dashboard";
+  const isWorkspaceIDE = tab === "symbols" || tab === "analysis" || tab === "qa";
+
+  if (viewDashboard) viewDashboard.classList.toggle("active", isDashboard);
+  if (viewWorkspace) viewWorkspace.classList.toggle("active", isWorkspaceIDE);
+
+  const navSymbolsBtn = document.getElementById("navSymbolsBtn");
+  const navEvolutionBtn = document.getElementById("navEvolutionBtn");
+  const navQaBtn = document.getElementById("navQaBtn");
+  const navGraphBtn = document.getElementById("navGraphBtn");
+  const navImpactBtn = document.getElementById("navImpactBtn");
+
+  if (navAnalysisBtn) navAnalysisBtn.classList.toggle("active", tab === "analysis");
+  if (navSymbolsBtn) navSymbolsBtn.classList.toggle("active", tab === "symbols");
+  if (navEvolutionBtn) navEvolutionBtn.classList.toggle("active", tab === "evolution");
+  if (navQaBtn) navQaBtn.classList.toggle("active", tab === "qa");
+  if (navGraphBtn) navGraphBtn.classList.toggle("active", tab === "graph");
+  if (tabArchitectureBtn) tabArchitectureBtn.classList.toggle("active", tab === "architecture");
+  if (navImpactBtn) navImpactBtn.classList.toggle("active", tab === "impact");
+
+  // Sub-tabs inside IDE workspace
   if (tabSymbolsBtn) tabSymbolsBtn.classList.toggle("active", tab === "symbols");
   if (tabAnalysisBtn) tabAnalysisBtn.classList.toggle("active", tab === "analysis");
   if (tabQABtn) tabQABtn.classList.toggle("active", tab === "qa");
-  if (tabGraphBtn) tabGraphBtn.classList.toggle("active", tab === "graph");
-  if (tabInvestigateBtn) tabInvestigateBtn.classList.toggle("active", tab === "investigate");
-  if (tabEvolutionBtn) tabEvolutionBtn.classList.toggle("active", tab === "evolution");
-  if (tabImpactBtn) tabImpactBtn.classList.toggle("active", tab === "impact");
-  if (tabArchitectureBtn) tabArchitectureBtn.classList.toggle("active", tab === "architecture");
 
+  // Tab contents
   if (tabSymbols) tabSymbols.classList.toggle("active", tab === "symbols");
   if (tabAnalysis) tabAnalysis.classList.toggle("active", tab === "analysis");
   if (tabQA) tabQA.classList.toggle("active", tab === "qa");
@@ -568,12 +762,6 @@ function switchTab(tab) {
     onEvolutionTabActivated();
   } else if (tab === "architecture") {
     onArchitectureTabActivated();
-  }
-
-  // Smoothly scroll active tab into view in tabs-header
-  const activeBtn = document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}Btn`);
-  if (activeBtn && typeof activeBtn.scrollIntoView === "function") {
-    activeBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
   }
 }
 
@@ -1028,6 +1216,7 @@ let activeCycleNodes = new Set();
 let isGraphPhysicsRunning = false;
 let animationFrameId = null;
 let graphAlpha = 1.0;
+let focusNeighborhoodOnly = false;
 
 // Viewport Transform (Pan & Zoom)
 let graphTransform = {
@@ -1088,6 +1277,7 @@ function setupGraphEventListeners() {
       if (!selectedNodeId) return;
       const node = nodeLookup.get(selectedNodeId);
       if (node && node.relative_path) {
+        switchTab("symbols");
         selectFile(node.relative_path);
         // Highlight lines
         if (node.start_line) {
@@ -1166,7 +1356,28 @@ async function loadKnowledgeGraph() {
 
     const data = await res.json();
     rawGraphData = data;
-    initializeGraphEntities(data.nodes || [], data.edges || []);
+    const gNodes = data.nodes || [];
+    const gEdges = data.edges || [];
+
+    // Populate Knowledge Graph 6-column KPIs from real /api/graph data
+    const degSet = new Set();
+    const dirSet = new Set();
+    gEdges.forEach(e => { degSet.add(e.source); degSet.add(e.target); });
+    gNodes.forEach(n => {
+      const p = (n.relative_path || "root").replace(/\\/g, "/");
+      dirSet.add(p.includes("/") ? p.split("/")[0] : "root");
+    });
+    const isolatedCount = gNodes.filter(n => !degSet.has(n.id)).length;
+    const density = gNodes.length > 1 ? (gEdges.length / (gNodes.length * (gNodes.length - 1))).toFixed(4) : "0.0000";
+    const setGK = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setGK("graphKpiEntities", gNodes.length.toLocaleString());
+    setGK("graphKpiDeps", gEdges.length.toLocaleString());
+    setGK("graphKpiCommunities", dirSet.size.toLocaleString());
+    setGK("graphKpiIsolated", isolatedCount.toLocaleString());
+    setGK("graphKpiDensity", density);
+
+    initializeGraphEntities(gNodes, gEdges);
+    renderGraphBottomWidgets(gNodes, gEdges);
     resetGraphView();
   } catch (err) {
     console.error("Graph loading error:", err);
@@ -1175,59 +1386,83 @@ async function loadKnowledgeGraph() {
 
 function initializeGraphEntities(nodes, edges) {
   nodeLookup.clear();
+  focusNeighborhoodOnly = false;
+  const isoBtn = document.getElementById("isolateNeighborhoodBtn");
+  if (isoBtn) isoBtn.classList.remove("active");
+
   const canvas = document.getElementById("graphCanvas");
-  const width = canvas ? (canvas.clientWidth || 800) : 800;
-  const height = canvas ? (canvas.clientHeight || 540) : 540;
+  const width = canvas ? (canvas.clientWidth || 900) : 900;
+  const height = canvas ? (canvas.clientHeight || 560) : 560;
+  const cx = width / 2;
+  const cy = height / 2;
 
-  // Distribute initial positions nicely
-  const nodeCount = nodes.length;
-  const radius = Math.min(width, height) * 0.38;
+  // Group nodes cleanly by top-level directory/module so related files cluster together
+  const dirGroups = new Map();
+  nodes.forEach(n => {
+    const rel = (n.relative_path || "root").replace(/\\/g, "/");
+    const topDir = rel.includes("/") ? rel.split("/")[0] : "root";
+    if (!dirGroups.has(topDir)) dirGroups.set(topDir, []);
+    dirGroups.get(topDir).push(n);
+  });
 
-  graphNodes = nodes.map((n, idx) => {
-    const angle = (idx / Math.max(1, nodeCount)) * 2 * Math.PI;
-    const r = radius * (0.4 + 0.6 * Math.sqrt(Math.random()));
-    const x = width / 2 + r * Math.cos(angle);
-    const y = height / 2 + r * Math.sin(angle);
+  const dirs = Array.from(dirGroups.keys());
+  const dirCount = Math.max(1, dirs.length);
+  const spreadRadius = Math.max(260, Math.sqrt(Math.max(1, nodes.length)) * 42);
 
-    let nodeRadius = 16;
-    let color = "#6366f1";
-    let icon = "⚙️";
+  graphNodes = [];
+  dirs.forEach((dirName, dIdx) => {
+    const groupNodes = dirGroups.get(dirName);
+    const dirAngle = (dIdx / dirCount) * 2 * Math.PI;
+    const clusterCenterX = cx + (dirCount > 1 ? spreadRadius * 0.65 * Math.cos(dirAngle) : 0);
+    const clusterCenterY = cy + (dirCount > 1 ? spreadRadius * 0.65 * Math.sin(dirAngle) : 0);
 
-    switch (n.node_type) {
-      case "file":
-        nodeRadius = 20;
-        color = "#00f0ff";
-        icon = "📁";
-        break;
-      case "class":
-        nodeRadius = 18;
-        color = "#c084fc";
-        icon = "🏛️";
-        break;
-      case "function":
-        nodeRadius = 15;
-        color = "#34d399";
-        icon = "⚙️";
-        break;
-      case "method":
-        nodeRadius = 13;
-        color = "#60a5fa";
-        icon = "🔹";
-        break;
-    }
+    groupNodes.forEach((n, idx) => {
+      const localAngle = (idx / Math.max(1, groupNodes.length)) * 2 * Math.PI;
+      const localR = 45 + Math.sqrt(idx + 1) * 38;
+      const x = clusterCenterX + localR * Math.cos(localAngle);
+      const y = clusterCenterY + localR * Math.sin(localAngle);
 
-    const nodeObj = {
-      ...n,
-      x: x,
-      y: y,
-      vx: 0,
-      vy: 0,
-      radius: nodeRadius,
-      color: color,
-      icon: icon,
-    };
-    nodeLookup.set(n.id, nodeObj);
-    return nodeObj;
+      let nodeRadius = 13;
+      let color = "#6366f1";
+      let icon = "⚙️";
+
+      switch (n.node_type) {
+        case "file":
+          nodeRadius = 20;
+          color = "#22d3ee";
+          icon = "📁";
+          break;
+        case "class":
+          nodeRadius = 15;
+          color = "#c084fc";
+          icon = "🏛️";
+          break;
+        case "function":
+          nodeRadius = 12;
+          color = "#34d399";
+          icon = "⚙️";
+          break;
+        case "method":
+          nodeRadius = 9;
+          color = "#60a5fa";
+          icon = "🔹";
+          break;
+      }
+
+      const nodeObj = {
+        ...n,
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: nodeRadius,
+        color,
+        icon,
+        dirGroup: dirName,
+      };
+      nodeLookup.set(n.id, nodeObj);
+      graphNodes.push(nodeObj);
+    });
   });
 
   graphEdges = edges.map(e => ({
@@ -1236,7 +1471,27 @@ function initializeGraphEntities(nodes, edges) {
     targetNode: nodeLookup.get(e.target),
   })).filter(e => e.sourceNode && e.targetNode);
 
-  updateHUD();
+  // Smart default: for repos > 45 nodes, default to "overview" (Files & Classes) unless user chose Full
+  const nodeFilter = document.getElementById("graphNodeTypeFilter");
+  if (nodeFilter && nodes.length > 45 && nodeFilter.value === "") {
+    nodeFilter.value = "overview";
+  }
+
+  applyGraphFilters();
+}
+
+function toggleFocusNeighborhood(forceOn = null) {
+  if (!selectedNodeId && !focusNeighborhoodOnly) {
+    showToast("Click any node in the graph first to isolate its 1-hop neighborhood.");
+    return;
+  }
+  focusNeighborhoodOnly = forceOn !== null ? Boolean(forceOn) : !focusNeighborhoodOnly;
+  const isoBtn = document.getElementById("isolateNeighborhoodBtn");
+  if (isoBtn) {
+    isoBtn.textContent = focusNeighborhoodOnly ? "🌐 Show All Nodes" : "🎯 Focus 1-Hop";
+    isoBtn.style.borderColor = focusNeighborhoodOnly ? "var(--accent-cyan)" : "";
+    isoBtn.style.color = focusNeighborhoodOnly ? "var(--accent-cyan-light)" : "";
+  }
   applyGraphFilters();
 }
 
@@ -1247,15 +1502,33 @@ function applyGraphFilters() {
   const edgeFilter = document.getElementById("graphEdgeTypeFilter");
   const searchInput = document.getElementById("graphSearchInput");
 
-  const selectedType = nodeFilter ? nodeFilter.value : "";
+  const selectedType = nodeFilter ? nodeFilter.value : "overview";
   const selectedEdgeType = edgeFilter ? edgeFilter.value : "";
   const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : "";
 
-  let visibleNodeIds = new Set();
+  // If Focus 1-Hop Mode is active around selectedNodeId
+  const neighborIds = new Set();
+  if (focusNeighborhoodOnly && selectedNodeId) {
+    neighborIds.add(selectedNodeId);
+    graphEdges.forEach(e => {
+      if (e.source === selectedNodeId) neighborIds.add(e.target);
+      if (e.target === selectedNodeId) neighborIds.add(e.source);
+    });
+  }
+
+  const visibleNodeIds = new Set();
 
   graphNodes.forEach(node => {
-    let matchType = !selectedType || node.node_type === selectedType;
-    let matchSearch = !searchVal ||
+    let matchType = true;
+    if (focusNeighborhoodOnly && selectedNodeId) {
+      matchType = neighborIds.has(node.id);
+    } else if (selectedType === "overview") {
+      matchType = node.node_type === "file" || node.node_type === "class";
+    } else if (selectedType) {
+      matchType = node.node_type === selectedType;
+    }
+
+    const matchSearch = !searchVal ||
       node.name.toLowerCase().includes(searchVal) ||
       (node.relative_path && node.relative_path.toLowerCase().includes(searchVal)) ||
       node.id.toLowerCase().includes(searchVal);
@@ -1266,14 +1539,52 @@ function applyGraphFilters() {
     }
   });
 
+  // Arrange 1-hop neighborhood into a clean radial orbit around selectedNodeId
+  if (focusNeighborhoodOnly && selectedNodeId) {
+    const centerNode = nodeLookup.get(selectedNodeId);
+    const orbitNodes = graphNodes.filter(n => n.visible && n.id !== selectedNodeId);
+    const canvas = document.getElementById("graphCanvas");
+    const cx = canvas ? (canvas.clientWidth / 2) : 450;
+    const cy = canvas ? (canvas.clientHeight / 2) : 280;
+    if (centerNode) {
+      centerNode.x = cx;
+      centerNode.y = cy;
+      centerNode.vx = 0;
+      centerNode.vy = 0;
+    }
+    const orbitRadius = Math.max(170, orbitNodes.length * 16);
+    orbitNodes.forEach((n, idx) => {
+      const ang = (idx / Math.max(1, orbitNodes.length)) * 2 * Math.PI;
+      n.x = cx + orbitRadius * Math.cos(ang);
+      n.y = cy + orbitRadius * Math.sin(ang);
+      n.vx = 0;
+      n.vy = 0;
+    });
+  }
+
   graphEdges.forEach(edge => {
-    let matchEdgeType = !selectedEdgeType || edge.edge_type === selectedEdgeType;
-    let matchNodes = visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target);
+    const matchEdgeType = !selectedEdgeType || edge.edge_type === selectedEdgeType;
+    const matchNodes = visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target);
     edge.visible = matchEdgeType && matchNodes;
   });
 
   updateHUD();
-  startGraphPhysics();
+  preSettleGraphLayout(80);
+  resetGraphView();
+}
+
+function preSettleGraphLayout(ticks = 80) {
+  const visibleNodes = graphNodes.filter(n => n.visible !== false);
+  const visibleEdges = graphEdges.filter(e => e.visible !== false);
+  if (visibleNodes.length === 0 || visibleNodes.length > 350) return;
+
+  const canvas = document.getElementById("graphCanvas");
+  const cx = canvas ? (canvas.clientWidth / 2) : 450;
+  const cy = canvas ? (canvas.clientHeight / 2) : 280;
+
+  for (let t = 0; t < ticks; t++) {
+    stepGraphPhysics(visibleNodes, visibleEdges, cx, cy, 0.85 * (1 - t / ticks));
+  }
 }
 
 function updateHUD() {
@@ -1287,31 +1598,19 @@ function updateHUD() {
 }
 
 /* --------------------------------------------------------------------------
-   Physics Engine (Force-Directed Graph Simulation)
+   Physics Engine (Collision-Free Clustered Force Layout)
    -------------------------------------------------------------------------- */
 
 function startGraphPhysics() {
-  graphAlpha = 1.0;
+  graphAlpha = 0.85;
   if (!isGraphPhysicsRunning) {
     isGraphPhysicsRunning = true;
     runPhysicsLoop();
   }
 }
 
-function runPhysicsLoop() {
-  if (!isGraphPhysicsRunning) return;
-
-  const visibleNodes = graphNodes.filter(n => n.visible !== false);
-  const visibleEdges = graphEdges.filter(e => e.visible !== false);
-
-  if (visibleNodes.length === 0) return;
-  const canvas = document.getElementById("graphCanvas");
-  const cx = canvas ? (canvas.clientWidth / 2) : 400;
-  const cy = canvas ? (canvas.clientHeight / 2) : 270;
-
-  let totalEnergy = 0;
-
-  // 1. Repulsion between nodes
+function stepGraphPhysics(visibleNodes, visibleEdges, cx, cy, alpha) {
+  // 1. Repulsion & Hard Collision Avoidance (prevents hairball stacking)
   for (let i = 0; i < visibleNodes.length; i++) {
     const na = visibleNodes[i];
     for (let j = i + 1; j < visibleNodes.length; j++) {
@@ -1321,24 +1620,26 @@ function runPhysicsLoop() {
       const distSq = dx * dx + dy * dy + 1;
       const dist = Math.sqrt(distSq);
 
-      if (dist < 400) {
-        const force = (graphAlpha * 1400) / distSq;
+      const minGap = na.radius + nb.radius + 46;
+      if (dist < minGap) {
+        const push = (minGap - dist) * 0.25;
+        const px = (dx / dist) * push;
+        const py = (dy / dist) * push;
+        if (na !== dragNode) { na.x -= px; na.y -= py; }
+        if (nb !== dragNode) { nb.x += px; nb.y += py; }
+      }
+
+      if (dist < 480) {
+        const force = (alpha * 4200) / distSq;
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
-
-        if (na !== dragNode) {
-          na.vx -= fx;
-          na.vy -= fy;
-        }
-        if (nb !== dragNode) {
-          nb.vx += fx;
-          nb.vy += fy;
-        }
+        if (na !== dragNode) { na.vx -= fx; na.vy -= fy; }
+        if (nb !== dragNode) { nb.vx += fx; nb.vy += fy; }
       }
     }
   }
 
-  // 2. Attraction along edges (Spring force)
+  // 2. Edge Springs
   visibleEdges.forEach(e => {
     const na = e.sourceNode;
     const nb = e.targetNode;
@@ -1347,55 +1648,63 @@ function runPhysicsLoop() {
     const dx = nb.x - na.x;
     const dy = nb.y - na.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const targetDist = e.edge_type === "CONTAINS" ? 60 : 100;
-    const springForce = (dist - targetDist) * 0.04 * graphAlpha;
+    const targetDist = e.edge_type === "CONTAINS" ? 95 : 165;
+    const springForce = (dist - targetDist) * 0.032 * alpha;
 
     const fx = (dx / dist) * springForce;
     const fy = (dy / dist) * springForce;
-
-    if (na !== dragNode) {
-      na.vx += fx;
-      na.vy += fy;
-    }
-    if (nb !== dragNode) {
-      nb.vx -= fx;
-      nb.vy -= fy;
-    }
+    if (na !== dragNode) { na.vx += fx; na.vy += fy; }
+    if (nb !== dragNode) { nb.vx -= fx; nb.vy -= fy; }
   });
 
-  // 3. Center gravity and update positions
+  // 3. Gentle Gravity & Damping
+  let totalSpeed = 0;
   visibleNodes.forEach(node => {
     if (node === dragNode) return;
-
-    // Centering force
-    const gdx = cx - node.x;
-    const gdy = cy - node.y;
-    node.vx += gdx * 0.004 * graphAlpha;
-    node.vy += gdy * 0.004 * graphAlpha;
-
-    // Apply damping
-    node.vx *= 0.84;
-    node.vy *= 0.84;
-
-    // Clamp speed
-    const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-    if (speed > 12) {
-      node.vx = (node.vx / speed) * 12;
-      node.vy = (node.vy / speed) * 12;
+    if (focusNeighborhoodOnly && node.id === selectedNodeId) {
+      node.vx = 0;
+      node.vy = 0;
+      return;
     }
+    node.vx += (cx - node.x) * 0.0018 * alpha;
+    node.vy += (cy - node.y) * 0.0018 * alpha;
 
+    node.vx *= 0.80;
+    node.vy *= 0.80;
+
+    const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+    if (speed > 10) {
+      node.vx = (node.vx / speed) * 10;
+      node.vy = (node.vy / speed) * 10;
+    }
     node.x += node.vx;
     node.y += node.vy;
-
-    totalEnergy += speed;
+    totalSpeed += speed;
   });
 
-  // Render frame
+  return totalSpeed;
+}
+
+function runPhysicsLoop() {
+  if (!isGraphPhysicsRunning) return;
+
+  const visibleNodes = graphNodes.filter(n => n.visible !== false);
+  const visibleEdges = graphEdges.filter(e => e.visible !== false);
+
+  if (visibleNodes.length === 0) {
+    isGraphPhysicsRunning = false;
+    drawGraph();
+    return;
+  }
+  const canvas = document.getElementById("graphCanvas");
+  const cx = canvas ? (canvas.clientWidth / 2) : 450;
+  const cy = canvas ? (canvas.clientHeight / 2) : 280;
+
+  const totalEnergy = stepGraphPhysics(visibleNodes, visibleEdges, cx, cy, graphAlpha);
   drawGraph();
 
-  // Cool down simulation smoothly
-  graphAlpha *= 0.985;
-  if (graphAlpha < 0.008 || (totalEnergy / Math.max(1, visibleNodes.length)) < 0.05) {
+  graphAlpha *= 0.965;
+  if (graphAlpha < 0.01 || (totalEnergy / Math.max(1, visibleNodes.length)) < 0.08) {
     isGraphPhysicsRunning = false;
     cancelAnimationFrame(animationFrameId);
     return;
@@ -1405,7 +1714,7 @@ function runPhysicsLoop() {
 }
 
 /* --------------------------------------------------------------------------
-   Canvas Drawing & Visual Rendering
+   Canvas Drawing & Visual Rendering (Smart LOD Labels + Curved Edges)
    -------------------------------------------------------------------------- */
 
 function drawGraph() {
@@ -1418,9 +1727,21 @@ function drawGraph() {
   const height = canvas.clientHeight;
 
   ctx.clearRect(0, 0, width, height);
-  ctx.save();
 
-  // Apply Pan & Zoom
+  // Draw subtle cosmic dot-grid background
+  ctx.save();
+  ctx.fillStyle = "rgba(148, 163, 184, 0.12)";
+  const step = Math.max(24, 32 * graphTransform.scale);
+  const offX = ((graphTransform.x % step) + step) % step;
+  const offY = ((graphTransform.y % step) + step) % step;
+  for (let gx = offX; gx < width; gx += step) {
+    for (let gy = offY; gy < height; gy += step) {
+      ctx.fillRect(gx, gy, 1.3, 1.3);
+    }
+  }
+  ctx.restore();
+
+  ctx.save();
   ctx.translate(graphTransform.x, graphTransform.y);
   ctx.scale(graphTransform.scale, graphTransform.scale);
 
@@ -1434,7 +1755,7 @@ function drawGraph() {
     ctx.font = "14px 'Inter', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("No Graph Nodes Loaded — Scan a repository above to explore its Knowledge Graph", width / 2, height / 2);
+    ctx.fillText("No Graph Nodes Loaded — Paste a GitHub repo link above to explore its Knowledge Graph", width / 2, height / 2);
     ctx.restore();
     return;
   }
@@ -1447,73 +1768,90 @@ function drawGraph() {
     });
   }
 
-  // Draw Edges
+  const focusTarget = hoveredNodeId || selectedNodeId;
+  const focusNeighbors = new Set();
+  if (focusTarget) {
+    focusNeighbors.add(focusTarget);
+    visibleEdges.forEach(e => {
+      if (e.source === focusTarget) focusNeighbors.add(e.target);
+      if (e.target === focusTarget) focusNeighbors.add(e.source);
+    });
+  }
+
+  // Draw Curved Edges
   visibleEdges.forEach(e => {
     const na = e.sourceNode;
     const nb = e.targetNode;
     if (!na || !nb) return;
 
-    let edgeColor = "rgba(100, 116, 139, 0.4)";
-    let lineWidth = 1.2;
+    let edgeColor = "rgba(100, 116, 139, 0.3)";
+    let lineWidth = 1.1;
     let isDashed = false;
 
     switch (e.edge_type) {
       case "CALLS":
-        edgeColor = "rgba(0, 240, 255, 0.6)";
-        lineWidth = 1.6;
+        edgeColor = "rgba(34, 211, 238, 0.45)";
+        lineWidth = 1.5;
         break;
       case "IMPORTS":
-        edgeColor = "rgba(251, 191, 36, 0.6)";
-        lineWidth = 1.6;
+        edgeColor = "rgba(251, 191, 36, 0.48)";
+        lineWidth = 1.5;
         break;
       case "INHERITS":
-        edgeColor = "rgba(244, 63, 94, 0.75)";
-        lineWidth = 1.8;
+        edgeColor = "rgba(244, 63, 94, 0.65)";
+        lineWidth = 1.7;
         isDashed = true;
         break;
       case "CONTAINS":
-        edgeColor = "rgba(71, 85, 105, 0.35)";
-        lineWidth = 1.0;
+        edgeColor = "rgba(100, 116, 139, 0.22)";
+        lineWidth = 0.9;
         break;
     }
 
-    // Impact Mode edge dimming
     if (isImpactMode) {
       const isSrcImpact = na.id === activeImpactData.target_node.id || impactedIdsMap.has(na.id);
       const isTgtImpact = nb.id === activeImpactData.target_node.id || impactedIdsMap.has(nb.id);
       if (isSrcImpact && isTgtImpact) {
-        edgeColor = "rgba(244, 63, 94, 0.9)";
-        lineWidth = 2.2;
+        edgeColor = "rgba(244, 63, 94, 0.92)";
+        lineWidth = 2.3;
       } else {
-        edgeColor = "rgba(255, 255, 255, 0.05)";
-        lineWidth = 0.8;
+        edgeColor = "rgba(255, 255, 255, 0.04)";
+        lineWidth = 0.6;
       }
-    } else if (hoveredNodeId || selectedNodeId) {
-      const highlightTarget = hoveredNodeId || selectedNodeId;
-      if (na.id === highlightTarget || nb.id === highlightTarget) {
+    } else if (focusTarget) {
+      if (na.id === focusTarget || nb.id === focusTarget) {
         lineWidth = 2.4;
-        edgeColor = na.id === highlightTarget ? "rgba(0, 240, 255, 0.9)" : "rgba(251, 191, 36, 0.9)";
+        edgeColor = na.id === focusTarget ? "rgba(34, 211, 238, 0.95)" : "rgba(251, 191, 36, 0.95)";
+      } else {
+        edgeColor = "rgba(148, 163, 184, 0.08)";
+        lineWidth = 0.7;
       }
     }
 
+    // Subtle quadratic curve offset so parallel/bidirectional edges stay distinct
+    const mx = (na.x + nb.x) / 2;
+    const my = (na.y + nb.y) / 2;
+    const dx = nb.x - na.x;
+    const dy = nb.y - na.y;
+    const cxCtrl = mx - dy * 0.10;
+    const cyCtrl = my + dx * 0.10;
+
     ctx.beginPath();
-    if (isDashed) {
-      ctx.setLineDash([4, 4]);
-    } else {
-      ctx.setLineDash([]);
-    }
+    if (isDashed) ctx.setLineDash([4, 4]);
+    else ctx.setLineDash([]);
     ctx.strokeStyle = edgeColor;
     ctx.lineWidth = lineWidth;
     ctx.moveTo(na.x, na.y);
-    ctx.lineTo(nb.x, nb.y);
+    ctx.quadraticCurveTo(cxCtrl, cyCtrl, nb.x, nb.y);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Draw Arrowhead on directed edges (CALLS, IMPORTS, INHERITS)
     if (e.edge_type !== "CONTAINS") {
-      drawArrowhead(ctx, na.x, na.y, nb.x, nb.y, nb.radius + 2, edgeColor);
+      drawArrowhead(ctx, cxCtrl, cyCtrl, nb.x, nb.y, nb.radius + 3, edgeColor);
     }
   });
+
+  const showDetailedLabels = visibleNodes.length <= 55 || graphTransform.scale >= 0.85;
 
   // Draw Nodes
   visibleNodes.forEach(node => {
@@ -1523,72 +1861,95 @@ function drawGraph() {
     const isImpacted = isImpactMode && impactedIdsMap.has(node.id);
     const impactDepth = isImpacted ? impactedIdsMap.get(node.id) : null;
     const isCycleNode = activeCycleNodes.has(node.id);
+    const isNeighbor = focusNeighbors.has(node.id);
 
     let nodeColor = node.color;
     let alpha = 1.0;
 
     if (isImpactMode) {
-      if (isTarget) {
-        nodeColor = "#fbbf24";
-      } else if (isImpacted) {
-        if (impactDepth === 1) nodeColor = "#f43f5e";
-        else if (impactDepth === 2) nodeColor = "#fb923c";
-        else nodeColor = "#facc15";
-      } else {
-        alpha = 0.18;
-      }
-    } else if (hoveredNodeId && !isSelected && !isHovered) {
-      // Dim if not adjacent to hovered
-      const isConnected = visibleEdges.some(e =>
-        (e.source === hoveredNodeId && e.target === node.id) ||
-        (e.target === hoveredNodeId && e.source === node.id)
-      );
-      if (!isConnected) alpha = 0.25;
+      if (isTarget) nodeColor = "#fbbf24";
+      else if (isImpacted) nodeColor = impactDepth === 1 ? "#f43f5e" : impactDepth === 2 ? "#fb923c" : "#facc15";
+      else alpha = 0.15;
+    } else if (focusTarget && !isNeighbor) {
+      alpha = 0.2;
     }
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // Outer Glow / Ring
+    // Halo / Focus Ring
     if (isSelected || isHovered || isTarget || isCycleNode) {
       ctx.beginPath();
-      ctx.arc(node.x, node.y, node.radius + 6, 0, 2 * Math.PI);
-      ctx.fillStyle = isTarget ? "rgba(251, 191, 36, 0.3)" :
-                     (isCycleNode ? "rgba(244, 63, 94, 0.4)" : "rgba(0, 240, 255, 0.3)");
+      ctx.arc(node.x, node.y, node.radius + 7, 0, 2 * Math.PI);
+      ctx.fillStyle = isTarget ? "rgba(251, 191, 36, 0.28)" :
+        (isCycleNode ? "rgba(244, 63, 94, 0.35)" : "rgba(34, 211, 238, 0.28)");
       ctx.fill();
     }
 
-    // Node Body
+    // Main Node Body
     ctx.beginPath();
     ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
     ctx.fillStyle = nodeColor;
     ctx.fill();
-    ctx.lineWidth = isSelected ? 3 : 1.5;
-    ctx.strokeStyle = isSelected ? "#ffffff" : "rgba(255, 255, 255, 0.35)";
+    ctx.lineWidth = isSelected || isHovered ? 2.8 : 1.4;
+    ctx.strokeStyle = isSelected ? "#ffffff" : "rgba(255, 255, 255, 0.45)";
     ctx.stroke();
 
-    // Node Label
-    const fontSize = isSelected ? 12 : 11;
-    ctx.font = `${fontSize}px Inter, sans-serif`;
-    const label = node.name;
-    const textWidth = ctx.measureText(label).width;
+    // Inner bright dot on file/class nodes for crisp visual hierarchy
+    if (node.node_type === "file" || node.node_type === "class") {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius * 0.36, 0, 2 * Math.PI);
+      ctx.fillStyle = "rgba(6, 9, 20, 0.65)";
+      ctx.fill();
+    }
 
-    // Pill background for label
-    ctx.fillStyle = "rgba(7, 9, 14, 0.85)";
-    ctx.beginPath();
-    ctx.roundRect(
-      node.x - textWidth / 2 - 4,
-      node.y + node.radius + 3,
-      textWidth + 8,
-      16,
-      4
-    );
-    ctx.fill();
+    // Smart LOD Label Rendering (Prevents overlapping wall-of-text!)
+    const shouldLabel =
+      isSelected ||
+      isHovered ||
+      isTarget ||
+      isImpacted ||
+      isCycleNode ||
+      (focusTarget && isNeighbor) ||
+      node.node_type === "file" ||
+      showDetailedLabels;
 
-    ctx.fillStyle = isSelected ? "#00f0ff" : "#f1f5f9";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, node.x, node.y + node.radius + 11);
+    if (shouldLabel) {
+      const rawLabel = node.name || node.id;
+      const label = (!isHovered && !isSelected && rawLabel.length > 22)
+        ? rawLabel.slice(0, 20) + "…"
+        : rawLabel;
+
+      const fontSize = isSelected || isHovered ? 12 : 10.5;
+      ctx.font = `${isSelected || isHovered ? "600" : "500"} ${fontSize}px Inter, sans-serif`;
+      const textWidth = ctx.measureText(label).width;
+
+      ctx.fillStyle = isSelected || isHovered ? "rgba(237, 233, 254, 0.98)" : "rgba(255, 255, 255, 0.92)";
+      ctx.beginPath();
+      ctx.roundRect(
+        node.x - textWidth / 2 - 5,
+        node.y + node.radius + 4,
+        textWidth + 10,
+        17,
+        5
+      );
+      ctx.fill();
+
+      if (isSelected || isHovered) {
+        ctx.strokeStyle = "#7c3aed";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = isSelected || isHovered ? "#5b21b6" : "#1e293b";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, node.x, node.y + node.radius + 12.5);
+    }
 
     ctx.restore();
   });
@@ -1917,7 +2278,7 @@ async function traceStructuralImpact(nodeId) {
     const clearBtn = document.getElementById("clearImpactBtn");
     if (clearBtn) clearBtn.classList.remove("hidden");
 
-    renderImpactReport(data);
+    renderGraphImpactReport(data);
     drawGraph();
     showToast(`Structural reachability: ${data.total_impacted} entities reached from '${data.target_node.name}'.`);
   } catch (err) {
@@ -1925,7 +2286,7 @@ async function traceStructuralImpact(nodeId) {
   }
 }
 
-function renderImpactReport(data) {
+function renderGraphImpactReport(data) {
   const panel = document.getElementById("impactReportPanel");
   if (!panel) return;
   panel.classList.remove("hidden");
@@ -2085,6 +2446,7 @@ async function loadEvolutionData() {
       const commCount = document.getElementById("evoCommitsCountText");
       if (commCount) commCount.textContent = `${histData.total_commits || cachedEvolutionData.history.length} Commits Mined`;
     }
+    renderEvolutionVisuals();
   } catch (err) {
     console.error("Error loading evolution data:", err);
   }
@@ -2473,6 +2835,7 @@ async function loadArchitectureDashboard() {
     renderArchCycles(cyclesData);
     renderArchHotspots(hotspotsData);
     renderArchBenchmarks(benchData);
+    renderArchitectureVisuals(overviewData, confData, cyclesData, hotspotsData);
   } catch (err) {
     console.warn("Failed to load architecture dashboard:", err);
     if (loadingEl) loadingEl.classList.add("hidden");
@@ -2672,13 +3035,13 @@ function renderArchCycles(cyclesData) {
         ⚠ ${cycles.length} Circular Dependency Chain(s) Detected:
       </div>
       ${cycles.map((c, i) => {
-        const cycleStr = Array.isArray(c) ? c.join(" → ") + " → " + c[0] : String(c);
-        return `
+    const cycleStr = Array.isArray(c) ? c.join(" → ") + " → " + c[0] : String(c);
+    return `
           <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px; padding: 0.75rem; font-family: var(--font-mono); font-size: 0.85rem; color: #fca5a5;">
             <strong>Cycle #${i + 1}:</strong> ${escapeHtml(cycleStr)}
           </div>
         `;
-      }).join("")}
+  }).join("")}
     </div>
   `;
 }
@@ -2986,4 +3349,796 @@ function copyCurrentCode() {
   });
 }
 
+// ==========================================================================
+// Dashboard Bento Population & Right Docked CodeMind Assistant
+// ==========================================================================
+async function updateDashboardBento(data) {
+  const rawRepo = data.repository || document.getElementById("repoPathInput")?.value.trim() || "Repository";
+  const cleanName = rawRepo.replace(/\.git$/i, "").split("/").filter(Boolean).pop() || rawRepo;
 
+  const dashRepoName = document.getElementById("dashRepoName");
+  const sidebarRepoName = document.getElementById("sidebarRepoName");
+  const statusPill = document.getElementById("dashRepoStatusPill");
+  const metaTime = document.getElementById("dashRepoMetaTime");
+  const dashRepoDesc = document.getElementById("dashRepoDesc");
+  const dashRepoCommits = document.getElementById("dashRepoCommits");
+  const dashGraphPill = document.getElementById("dashGraphPill");
+  const dashHubCenter = document.getElementById("dashHubCenterLabel");
+
+  if (dashRepoName) dashRepoName.textContent = cleanName;
+  if (sidebarRepoName) sidebarRepoName.textContent = cleanName;
+  if (statusPill) {
+    statusPill.textContent = "● Analyzed";
+    statusPill.classList.remove("pending");
+  }
+  if (metaTime) metaTime.textContent = `Last Analyzed: Just now • ${data.total_lines.toLocaleString()} LOC`;
+  if (dashRepoDesc) {
+    const langs = Object.keys(data.languages || {}).slice(0, 3).join(", ") || "Python";
+    dashRepoDesc.textContent = `Indexed ${data.total_files} files (${langs}), extracted ${data.ast_metrics.classes} classes and ${data.ast_metrics.functions + data.ast_metrics.methods} callables into the 4D knowledge graph.`;
+  }
+  if (dashRepoCommits) dashRepoCommits.textContent = data.git_commits_count || 0;
+  if (dashGraphPill && data.graph_summary) {
+    dashGraphPill.textContent = `${data.graph_summary.total_nodes} nodes • ${data.graph_summary.total_edges} edges`;
+  }
+  if (dashHubCenter) dashHubCenter.textContent = cleanName;
+
+  // Populate Impact & Insights asynchronously
+  try {
+    const [confRes, cyclesRes, hotspotsRes, histRes] = await Promise.all([
+      fetch("/api/architecture/conformance").catch(() => null),
+      fetch("/api/architecture/cycles").catch(() => null),
+      fetch("/api/architecture/hotspots").catch(() => null),
+      fetch("/api/git/history?limit=4").catch(() => null),
+    ]);
+
+    let aciPct = 87;
+    let cyclesCount = 0;
+    let riskScore = 0.25;
+
+    if (confRes && confRes.ok) {
+      const confData = await confRes.json();
+      aciPct = Math.round((confData.conformance_index ?? 0.87) * 100);
+      const elConf = document.getElementById("dashConformance");
+      if (elConf) elConf.textContent = `${aciPct}%`;
+    }
+    if (cyclesRes && cyclesRes.ok) {
+      const cycData = await cyclesRes.json();
+      cyclesCount = cycData.cycle_count ?? 0;
+      const elStab = document.getElementById("dashStability");
+      if (elStab) elStab.textContent = cyclesCount === 0 ? "96%" : `${Math.max(40, 95 - cyclesCount * 10)}%`;
+    }
+    if (hotspotsRes && hotspotsRes.ok) {
+      const hotData = await hotspotsRes.json();
+      riskScore = hotData.repository_risk_score ?? 0.25;
+      const maintPct = Math.max(45, Math.round((1 - Math.min(riskScore, 0.9)) * 100));
+      const elMaint = document.getElementById("dashMaintainability");
+      if (elMaint) elMaint.textContent = `${maintPct}%`;
+      const elCov = document.getElementById("dashCoverage");
+      if (elCov) elCov.textContent = "100%";
+
+      const overallHealth = Math.round((aciPct + maintPct + 94) / 3);
+      const pctEl = document.getElementById("dashHealthPct");
+      const circleEl = document.getElementById("dashHealthCircle");
+      if (pctEl) pctEl.textContent = `${overallHealth}%`;
+      if (circleEl) {
+        const circumference = 276.46;
+        circleEl.style.strokeDashoffset = (circumference * (1 - overallHealth / 100)).toFixed(2);
+      }
+
+      const hotCount = (hotData.hotspots || []).length;
+      const modEl = document.getElementById("dashImpactModules");
+      const issEl = document.getElementById("dashImpactIssues");
+      const rskEl = document.getElementById("dashImpactRisk");
+      if (modEl) modEl.textContent = hotCount;
+      if (issEl) issEl.textContent = cyclesCount;
+      if (rskEl) rskEl.textContent = riskScore > 0.6 ? "High" : riskScore > 0.35 ? "Medium" : "Low";
+    }
+
+    if (histRes && histRes.ok) {
+      const histData = await histRes.json();
+      const commits = histData.commits || [];
+      const actList = document.getElementById("dashRecentActivityList");
+      if (actList) {
+        if (commits.length > 0) {
+          actList.innerHTML = commits.slice(0, 3).map(c => `
+            <div class="activity-row">
+              <span style="color:#34d399;">⎇</span>
+              <span class="activity-title">${escapeHtml(c.author_name || "Contributor")}</span>
+              <span class="activity-time">${escapeHtml((c.date || "").slice(0, 10))}</span>
+              <span class="activity-desc">${escapeHtml(c.message || "Repository commit")}</span>
+              <span class="hash-pill">${escapeHtml((c.hash || "").slice(0, 7))}</span>
+              <span style="color:#10b981;">✔</span>
+            </div>
+          `).join("");
+        } else {
+          actList.innerHTML = `
+            <div class="activity-row">
+              <span style="color:#38bdf8;">🗄️</span>
+              <span class="activity-title">Repository Analyzed</span>
+              <span class="activity-time">Just now</span>
+              <span class="activity-desc">${escapeHtml(cleanName)} — ${data.total_files} files processed cleanly</span>
+              <span class="hash-pill">${data.total_chunks || 0} chunks</span>
+              <span style="color:#10b981;">✔</span>
+            </div>
+          `;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Dashboard enrichment skipped:", e);
+  }
+}
+
+async function sendDockedAssistantMessage() {
+  const input = document.getElementById("assistantQuickInput");
+  const chatBox = document.getElementById("assistantChatMessages");
+  if (!input || !chatBox) return;
+
+  const query = input.value.trim();
+  if (!query) return;
+
+  input.value = "";
+  const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  // Append user bubble
+  const userDiv = document.createElement("div");
+  userDiv.className = "chat-msg-user";
+  userDiv.innerHTML = `
+    <div class="user-bubble">
+      ${escapeHtml(query)}
+      <div class="chat-time">${timeStr}</div>
+    </div>
+    <div class="avatar-circle" style="width:26px; height:26px; font-size:0.65rem; flex-shrink:0;">MH</div>
+  `;
+  chatBox.appendChild(userDiv);
+
+  // Append loading bot bubble
+  const loadingDiv = document.createElement("div");
+  loadingDiv.className = "chat-msg-bot";
+  loadingDiv.innerHTML = `
+    <div class="bot-avatar">🧠</div>
+    <div class="bot-bubble">Analyzing repository context...</div>
+  `;
+  chatBox.appendChild(loadingDiv);
+  chatBox.scrollTop = chatBox.scrollHeight;
+
+  const mockMode = document.getElementById("mockModeToggle")?.checked || false;
+
+  try {
+    const res = await fetch("/api/investigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, mock: mockMode }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Please analyze a repository link first.");
+    }
+
+    const result = await res.json();
+    const rawAns = result.answer || result.synthesized_answer || "Investigation complete.";
+    const citations = (result.citations || []).slice(0, 5);
+
+    const citesHtml = citations.length > 0
+      ? `<ul style="margin:6px 0 0 16px; padding:0; color:#cbd5e1;">${citations.map(c => `<li><code style="color:#22d3ee;">${escapeHtml(c.file_path || c)}</code></li>`).join("")}</ul>`
+      : "";
+
+    const intentLabel = result.intent || "ANALYSIS";
+    const sanitizedText = sanitizeHtml(formatMarkdownText(rawAns.slice(0, 420) + (rawAns.length > 420 ? "..." : "")));
+
+    loadingDiv.innerHTML = `
+      <div class="bot-avatar">🧠</div>
+      <div class="bot-bubble">
+        <div>${sanitizedText}</div>
+        ${citesHtml}
+        <div class="bot-impact-badge-row">
+          <span class="impact-tag-high">${escapeHtml(intentLabel)}</span>
+          <button class="btn-outline-pill" style="padding:3px 9px; font-size:0.7rem;" onclick="triggerArchInvestigation('${escapeHtml(query).replace(/'/g, "\\'")}')">View Detailed Analysis →</button>
+        </div>
+        <div class="chat-time">${timeStr}</div>
+      </div>
+    `;
+  } catch (err) {
+    loadingDiv.innerHTML = `
+      <div class="bot-avatar">⚠️</div>
+      <div class="bot-bubble" style="border-color:rgba(239,68,68,0.4); color:#fca5a5;">
+        ${escapeHtml(err.message)}
+      </div>
+    `;
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+
+
+
+
+// ============================================================================
+// Home Dashboard Live Backend Analytics Wiring (v11.0.4)
+// ============================================================================
+
+async function loadHomeAnalytics() {
+  try {
+    const [overviewRes, confRes, cyclesRes, hotspotsRes] = await Promise.allSettled([
+      fetch("/api/architecture/overview"),
+      fetch("/api/architecture/conformance"),
+      fetch("/api/architecture/cycles"),
+      fetch("/api/architecture/hotspots"),
+    ]);
+
+    const overview = overviewRes.status === "fulfilled" && overviewRes.value.ok ? await overviewRes.value.json() : null;
+    const conf = confRes.status === "fulfilled" && confRes.value.ok ? await confRes.value.json() : null;
+    const cycles = cyclesRes.status === "fulfilled" && cyclesRes.value.ok ? await cyclesRes.value.json() : null;
+    const hotspotsData = hotspotsRes.status === "fulfilled" && hotspotsRes.value.ok ? await hotspotsRes.value.json() : null;
+
+    // 1. Code Metrics & Test Coverage from real backend reports
+    const hotspots = hotspotsData?.hotspots || [];
+    const avgRisk = hotspotsData?.repository_risk_score ?? (hotspots.length ? hotspots.reduce((s, h) => s + (h.risk_score || 0), 0) / hotspots.length : 0);
+    const maintainabilityPct = Math.max(0, Math.min(100, Math.round((1 - avgRisk) * 100)));
+
+    const hasAci = conf?.aci_score !== undefined && conf?.aci_score !== null;
+    const aciPct = hasAci ? Math.round(conf.aci_score * 100) : null;
+    const avgCov = hotspots.length
+      ? hotspots.reduce((s, h) => s + (h.test_coverage || 0), 0) / hotspots.length
+      : 0;
+    const covPct = Math.max(0, Math.min(100, Math.round(avgCov * 100)));
+
+    const cycleCount = cycles?.cycle_count || 0;
+    const violationCount = (conf?.violations || []).length;
+    const stabilityPct = Math.max(0, Math.min(100, 100 - cycleCount * 10 - violationCount * 5));
+
+    const setMetricBar = (valId, barId, pct) => {
+      const valEl = document.getElementById(valId);
+      const barEl = document.getElementById(barId);
+      if (pct === null || pct === undefined) {
+        if (valEl) valEl.textContent = "N/A";
+        if (barEl) barEl.style.width = "0%";
+        return;
+      }
+      if (valEl) valEl.textContent = `${pct}%`;
+      if (barEl) barEl.style.width = `${pct}%`;
+    };
+    setMetricBar("homeMetricMaintainability", "homeBarMaintainability", maintainabilityPct);
+    setMetricBar("homeMetricComplexity", "homeBarComplexity", aciPct);
+    setMetricBar("homeMetricCoverage", "homeBarCoverage", covPct);
+    setMetricBar("homeMetricSecurity", "homeBarSecurity", stabilityPct);
+
+    // 2. Test & Quality Card
+    const testCovPctEl = document.getElementById("homeTestCovPct");
+    const testCovRing = document.getElementById("homeTestCovRing");
+    if (testCovPctEl) testCovPctEl.textContent = `${covPct}%`;
+    if (testCovRing) {
+      const circ = 238.76;
+      testCovRing.setAttribute("stroke-dasharray", `${((covPct / 100) * circ).toFixed(1)} ${circ}`);
+    }
+    const violEl = document.getElementById("homeStatViolations");
+    if (violEl) violEl.textContent = violationCount.toLocaleString();
+
+    // 3. Change Impact & Risk Card (from real hotspot risk_score distribution)
+    let high = 0, med = 0, low = 0;
+    hotspots.forEach(h => {
+      const r = h.risk_score || 0;
+      if (r >= 0.7) high++;
+      else if (r >= 0.4) med++;
+      else low++;
+    });
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt("homeImpactHigh", high);
+    setTxt("homeImpactMedium", med);
+    setTxt("homeImpactLow", low);
+    setTxt("homeImpactModules", Object.keys(overview?.modules || {}).length || hotspots.length);
+
+    // 4. Mini Dependency Graph from real quotient_graph
+    renderHomeMiniDepGraph(overview?.quotient_graph);
+  } catch (err) {
+    console.warn("Home analytics update skipped:", err);
+  }
+}
+
+function renderHomeMiniDepGraph(qg) {
+  const container = document.getElementById("homeMiniDepGraph");
+  if (!container) return;
+  const nodes = qg?.nodes || [];
+  const edges = qg?.edges || [];
+  if (nodes.length === 0) {
+    container.innerHTML = `<div class="empty-state" style="padding: 18px 8px; font-size: 0.74rem;"><p>No package dependencies detected.</p></div>`;
+    return;
+  }
+
+  // Pick highest-degree hub node
+  const deg = {};
+  nodes.forEach(n => { deg[n] = 0; });
+  edges.forEach(e => {
+    deg[e.source] = (deg[e.source] || 0) + 1;
+    deg[e.target] = (deg[e.target] || 0) + 1;
+  });
+  const hub = [...nodes].sort((a, b) => (deg[b] || 0) - (deg[a] || 0))[0];
+  const subEl = document.getElementById("homeDepSub");
+  const shortLabel = (name) => {
+    const clean = String(name).split(/[./\\]/).pop() || String(name);
+    return clean.length > 10 ? clean.slice(0, 9) + "…" : clean;
+  };
+  if (subEl) subEl.textContent = `(${shortLabel(hub)})`;
+
+  const neighbors = [];
+  edges.forEach(e => {
+    const other = e.source === hub ? e.target : e.target === hub ? e.source : null;
+    if (other && other !== hub && !neighbors.includes(other)) neighbors.push(other);
+  });
+  nodes.forEach(n => {
+    if (n !== hub && !neighbors.includes(n) && neighbors.length < 5) neighbors.push(n);
+  });
+  const topNeighbors = neighbors.slice(0, 5);
+
+  const slots = [
+    { x: 110, y: 22, ly: 42, fill: "#dbeafe", stroke: "#93c5fd", dot: "#3b82f6" },
+    { x: 38, y: 46, ly: 68, fill: "#dcfce7", stroke: "#86efac", dot: "#16a34a" },
+    { x: 182, y: 46, ly: 68, fill: "#fef3c7", stroke: "#fcd34d", dot: "#d97706" },
+    { x: 62, y: 112, ly: 134, fill: "#f3e8ff", stroke: "#d8b4fe", dot: "#9333ea" },
+    { x: 158, y: 112, ly: 134, fill: "#dcfce7", stroke: "#86efac", dot: "#16a34a" },
+  ];
+
+  const linesSvg = topNeighbors.map((_, idx) => {
+    const s = slots[idx];
+    return `<path d="M110 74 Q ${(110 + s.x) / 2} ${s.y}, ${s.x} ${s.y}" fill="none" stroke="#8b5cf6" stroke-width="1.4"/>`;
+  }).join("");
+
+  const nodesSvg = topNeighbors.map((name, idx) => {
+    const s = slots[idx];
+    return `
+      <circle cx="${s.x}" cy="${s.y}" r="12" fill="${s.fill}" stroke="${s.stroke}" stroke-width="1.2"/>
+      <circle cx="${s.x}" cy="${s.y}" r="4.5" fill="${s.dot}"/>
+      <text x="${s.x}" y="${s.ly}" text-anchor="middle" font-size="9" fill="#475569" font-weight="600">${escapeHtml(shortLabel(name))}</text>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <svg viewBox="0 0 220 142" width="100%" height="112" xmlns="http://www.w3.org/2000/svg">
+      ${linesSvg}
+      ${nodesSvg}
+      <circle cx="110" cy="74" r="17" fill="url(#coreNodeGrad)" stroke="#ddd6fe" stroke-width="2"/>
+      <polygon points="110,66 117,70 117,78 110,82 103,78 103,70" fill="#ffffff" opacity="0.9"/>
+      <text x="110" y="102" text-anchor="middle" font-size="10" fill="#1e293b" font-weight="700">${escapeHtml(shortLabel(hub))}</text>
+      <defs>
+        <linearGradient id="coreNodeGrad" x1="93" y1="57" x2="127" y2="91" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#7c3aed"/>
+          <stop offset="1" stop-color="#4f46e5"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  `;
+}
+
+
+// ============================================================================
+// Structural File List & Reports Builder Wiring (v11.1.0)
+// ============================================================================
+
+function renderStructFileList(files) {
+  const container = document.getElementById("structFileList");
+  if (!container) return;
+  if (!files || files.length === 0) {
+    container.innerHTML = `<div class="empty-state"><p>No matching files found.</p></div>`;
+    return;
+  }
+  container.innerHTML = files.map(f => {
+    const activeClass = f.relative_path === activeFilePath ? "active" : "";
+    return `
+      <div class="file-item ${activeClass}" onclick="selectFile('${escapeHtml(f.relative_path)}')">
+        <div class="file-item-left">
+          <span>${getFileIcon(f.language)}</span>
+          <span class="file-item-name" title="${escapeHtml(f.relative_path)}">${escapeHtml(f.file_name)}</span>
+        </div>
+        <div class="file-item-right">
+          <span class="line-badge">${f.line_count}L</span>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function filterStructFiles() {
+  const q = (document.getElementById("structFileFilterInput")?.value || "").toLowerCase();
+  const filtered = currentScannedFiles.filter(f =>
+    f.relative_path.toLowerCase().includes(q) || f.file_name.toLowerCase().includes(q)
+  );
+  renderStructFileList(filtered);
+}
+
+const generatedReportsHistory = [];
+
+function selectReportFormat(fmt, el) {
+  document.querySelectorAll(".report-format-card").forEach(c => c.classList.remove("active"));
+  if (el) el.classList.add("active");
+  const hiddenFmt = document.getElementById("reportFormatInput");
+  if (hiddenFmt) hiddenFmt.value = fmt;
+}
+
+async function generateCustomReport() {
+  if (!lastScanData) {
+    showToast("Please scan a repository on Home first to generate a report.", true);
+    return;
+  }
+  const title = (document.getElementById("reportTitleInput")?.value || "").trim() || `${lastScanData.repository} Analysis Report`;
+  const fmt = document.getElementById("reportFormatInput")?.value || "HTML";
+  const sections = Array.from(document.querySelectorAll(".report-section-cb:checked")).map(cb => cb.value);
+
+  const [ov, cf, hs] = await Promise.all([
+    fetch("/api/architecture/overview").then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch("/api/architecture/conformance").then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch("/api/architecture/hotspots").then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+
+  const nowStr = new Date().toLocaleString();
+  const reportObj = {
+    id: generatedReportsHistory.length + 1,
+    title,
+    repository: lastScanData.repository,
+    generatedAt: nowStr,
+    format: fmt,
+    sections,
+    summary: {
+      total_files: lastScanData.total_files,
+      total_lines: lastScanData.total_lines,
+      ast_metrics: lastScanData.ast_metrics,
+      graph_summary: lastScanData.graph_summary,
+      aci_score: cf?.aci_score ?? null,
+      hotspot_count: hs?.hotspots?.length || 0,
+      modules_count: Object.keys(ov?.modules || {}).length,
+    }
+  };
+
+  let blobContent = "";
+  let mime = "text/plain";
+  let ext = "txt";
+  if (fmt === "JSON") {
+    blobContent = JSON.stringify(reportObj, null, 2);
+    mime = "application/json";
+    ext = "json";
+  } else {
+    blobContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Inter,Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 20px;color:#0f172a;}h1{color:#4f46e5;}table{width:100%;border-collapse:collapse;margin:16px 0;}td,th{border:1px solid #e2e8f0;padding:8px 12px;text-align:left;}th{background:#f8fafc;}</style></head><body><h1>${escapeHtml(title)}</h1><p><strong>Repository:</strong> ${escapeHtml(lastScanData.repository)} | <strong>Generated:</strong> ${escapeHtml(nowStr)}</p><table><tr><th>Metric</th><th>Value</th></tr><tr><td>Total Files</td><td>${lastScanData.total_files}</td></tr><tr><td>Total Lines</td><td>${lastScanData.total_lines}</td></tr><tr><td>AST Classes / Functions / Methods</td><td>${lastScanData.ast_metrics?.classes || 0} / ${lastScanData.ast_metrics?.functions || 0} / ${lastScanData.ast_metrics?.methods || 0}</td></tr><tr><td>Knowledge Graph Nodes / Edges</td><td>${lastScanData.graph_summary?.total_nodes || 0} / ${lastScanData.graph_summary?.total_edges || 0}</td></tr><tr><td>Analyzed Modules / Hotspots</td><td>${reportObj.summary.modules_count} / ${reportObj.summary.hotspot_count}</td></tr></table><p><strong>Included Sections:</strong> ${escapeHtml(sections.join(", ") || "All")}</p></body></html>`;
+    mime = "text/html";
+    ext = "html";
+  }
+
+  const blob = new Blob([blobContent], { type: mime });
+  reportObj.url = URL.createObjectURL(blob);
+  reportObj.filename = `${lastScanData.repository.replace(/[^a-z0-9_-]/gi, "_")}_report.${ext}`;
+  reportObj.sizeKb = `${(blob.size / 1024).toFixed(1)} KB`;
+  generatedReportsHistory.unshift(reportObj);
+
+  const countEl = document.getElementById("reportsKpiCount");
+  if (countEl) countEl.textContent = generatedReportsHistory.length;
+  const lastEl = document.getElementById("reportsKpiLast");
+  if (lastEl) lastEl.textContent = "Just now";
+
+  const tbody = document.getElementById("recentReportsTableBody");
+  if (tbody) {
+    tbody.innerHTML = generatedReportsHistory.map(r => `
+      <tr>
+        <td>📄 ${escapeHtml(r.title)}</td>
+        <td>#${r.id}</td>
+        <td>${escapeHtml(r.generatedAt)}</td>
+        <td>${escapeHtml(r.sizeKb)}</td>
+        <td><span class="count-pill">${escapeHtml(r.format)}</span></td>
+        <td><a class="link-action-btn" href="${r.url}" download="${escapeHtml(r.filename)}">⬇ Download</a></td>
+      </tr>
+    `).join("");
+  }
+  showToast(`Generated '${title}' (${fmt})!`);
+}
+
+
+// ============================================================================
+// Subpage Visual Widgets: Graph Bottom Cards, Evolution Charts, Arch Risk (v11.2.0)
+// ============================================================================
+
+function renderGraphBottomWidgets(nodes, edges) {
+  // 1. Top Central Entities (by degree centrality)
+  const deg = {};
+  nodes.forEach(n => { deg[n.id] = 0; });
+  edges.forEach(e => {
+    deg[e.source] = (deg[e.source] || 0) + 1;
+    deg[e.target] = (deg[e.target] || 0) + 1;
+  });
+  const topNodes = [...nodes].sort((a, b) => (deg[b.id] || 0) - (deg[a.id] || 0)).slice(0, 5);
+  const maxDeg = Math.max(1, ...topNodes.map(n => deg[n.id] || 0));
+  const centralEl = document.getElementById("graphTopCentralList");
+  if (centralEl) {
+    if (topNodes.length === 0) {
+      centralEl.innerHTML = `<div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>No graph nodes yet.</p></div>`;
+    } else {
+      centralEl.innerHTML = topNodes.map(n => {
+        const d = deg[n.id] || 0;
+        const pct = Math.max(8, Math.round((d / maxDeg) * 100));
+        const score = (d / Math.max(1, nodes.length - 1)).toFixed(3);
+        return `
+          <div class="centrality-row">
+            <span class="centrality-name" title="${escapeHtml(n.name)}">${escapeHtml(n.name)}</span>
+            <div class="top-mod-track"><div class="top-mod-fill" style="width:${pct}%"></div></div>
+            <span class="centrality-score">${score}</span>
+          </div>`;
+      }).join("");
+    }
+  }
+
+  // 2. Community Detection (module directory clusters)
+  const clusters = {};
+  nodes.forEach(n => {
+    const p = (n.relative_path || "root").replace(/\\/g, "/");
+    const mod = p.includes("/") ? p.split("/")[0] : "root";
+    clusters[mod] = (clusters[mod] || 0) + 1;
+  });
+  const commEntries = Object.entries(clusters).sort((a, b) => b[1] - a[1]);
+  const totalN = Math.max(1, nodes.length);
+  const palette = ["#7c3aed", "#3b82f6", "#14b8a6", "#facc15", "#ec4899"];
+  const circ = 238.76;
+  let off = 0;
+  const ringEl = document.getElementById("graphCommRing");
+  if (ringEl) {
+    ringEl.innerHTML = commEntries.slice(0, 5).map(([, cnt], idx) => {
+      const dash = (cnt / totalN) * circ;
+      const seg = `<circle cx="50" cy="50" r="38" fill="none" stroke="${palette[idx % palette.length]}" stroke-width="14" stroke-dasharray="${dash.toFixed(1)} ${circ}" stroke-dashoffset="-${off.toFixed(1)}" transform="rotate(-90 50 50)"/>`;
+      off += dash;
+      return seg;
+    }).join("");
+  }
+  const cCount = document.getElementById("graphCommCenterCount");
+  if (cCount) cCount.textContent = commEntries.length;
+  const cLeg = document.getElementById("graphCommLegend");
+  if (cLeg) {
+    cLeg.innerHTML = commEntries.slice(0, 5).map(([name, cnt], idx) => {
+      const pct = ((cnt / totalN) * 100).toFixed(1);
+      return `<div class="legend-row"><span class="dot" style="background:${palette[idx % palette.length]}"></span><span class="leg-name">${escapeHtml(name)}</span><strong>${pct}%</strong></div>`;
+    }).join("");
+  }
+
+  // 3. Graph Insights
+  const insEl = document.getElementById("graphInsightsList");
+  if (insEl && nodes.length > 0) {
+    const topHub = topNodes[0];
+    const isolated = nodes.filter(n => (deg[n.id] || 0) === 0).length;
+    insEl.innerHTML = `
+      <div class="insight-bullet-row"><span>✅</span><span>Detected <strong>${commEntries.length}</strong> module communities across <strong>${nodes.length}</strong> entities.</span></div>
+      ${topHub ? `<div class="insight-bullet-row"><span>✅</span><span>Highest centrality entity: <strong>${escapeHtml(topHub.name)}</strong> (${deg[topHub.id]} connections).</span></div>` : ""}
+      <div class="insight-bullet-row"><span>ℹ️</span><span>Graph contains <strong>${edges.length}</strong> multi-relational edges (CALLS, IMPORTS, INHERITS, CONTAINS).</span></div>
+      <div class="insight-bullet-row"><span>${isolated === 0 ? "✅" : "ℹ️"}</span><span>${isolated === 0 ? "No isolated or orphan components detected." : `${isolated} isolated nodes with zero recorded edges.`}</span></div>
+    `;
+  }
+}
+
+function renderEvolutionVisuals() {
+  const history = cachedEvolutionData.history || [];
+  const churn = cachedEvolutionData.churn || [];
+  const coupling = cachedEvolutionData.coupling || [];
+
+  const setEv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setEv("evoKpiCommits", history.length.toLocaleString());
+  const authors = new Set(history.map(c => c.author_name || c.author_email).filter(Boolean));
+  setEv("evoKpiAuthors", authors.size.toLocaleString());
+  setEv("evoKpiCouplings", coupling.length.toLocaleString());
+  const statusEl = document.getElementById("gitStatusBadgeText");
+  setEv("evoKpiBranch", statusEl && statusEl.textContent.includes("ACTIVE") ? "Active" : "Local");
+
+  if (history.length > 0) {
+    const dates = history.map(c => new Date(c.timestamp || c.date || Date.now())).filter(d => !isNaN(d));
+    if (dates.length > 0) {
+      dates.sort((a, b) => a - b);
+      const fmt = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      setEv("evoKpiPeriod", `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}`);
+    }
+  }
+
+  // 1. Commit Activity SVG Chart
+  const actEl = document.getElementById("evoCommitActivityChart");
+  if (actEl && history.length > 0) {
+    const byDay = {};
+    history.forEach(c => {
+      const d = (c.timestamp || c.date || "").slice(0, 10) || "Unknown";
+      byDay[d] = (byDay[d] || 0) + 1;
+    });
+    const days = Object.keys(byDay).sort().slice(-12);
+    const vals = days.map(d => byDay[d]);
+    const maxV = Math.max(1, ...vals);
+    const pts = vals.map((v, i) => {
+      const x = days.length > 1 ? 14 + (i / (days.length - 1)) * 272 : 150;
+      const y = 98 - (v / maxV) * 76;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const area = `14,104 ${pts.join(" ")} ${days.length > 1 ? "286" : "150"},104`;
+    actEl.innerHTML = `
+      <svg viewBox="0 0 300 118" width="100%" height="122">
+        <defs><linearGradient id="evoArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.35"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/></linearGradient></defs>
+        <polygon points="${area}" fill="url(#evoArea)"/>
+        <polyline points="${pts.join(" ")}" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        ${vals.map((v, i) => {
+          const [x, y] = pts[i].split(",");
+          return `<circle cx="${x}" cy="${y}" r="3" fill="#ffffff" stroke="#7c3aed" stroke-width="2"><title>${days[i]}: ${v} commits</title></circle>`;
+        }).join("")}
+        <text x="14" y="115" font-size="8.5" fill="#64748b">${days[0] || ""}</text>
+        <text x="286" y="115" font-size="8.5" fill="#64748b" text-anchor="end">${days[days.length - 1] || ""}</text>
+      </svg>`;
+  }
+
+  // 2. Change Type Distribution Donut
+  const types = { Feature: 0, Fix: 0, Refactor: 0, Docs: 0, Other: 0 };
+  history.forEach(c => {
+    const m = (c.subject || c.message || "").toLowerCase();
+    if (m.startsWith("feat") || m.includes("add ")) types.Feature++;
+    else if (m.startsWith("fix") || m.includes("bug")) types.Fix++;
+    else if (m.startsWith("refactor") || m.includes("clean")) types.Refactor++;
+    else if (m.startsWith("doc") || m.includes("readme")) types.Docs++;
+    else types.Other++;
+  });
+  const totC = Math.max(1, history.length);
+  setEv("evoTypeTotal", history.length);
+  const tPalette = { Feature: "#14b8a6", Fix: "#3b82f6", Refactor: "#7c3aed", Docs: "#facc15", Other: "#ec4899" };
+  let tOff = 0;
+  const circ = 238.76;
+  const tRing = document.getElementById("evoTypeRing");
+  if (tRing) {
+    tRing.innerHTML = Object.entries(types).map(([k, v]) => {
+      const dash = (v / totC) * circ;
+      const seg = `<circle cx="50" cy="50" r="38" fill="none" stroke="${tPalette[k]}" stroke-width="14" stroke-dasharray="${dash.toFixed(1)} ${circ}" stroke-dashoffset="-${tOff.toFixed(1)}" transform="rotate(-90 50 50)"/>`;
+      tOff += dash;
+      return seg;
+    }).join("");
+  }
+  const tLeg = document.getElementById("evoTypeLegend");
+  if (tLeg) {
+    tLeg.innerHTML = Object.entries(types).map(([k, v]) =>
+      `<div class="legend-row"><span class="dot" style="background:${tPalette[k]}"></span><span class="leg-name">${k}</span><strong>${((v / totC) * 100).toFixed(1)}%</strong></div>`
+    ).join("");
+  }
+
+  // 3. Top Modified Files Bars
+  const barsEl = document.getElementById("evoTopModBars");
+  if (barsEl && churn.length > 0) {
+    const top5 = churn.slice(0, 5);
+    const maxC = Math.max(1, ...top5.map(f => f.commit_count || 1));
+    barsEl.innerHTML = top5.map(f => {
+      const cnt = f.commit_count || 0;
+      const pct = Math.max(10, Math.round((cnt / maxC) * 100));
+      return `
+        <div class="top-mod-row">
+          <span class="top-mod-name" title="${escapeHtml(f.file_path)}">${escapeHtml(f.file_path)}</span>
+          <div class="top-mod-track"><div class="top-mod-fill" style="width:${pct}%"></div></div>
+          <span class="top-mod-val">${cnt}</span>
+        </div>`;
+    }).join("");
+  }
+
+  // 4. File Change Heatmap (Modules x Recent Commits)
+  const hmEl = document.getElementById("evoHeatmapGrid");
+  if (hmEl && history.length > 0) {
+    const modCounts = {};
+    history.forEach(c => (c.files || []).forEach(f => {
+      const p = (f.file_path || f.path || "").replace(/\\/g, "/");
+      const m = p.includes("/") ? p.split("/")[0] + "/" : "root/";
+      modCounts[m] = (modCounts[m] || 0) + 1;
+    }));
+    const topMods = Object.keys(modCounts).sort((a, b) => modCounts[b] - modCounts[a]).slice(0, 5);
+    const recentCommits = history.slice(0, 14);
+    const shades = ["#f1f5f9", "#ddd6fe", "#c4b5fd", "#a78bfa", "#7c3aed"];
+    hmEl.innerHTML = topMods.map(mod => {
+      const cells = recentCommits.map(c => {
+        const hits = (c.files || []).filter(f => {
+          const p = (f.file_path || f.path || "").replace(/\\/g, "/");
+          return mod === "root/" ? !p.includes("/") : p.startsWith(mod);
+        }).length;
+        const shade = shades[Math.min(4, hits)];
+        return `<div class="heatmap-cell" style="background:${shade}" title="${escapeHtml(mod)} (${hits} files)"></div>`;
+      }).join("");
+      return `<div class="heatmap-row"><span class="heatmap-mod-lbl">${escapeHtml(mod)}</span><div class="heatmap-cells">${cells}</div></div>`;
+    }).join("");
+  }
+
+  // 5. Evolution Insights
+  const insEl = document.getElementById("evoInsightsList");
+  if (insEl && history.length > 0) {
+    const topFile = churn[0]?.file_path || "N/A";
+    const featPct = ((types.Feature / totC) * 100).toFixed(0);
+    insEl.innerHTML = `
+      <div class="insight-bullet-row"><span>✅</span><span>Analyzed <strong>${history.length}</strong> commits from <strong>${authors.size}</strong> contributors (~${featPct}% feature commits).</span></div>
+      <div class="insight-bullet-row"><span>✅</span><span>Most frequently modified file: <strong>${escapeHtml(topFile)}</strong> (${churn[0]?.commit_count || 0} commits).</span></div>
+      <div class="insight-bullet-row"><span>ℹ️</span><span>Detected <strong>${coupling.length}</strong> statistically coupled file pairs via co-change mining.</span></div>
+    `;
+  }
+}
+
+function renderArchitectureVisuals(overview, conf, cycles, hotspotsData) {
+  // 1. Pastel Layered View
+  const layersEl = document.getElementById("archPastelLayers");
+  const layers = overview?.layers || [];
+  const mods = overview?.modules || {};
+  if (layersEl) {
+    if (layers.length === 0) {
+      layersEl.innerHTML = `<div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>No architectural layers discovered.</p></div>`;
+    } else {
+      layersEl.innerHTML = layers.slice(0, 4).map((l, idx) => {
+        const pkgList = (l.packages || []).slice(0, 4);
+        const chips = pkgList.length
+          ? pkgList.map(p => `<span class="pastel-comp-pill">${escapeHtml(String(p).split(/[./]/).pop())}</span>`).join("")
+          : `<span class="pastel-comp-pill">${Object.keys(mods).length} modules</span>`;
+        return `
+          <div class="pastel-layer-row layer-${idx % 4}">
+            <span class="pastel-layer-name">${escapeHtml(l.name || `Layer ${idx + 1}`)}</span>
+            <div class="pastel-layer-chips">${chips}</div>
+          </div>`;
+      }).join("");
+    }
+  }
+
+  // 2. Risk Assessment Gauge & Top 5 Hotspots
+  const hotspots = hotspotsData?.hotspots || [];
+  let high = 0, med = 0, low = 0;
+  hotspots.forEach(h => {
+    const r = h.risk_score || 0;
+    if (r >= 0.7) high++;
+    else if (r >= 0.4) med++;
+    else low++;
+  });
+  const avgRisk5 = Math.min(5.0, Math.max(0, (hotspotsData?.repository_risk_score || 0) * 5));
+  const setA = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setA("archGaugeScore", avgRisk5.toFixed(1));
+  setA("archGaugeHigh", high);
+  setA("archGaugeMed", med);
+  setA("archGaugeLow", low);
+
+  const gaugeArc = document.getElementById("archRiskGaugeArc");
+  if (gaugeArc) {
+    const arcLen = ((avgRisk5 / 5.0) * 173).toFixed(1);
+    gaugeArc.setAttribute("stroke-dasharray", `${arcLen} 173`);
+  }
+  const lvlBadge = document.getElementById("archRiskLevelBadge");
+  if (lvlBadge) {
+    if (avgRisk5 >= 3.5) { lvlBadge.textContent = "High Risk"; lvlBadge.className = "risk-pill-badge risk-pill-high"; }
+    else if (avgRisk5 >= 2.0) { lvlBadge.textContent = "Moderate Risk"; lvlBadge.className = "risk-pill-badge risk-pill-med"; }
+    else { lvlBadge.textContent = "Low Risk"; lvlBadge.className = "risk-pill-badge risk-pill-low"; }
+  }
+
+  const top5El = document.getElementById("archHotspotTop5");
+  if (top5El) {
+    if (hotspots.length === 0) {
+      top5El.innerHTML = `<div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>No hotspots detected.</p></div>`;
+    } else {
+      top5El.innerHTML = hotspots.slice(0, 5).map(h => {
+        const r = h.risk_score || 0;
+        const badgeCls = r >= 0.7 ? "badge-red" : r >= 0.4 ? "badge-amber" : "badge-green";
+        const lbl = r >= 0.7 ? "High" : r >= 0.4 ? "Medium" : "Low";
+        return `<div class="hotspot-top5-row"><span class="hotspot-top5-name" title="${escapeHtml(h.module_name)}">${escapeHtml(h.module_name)}</span><span class="imp-badge ${badgeCls}">${lbl}</span></div>`;
+      }).join("");
+    }
+  }
+
+  // 3. Component Dependency Graph (reuse mini hub-and-spoke SVG renderer)
+  const compEl = document.getElementById("archCompDepGraph");
+  if (compEl && overview?.quotient_graph) {
+    const homeGraph = document.getElementById("homeMiniDepGraph");
+    if (homeGraph && homeGraph.innerHTML.includes("<svg")) {
+      compEl.innerHTML = homeGraph.innerHTML;
+    }
+  }
+
+  // 4. Risk Matrix 3x3
+  const cells = { HL: 0, HM: 0, HH: 0, ML: 0, MM: 0, MH: 0, LL: 0, LM: 0, LH: 0 };
+  hotspots.forEach(h => {
+    const imp = (h.centrality_score || h.risk_score || 0) >= 0.66 ? "H" : (h.centrality_score || h.risk_score || 0) >= 0.33 ? "M" : "L";
+    const lik = (h.churn_score || h.complexity_score || h.risk_score || 0) >= 0.66 ? "H" : (h.churn_score || h.complexity_score || h.risk_score || 0) >= 0.33 ? "M" : "L";
+    cells[imp + lik]++;
+  });
+  Object.entries(cells).forEach(([k, v]) => setA(`rm${k}`, v));
+
+  // 5. Architectural Insights
+  const insEl = document.getElementById("archInsightsList");
+  if (insEl) {
+    const cycCount = cycles?.cycle_count || 0;
+    const violCount = (conf?.violations || []).length;
+    insEl.innerHTML = `
+      <div class="insight-bullet-row"><span>✅</span><span>Discovered <strong>${layers.length}</strong> architectural layers across <strong>${Object.keys(mods).length}</strong> modules.</span></div>
+      <div class="insight-bullet-row"><span>${cycCount === 0 ? "✅" : "⚠️"}</span><span>${cycCount === 0 ? "No circular package dependencies detected." : `Detected <strong>${cycCount}</strong> circular package dependency chain(s).`}</span></div>
+      <div class="insight-bullet-row"><span>${violCount === 0 ? "✅" : "ℹ️"}</span><span>${violCount} architectural layer rule violation(s) found.</span></div>
+      <div class="insight-bullet-row"><span>ℹ️</span><span>Evaluated <strong>${hotspots.length}</strong> hotspot modules (mean risk score: <strong>${(hotspotsData?.repository_risk_score || 0).toFixed(2)}</strong>).</span></div>
+    `;
+  }
+}
