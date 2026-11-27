@@ -26,7 +26,7 @@
       </div>
       <div class="milestone-badge">
         <span class="badge-dot"></span>
-        <span>Phase 7 Active: Git Temporal Intelligence</span>
+        <span>Phases 1–10 Active · Production Baseline</span>
       </div>
     </div>
 
@@ -70,28 +70,32 @@
     <section class="control-panel glass-card">
       <div class="repo-input-group">
         <label for="repoPathInput" class="input-label">
-          <span>Repository Source</span>
-          <span class="input-hint">(Local Folder Path, .ZIP Archive, or Git Clone URL)</span>
+          <span>📁 Repository:</span>
         </label>
         <div class="input-with-action">
-          <span class="input-icon">📁</span>
           <input
             type="text"
             id="repoPathInput"
             class="glow-input"
             value="."
-            placeholder="Enter local folder path (e.g. .), .zip archive, or Git clone URL (e.g. https://github.com/...)"
+            placeholder="Enter local folder path (e.g. .), .zip archive, or Git clone URL..."
           />
-          <button id="scanBtn" class="btn btn-primary">
+          <button id="scanBtn" class="btn btn-primary" title="Scan and index codebase (Ctrl+Enter)">
             <span class="btn-spinner hidden" id="scanSpinner"></span>
             <span class="btn-icon" id="scanIcon">⚡</span>
-            <span class="btn-text" id="scanText">Scan & Analyze Codebase</span>
+            <span class="btn-text" id="scanText">Scan Codebase</span>
           </button>
+        </div>
+        <div class="preset-chips-row">
+          <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">Presets:</span>
+          <span class="preset-chip" onclick="document.getElementById('repoPathInput').value='.'; document.getElementById('scanBtn').click();">. (Current)</span>
+          <span class="preset-chip" onclick="document.getElementById('repoPathInput').value='eval_repos/ResilienceOS'; document.getElementById('scanBtn').click();">ResilienceOS</span>
+          <span class="preset-chip" onclick="document.getElementById('repoPathInput').value='eval_repos/requests'; document.getElementById('scanBtn').click();">requests</span>
         </div>
       </div>
 
       <div class="options-group">
-        <label class="toggle-control">
+        <label class="toggle-control" title="Use deterministic offline mock embeddings and mock LLM reasoning">
           <input type="checkbox" id="mockModeToggle">
           <span class="toggle-slider"></span>
           <span class="toggle-label">Offline / Mock LLM Mode</span>
@@ -164,7 +168,10 @@
           <div class="panel-title">
             <span>📁</span> File Explorer
           </div>
-          <span class="count-pill" id="fileCountPill">0 files</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="count-pill" id="fileCountPill">0 files</span>
+            <button class="panel-action-btn" id="toggleFileExplorerBtn" onclick="toggleFileExplorer()" title="Collapse File Explorer">◀</button>
+          </div>
         </div>
         <div class="search-box">
           <input type="text" id="fileFilterInput" class="compact-input" placeholder="Filter files by name or path...">
@@ -974,7 +981,11 @@
           <div class="panel-title" id="codeViewerTitle">
             <span>📄</span> Source Code Viewer
           </div>
-          <span class="code-line-badge" id="codeLineSpanBadge">No file selected</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="code-line-badge" id="codeLineSpanBadge">No file selected</span>
+            <button class="panel-action-btn" id="copyCodeBtn" onclick="copyCurrentCode()" title="Copy Source Code">📋 Copy</button>
+            <button class="panel-action-btn" id="toggleCodeViewerBtn" onclick="toggleCodeViewer()" title="Collapse Code Viewer">▶</button>
+          </div>
         </div>
 
         <div class="code-viewer-container" id="codeViewerContainer">

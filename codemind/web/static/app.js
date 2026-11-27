@@ -2938,3 +2938,52 @@ function triggerArchInvestigation(query) {
   }
 }
 
+// ==========================================================================
+// Modern Workspace Layout Helpers: Collapsible Panes & Clipboard Copy
+// ==========================================================================
+function toggleFileExplorer() {
+  const panel = document.querySelector(".file-explorer-panel");
+  const btn = document.getElementById("toggleFileExplorerBtn");
+  const grid = document.querySelector(".workspace-grid");
+  if (!panel || !grid) return;
+  panel.classList.toggle("collapsed");
+  const isCollapsed = panel.classList.contains("collapsed");
+  if (btn) btn.textContent = isCollapsed ? "▶" : "◀";
+  updateWorkspaceGrid(grid);
+}
+
+function toggleCodeViewer() {
+  const panel = document.querySelector(".code-viewer-panel");
+  const btn = document.getElementById("toggleCodeViewerBtn");
+  const grid = document.querySelector(".workspace-grid");
+  if (!panel || !grid) return;
+  panel.classList.toggle("collapsed");
+  const isCollapsed = panel.classList.contains("collapsed");
+  if (btn) btn.textContent = isCollapsed ? "◀" : "▶";
+  updateWorkspaceGrid(grid);
+}
+
+function updateWorkspaceGrid(grid) {
+  const leftCol = document.querySelector(".file-explorer-panel")?.classList.contains("collapsed");
+  const rightCol = document.querySelector(".code-viewer-panel")?.classList.contains("collapsed");
+  const leftW = leftCol ? "48px" : "280px";
+  const rightW = rightCol ? "48px" : "380px";
+  grid.style.gridTemplateColumns = `${leftW} 1fr ${rightW}`;
+}
+
+function copyCurrentCode() {
+  const container = document.getElementById("codeViewerContainer");
+  if (!container) return;
+  const lines = Array.from(container.querySelectorAll(".line-text")).map(el => el.textContent).join("\n");
+  if (!lines || lines.trim().length === 0) {
+    showToast("No active file selected to copy.", true);
+    return;
+  }
+  navigator.clipboard.writeText(lines).then(() => {
+    showToast("Source code copied to clipboard!");
+  }).catch(() => {
+    showToast("Failed to copy code to clipboard.", true);
+  });
+}
+
+
