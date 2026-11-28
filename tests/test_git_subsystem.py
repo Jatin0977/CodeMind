@@ -117,9 +117,11 @@ class TestGitSubsystem(unittest.TestCase):
     def test_command_timeout_handling(self):
         """Commands exceeding the timeout threshold raise GitTimeoutError."""
         self._init_git_repo()
-        client = GitClient(self.repo_path, default_timeout_seconds=0.00001)
-        with self.assertRaises(GitTimeoutError):
-            client.run_command(["log"], timeout=0.00001)
+        client = GitClient(self.repo_path, default_timeout_seconds=0.001)
+        from unittest.mock import patch
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=["git"], timeout=0.001)):
+            with self.assertRaises(GitTimeoutError):
+                client.run_command(["log"], timeout=0.001)
 
     def test_command_failure_raises_git_command_error(self):
         """Non-zero exit codes raise GitCommandError with sanitized message."""

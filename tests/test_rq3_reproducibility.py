@@ -30,11 +30,15 @@ def normalize_canonical_path(path: str, repo_root: str = "eval_repos/ResilienceO
             norm = abs_p[len(abs_repo) + 1:]
     except Exception:
         pass
+    # Handle Windows/POSIX repo root prefixes reliably across OS runners
+    lower_norm = norm.lower()
+    for prefix in ["eval_repos/resilienceos/", "eval_repos/resilienceos"]:
+        idx = lower_norm.find(prefix)
+        if idx != -1:
+            norm = norm[idx + len(prefix):].lstrip("/")
+            break
     while norm.startswith("./"):
         norm = norm[2:]
-    for prefix in ["eval_repos/resilienceos/", "eval_repos/resilienceos"]:
-        if norm.lower().startswith(prefix):
-            norm = norm[len(prefix):].lstrip("/")
     return norm.strip("/").lower()
 
 
