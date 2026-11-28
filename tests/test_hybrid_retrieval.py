@@ -462,7 +462,7 @@ def notify_user(order_id: str) -> bool:
         from codemind.graph.builder import KnowledgeGraphBuilder
         from pathlib import Path
 
-        root = Path(__file__).resolve().parent.parent / "CodeMind"
+        root = Path(__file__).resolve().parent.parent / "codemind"
         loader = RepositoryLoader()
         repo = loader.load_repository(str(root))
         parsed = {sf.relative_path: GLOBAL_PARSER_FACTORY.parse(sf) for sf in repo.files if GLOBAL_PARSER_FACTORY.parse(sf)}
@@ -490,7 +490,7 @@ def notify_user(order_id: str) -> bool:
         from codemind.graph.builder import KnowledgeGraphBuilder
         from pathlib import Path
 
-        root = Path(__file__).resolve().parent.parent / "CodeMind"
+        root = Path(__file__).resolve().parent.parent / "codemind"
         loader = RepositoryLoader()
         repo = loader.load_repository(str(root))
         parsed = {sf.relative_path: GLOBAL_PARSER_FACTORY.parse(sf) for sf in repo.files if GLOBAL_PARSER_FACTORY.parse(sf)}

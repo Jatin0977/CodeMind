@@ -20,16 +20,16 @@ if str(root_dir) not in sys.path:
 
 import tests.conftest
 
-from CodeMind.ingestion.repo_loader import RepositoryLoader
-from CodeMind.parsing.parser_factory import GLOBAL_PARSER_FACTORY
-from CodeMind.chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
-from CodeMind.graph.builder import KnowledgeGraphBuilder
-from CodeMind.graph.query import GraphQueryEngine
-from CodeMind.graph.models import EdgeType
-from CodeMind.retrieval.retriever import SemanticRetriever
-from CodeMind.retrieval.hybrid_retriever import HybridGraphRetriever, classify_query_intent
-from CodeMind.rag.engine import RAGEngine
-from CodeMind.rag.providers.factory import get_llm_provider
+from codemind.ingestion.repo_loader import RepositoryLoader
+from codemind.parsing.parser_factory import GLOBAL_PARSER_FACTORY
+from codemind.chunking.chunker_factory import GLOBAL_CHUNKER_FACTORY
+from codemind.graph.builder import KnowledgeGraphBuilder
+from codemind.graph.query import GraphQueryEngine
+from codemind.graph.models import EdgeType
+from codemind.retrieval.retriever import SemanticRetriever
+from codemind.retrieval.hybrid_retriever import HybridGraphRetriever, classify_query_intent
+from codemind.rag.engine import RAGEngine
+from codemind.rag.providers.factory import get_llm_provider
 
 
 CORRECTED_BENCHMARK_QUERIES = [
@@ -80,7 +80,7 @@ def run_benchmark():
     # 1. Ingest repository
     print("\n[Step 1] Ingesting CodeMind production repository...")
     loader = RepositoryLoader()
-    repo = loader.load_repository(str(root_dir / "CodeMind"))
+    repo = loader.load_repository(str(root_dir / "codemind"))
     print(f"Loaded {repo.summary.total_files} files ({repo.summary.total_lines} lines).")
 
     # 2. Parse & Chunk
