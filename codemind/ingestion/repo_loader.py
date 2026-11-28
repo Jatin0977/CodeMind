@@ -71,7 +71,7 @@ class RepositoryLoader:
         try:
             logger.info(f"Cloning remote repository {git_url} to {temp_dir}...")
             result = subprocess.run(
-                ["git", "clone", "--depth", "50", git_url, temp_dir],
+                ["git", "clone", "--depth", "50", "--single-branch", "--no-tags", git_url, temp_dir],
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -120,7 +120,9 @@ class RepositoryLoader:
             for file_name in sorted(files):
                 file_path = root_path / file_name
 
-                should_ignore, reason = self.file_filter.should_ignore_file(file_path, root_path=path_obj)
+                should_ignore, reason = self.file_filter.should_ignore_file(
+                    file_path, root_path=path_obj, skip_parent_check=True
+                )
                 if should_ignore:
                     rel_path_str = str(file_path.relative_to(path_obj)).replace("\\", "/")
                     summary.skipped_count += 1

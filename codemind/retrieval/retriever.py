@@ -3,6 +3,7 @@ Semantic retriever coordinating embedding generation and vector store search.
 """
 
 import logging
+import threading
 from typing import List, Optional, Dict, Any
 
 from ..chunking.models import CodeChunk
@@ -28,6 +29,10 @@ class SemanticRetriever:
         self.embedding_provider = embedding_provider or get_embedding_provider()
         self.vector_store = vector_store or get_vector_store()
         self._all_chunks: List[CodeChunk] = []
+        self._index_lock = threading.Lock()
+        self._index_done_event = threading.Event()
+        self._index_done_event.set()
+        self._index_generation = 0
 
     @property
     def chunks(self) -> List[CodeChunk]:
@@ -71,6 +76,50 @@ class SemanticRetriever:
         logger.info(f"Successfully indexed {len(chunks)} chunks in vector store.")
         return len(chunks)
 
+    def index_chunks_background(self, chunks: List[CodeChunk]) -> int:
+        """
+        Queue dense semantic indexing in a background daemon thread so scans return immediately.
+        Semantic queries automatically wait for the active background indexing pass to finish.
+        """
+        with self._index_lock:
+            self._index_generation += 1
+            gen = self._index_generation
+            self._all_chunks = list(chunks)
+            self._index_done_event.clear()
+
+        if not chunks:
+            self.vector_store.clear()
+            self._index_done_event.set()
+            return 0
+
+        def _worker():
+            try:
+                chunk_texts: List[str] = []
+                for c in chunks:
+                    header_prefix = f"# File: {c.relative_path}\n"
+                    if c.symbol_name:
+                        header_prefix += f"# Symbol: {c.symbol_name}\n"
+                    if c.signature:
+                        header_prefix += f"# Signature: {c.signature}\n"
+                    chunk_texts.append(f"{header_prefix}\n{c.content}")
+
+                embeddings = self.embedding_provider.embed_documents(chunk_texts)
+                with self._index_lock:
+                    if gen == self._index_generation:
+                        self.vector_store.clear()
+                        self.vector_store.add(chunks, embeddings)
+                        logger.info(f"Background semantic indexing completed ({len(chunks)} chunks).")
+            except Exception as e:
+                logger.warning(f"Background semantic indexing failed: {e}")
+            finally:
+                with self._index_lock:
+                    if gen == self._index_generation:
+                        self._index_done_event.set()
+
+        t = threading.Thread(target=_worker, daemon=True, name=f"semantic-index-{gen}")
+        t.start()
+        return len(chunks)
+
     def index_repository(self, repo: IngestedRepository) -> int:
         """
         Chunk and embed all source and documentation files in the repository.
@@ -109,6 +158,12 @@ class SemanticRetriever:
         """
         if not query.strip():
             return []
+
+        # Do not block Q&A if background dense indexing is still warming up; hybrid BM25 + graph covers it
+        if not self._index_done_event.is_set() and self.vector_store.count() == 0:
+            self._index_done_event.wait(timeout=0.25)
+            if self.vector_store.count() == 0:
+                return []
 
         query_vector = self.embedding_provider.embed_query(query)
         return self.vector_store.search(

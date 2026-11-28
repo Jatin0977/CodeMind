@@ -38,6 +38,8 @@ class RAGEngine:
         top_k: int = 4,
         filter_dict: Optional[Dict[str, Any]] = None,
         use_graph: bool = True,
+        repo_context: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
     ) -> RAGResponse:
         """
         Answer a developer question using strictly grounded codebase evidence.
@@ -85,8 +87,8 @@ class RAGEngine:
                 filter_dict=filter_dict,
             )
 
-        # Check if no chunks found or relevance is too low
-        if not results or (results and results[0].score < self.min_relevance_threshold):
+        # Check if no chunks found or relevance is too low (unless rich repo_context is supplied for live AI)
+        if not repo_context and (not results or (results and results[0].score < self.min_relevance_threshold)):
             latency = (time.time() - t0) * 1000
             return RAGResponse(
                 query=query_clean,
@@ -101,14 +103,29 @@ class RAGEngine:
         # 2. Format evidence context block
         evidence_text = format_evidence_context(results)
 
-        # 3. Assemble User Prompt
+        # 3. Assemble User Prompt (include repo overview + recent chat turns when available)
+        context_sections: List[str] = []
+        if repo_context:
+            context_sections.append(f"Repository Overview & File Index:\n{repo_context}")
+        if history:
+            recent = history[-6:]
+            hist_lines = []
+            for turn in recent:
+                role = "User" if turn.get("role") == "user" else "Assistant"
+                text = (turn.get("content") or "").strip()[:500]
+                if text:
+                    hist_lines.append(f"{role}: {text}")
+            if hist_lines:
+                context_sections.append("Recent Conversation:\n" + "\n".join(hist_lines))
+
+        extra_context = ("\n\n" + "\n\n".join(context_sections)) if context_sections else ""
         user_prompt = f"""Developer Question:
-{query_clean}
+{query_clean}{extra_context}
 
 Retrieved Codebase Evidence:
 {evidence_text}
 
-Provide an accurate, grounded answer with inline citations in the format [relative/path.py:start_line-end_line].
+Provide a clear, helpful AI assistant answer grounded in the repository with inline citations like [relative/path.py:start_line-end_line].
 """
 
         # 4. Invoke LLM Provider

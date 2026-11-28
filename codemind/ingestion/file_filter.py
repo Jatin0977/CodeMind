@@ -51,7 +51,12 @@ class FileFilter:
             return True
         return False
 
-    def should_ignore_file(self, file_path: Path, root_path: Optional[Path] = None) -> Tuple[bool, Optional[str]]:
+    def should_ignore_file(
+        self,
+        file_path: Path,
+        root_path: Optional[Path] = None,
+        skip_parent_check: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
         """
         Determine if a file should be ignored.
         Returns (should_ignore, reason).
@@ -59,7 +64,7 @@ class FileFilter:
         file_name = file_path.name
 
         # Check if any parent directory relative to root is ignored
-        if root_path is not None:
+        if root_path is not None and not skip_parent_check:
             try:
                 rel_parts = file_path.relative_to(root_path).parts[:-1]
                 for part in rel_parts:

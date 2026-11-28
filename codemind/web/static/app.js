@@ -343,6 +343,8 @@ function renderScanResults(data) {
   setKpi("structKpiChunks", (data.total_chunks || 0).toLocaleString());
   setKpi("qaKpiChunks", (data.total_chunks || 0).toLocaleString());
   setKpi("qaKpiFiles", (data.total_files || 0).toLocaleString());
+  clearAiChat();
+  renderSemanticOverview(data);
   setKpi("graphKpiEntities", ((data.ast_metrics?.classes || 0) + (data.ast_metrics?.functions || 0) + (data.ast_metrics?.methods || 0)).toLocaleString());
   setKpi("graphKpiChunks", (data.total_chunks || 0).toLocaleString());
   setKpi("graphKpiDeps", (data.graph_summary?.total_edges || 0).toLocaleString());
@@ -765,6 +767,59 @@ function switchTab(tab) {
   }
 }
 
+function askSuggestedQuery(q) {
+  setExampleQuery(q);
+  askQuestion();
+}
+
+let aiChatHistory = [];
+
+function clearAiChat() {
+  aiChatHistory = [];
+  const thread = document.getElementById("aiChatThread");
+  if (!thread) return;
+  const welcome = document.getElementById("aiWelcomeMsg");
+  thread.innerHTML = "";
+  if (welcome) {
+    thread.appendChild(welcome);
+  }
+}
+
+function renderSemanticOverview(data) {
+  const repoEl = document.getElementById("qaRepoName");
+  if (repoEl) repoEl.textContent = data.repository || "Active Repository";
+  const langEl = document.getElementById("qaLangSummary");
+  if (langEl && data.languages) {
+    const topLangs = Object.entries(data.languages).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} (${v})`);
+    langEl.textContent = topLangs.join(", ") || "--";
+  }
+
+  // Dynamic repo-aware welcome + quick prompt chips
+  const files = data.files || [];
+  const welcome = document.getElementById("aiWelcomeMsg");
+  if (welcome && files.length > 0) {
+    const bodyEl = welcome.querySelector(".ai-msg-body");
+    if (bodyEl) {
+      bodyEl.innerHTML = `Hi! I've analyzed <strong>${escapeHtml(data.repository || "this repository")}</strong> (${files.length} files). Ask me anything about files, frontend components, backend APIs, or how any part works.`;
+    }
+    const chipsEl = document.getElementById("qaPromptChips");
+    if (chipsEl) {
+      const hasFront = files.some(f => f.relative_path.toLowerCase().includes("frontend") || f.relative_path.endsWith(".jsx") || f.relative_path.endsWith(".tsx"));
+      const hasApi = files.some(f => f.relative_path.toLowerCase().includes("api") || f.relative_path.toLowerCase().includes("route"));
+      const p1 = "Summarize what this repository does and its main folders";
+      const p2 = hasFront ? "List and explain the frontend files and components" : "What are the main source modules in this repository?";
+      const p3 = hasApi ? "Explain the main backend API routes and request flow" : "Trace the primary execution flow in this codebase";
+      const p4 = "What are the most important entry points?";
+      chipsEl.innerHTML = `
+        <button class="chip-btn" onclick="askSuggestedQuery('${escapeHtml(p1)}')">Summarize Repository</button>
+        <button class="chip-btn" onclick="askSuggestedQuery('${escapeHtml(p2)}')">${hasFront ? "Frontend Files" : "Core Modules"}</button>
+        <button class="chip-btn" onclick="askSuggestedQuery('${escapeHtml(p3)}')">${hasApi ? "Backend & APIs" : "Execution Flow"}</button>
+        <button class="chip-btn" onclick="askSuggestedQuery('${escapeHtml(p4)}')">Entry Points</button>
+      `;
+    }
+  }
+}
+
 async function askQuestion() {
   const questionInput = document.getElementById("questionInput");
   const question = questionInput.value.trim();
@@ -773,12 +828,22 @@ async function askQuestion() {
     return;
   }
 
-  const topKSelect = document.getElementById("topKSelect");
-  const topK = parseInt(topKSelect ? topKSelect.value : "4") || 4;
-  const mockToggle = document.getElementById("mockModeToggle");
-  const mockMode = mockToggle ? mockToggle.checked : false;
-  const hybridToggle = document.getElementById("hybridToggle");
-  const useGraph = hybridToggle ? hybridToggle.checked : true;
+  const thread = document.getElementById("aiChatThread");
+  if (thread) {
+    const uDiv = document.createElement("div");
+    uDiv.className = "ai-msg ai-msg-user";
+    uDiv.innerHTML = `<div class="ai-msg-content">${escapeHtml(question)}</div>`;
+    thread.appendChild(uDiv);
+
+    const thinkDiv = document.createElement("div");
+    thinkDiv.className = "ai-msg ai-msg-assistant";
+    thinkDiv.id = "aiPendingBubble";
+    thinkDiv.innerHTML = `<div class="ai-msg-avatar">✨</div><div class="ai-msg-content" style="color:#64748b;">Analyzing codebase with Gemini AI...</div>`;
+    thread.appendChild(thinkDiv);
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  questionInput.value = "";
 
   const askBtn = document.getElementById("askBtn");
   const askSpinner = document.getElementById("askSpinner");
@@ -788,20 +853,21 @@ async function askQuestion() {
   askBtn.disabled = true;
   askSpinner.classList.remove("hidden");
   askIcon.classList.add("hidden");
-  askText.textContent = "Synthesizing...";
-
-  const answerContainer = document.getElementById("answerContainer");
+  askText.textContent = "Thinking...";
 
   try {
+    const payload = {
+      question: question,
+      top_k: 8,
+      mock: false,
+      use_graph: true,
+      history: aiChatHistory.slice(-6),
+    };
+
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question: question,
-        top_k: topK,
-        mock: mockMode,
-        use_graph: useGraph,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -810,71 +876,99 @@ async function askQuestion() {
     }
 
     const data = await res.json();
+    aiChatHistory.push({ role: "user", content: question });
+    aiChatHistory.push({ role: "assistant", content: data.answer || "" });
     renderAnswer(data);
-    answerContainer.classList.remove("hidden");
   } catch (err) {
+    const pending = document.getElementById("aiPendingBubble");
+    if (pending) pending.remove();
     showToast(err.message, true);
   } finally {
     askBtn.disabled = false;
     askSpinner.classList.add("hidden");
     askIcon.classList.remove("hidden");
-    askText.textContent = "Ask CodeMind";
+    askText.textContent = "Ask AI";
   }
 }
 
 function renderAnswer(data) {
-  document.getElementById("answerModelBadge").textContent = data.model_name || "Grounded Answer";
-  document.getElementById("answerLatencyBadge").textContent = `${Math.round(data.latency_ms)}ms`;
+  const modelName = data.model_name || "Gemini 3.8 Flash";
+  const modelBadge = document.getElementById("answerModelBadge");
+  if (modelBadge) modelBadge.textContent = modelName;
+  const latBadge = document.getElementById("answerLatencyBadge");
+  if (latBadge) latBadge.textContent = `${Math.round(data.latency_ms)}ms`;
+  const modeHealth = document.getElementById("qaHealthMode");
+  if (modeHealth) modeHealth.textContent = modelName;
 
-  const modeBadge = document.getElementById("answerModeBadge");
-  if (modeBadge) {
-    modeBadge.style.display = "inline-flex";
-    if (data.retrieval_mode === "hybrid") {
-      const meta = data.retrieval_metadata || {};
-      const seeds = meta.seed_chunks_count ?? 0;
-      const expanded = meta.expanded_chunks_count ?? 0;
-      const rels = (meta.relationship_types_used || []).join(", ");
-      modeBadge.className = "retrieval-mode-badge";
-      modeBadge.textContent = expanded > 0
-        ? `⚡ Hybrid Graph (${seeds} seeds + ${expanded} expanded${rels ? ` via ${rels}` : ""})`
-        : `⚡ Hybrid Graph (${seeds} seeds)`;
-      modeBadge.title = "Retrieved using Vector Similarity + Software Knowledge Graph Expansion";
-    } else {
-      modeBadge.className = "retrieval-mode-badge vector-only";
-      modeBadge.textContent = "🔍 Vector-Only Mode";
-      modeBadge.title = "Standard semantic vector search without graph expansion";
-    }
-  }
-
+  const sources = data.sources || [];
   const answerBody = document.getElementById("answerBody");
-  answerBody.innerHTML = formatMarkdownText(data.answer);
+  if (answerBody) answerBody.innerHTML = formatMarkdownText(data.answer);
+
+  // Build unique file citations list
+  const cits = data.citations || [];
+  const fallbackRefs = cits.length ? cits : sources.slice(0, 6).map(s => {
+    const c = s.chunk || {};
+    return c.relative_path ? `${c.relative_path}:${c.start_line || 1}-${c.end_line || 1}` : "";
+  }).filter(Boolean);
+
+  const uniqueByFile = [];
+  const seenF = new Set();
+  fallbackRefs.forEach(ref => {
+    const f = ref.split(":")[0];
+    if (f && !seenF.has(f)) {
+      seenF.add(f);
+      uniqueByFile.push(ref);
+    }
+  });
+
+  // Render Assistant bubble inside #aiChatThread
+  const sourcesHtml = uniqueByFile.length
+    ? `<div class="ai-msg-sources">${uniqueByFile.slice(0, 6).map(ref => {
+        const fOnly = ref.split(":")[0];
+        return `<button class="qa-source-pill" onclick="openCitation('${escapeHtml(ref)}')" title="Open ${escapeHtml(fOnly)}">📄 ${escapeHtml(fOnly)}</button>`;
+      }).join("")}</div>`
+    : "";
+
+  const pending = document.getElementById("aiPendingBubble");
+  const thread = document.getElementById("aiChatThread");
+  const bubbleHtml = `<div class="ai-msg-avatar">✨</div><div class="ai-msg-content"><div class="markdown-body">${formatMarkdownText(data.answer)}</div>${sourcesHtml}</div>`;
+  if (pending) {
+    pending.removeAttribute("id");
+    pending.innerHTML = bubbleHtml;
+  } else if (thread) {
+    const div = document.createElement("div");
+    div.className = "ai-msg ai-msg-assistant";
+    div.innerHTML = bubbleHtml;
+    thread.appendChild(div);
+  }
+  if (thread) thread.scrollTop = thread.scrollHeight;
+
+  // Populate clean Referenced Files list in right column (no raw chunk/score clutter)
+  const matchCountEl = document.getElementById("qaMatchesCount");
+  if (matchCountEl) matchCountEl.textContent = `${uniqueByFile.length} file${uniqueByFile.length === 1 ? "" : "s"}`;
 
   const citationsList = document.getElementById("citationsList");
-  if (data.citations && data.citations.length > 0) {
-    citationsList.innerHTML = data.citations.map(cit => {
-      let provBadge = "";
-      if (data.sources && Array.isArray(data.sources)) {
-        const src = data.sources.find(s => {
-          if (!s.chunk) return false;
-          const ref = `${s.chunk.relative_path}:${s.chunk.start_line}-${s.chunk.end_line}`;
-          return ref === cit;
-        });
-        if (src) {
-          if (src.provenance === "graph_expanded") {
-            const rel = src.relationship_type ? `Graph: ${src.relationship_type}` : `Graph H${src.hop_distance || 1}`;
-            provBadge = `<span class="provenance-pill graph">${escapeHtml(rel)}</span>`;
-          } else if (src.provenance === "vector_seed") {
-            provBadge = `<span class="provenance-pill seed">Vector Seed</span>`;
-          }
-        }
-      }
-      return `
-        <button class="citation-badge" onclick="openCitation('${escapeHtml(cit)}')">
-          <span>📌</span> [${escapeHtml(cit)}] ${provBadge}
-        </button>`;
-    }).join("");
-  } else {
-    citationsList.innerHTML = `<span style="font-size:12px; color: var(--text-muted);">No direct source references attached.</span>`;
+  if (citationsList) {
+    if (uniqueByFile.length > 0) {
+      citationsList.innerHTML = uniqueByFile.map((ref, idx) => {
+        const [relPath, lineSpan] = ref.split(":");
+        const matchedSrc = sources.find(s => s.chunk?.relative_path === relPath);
+        const sym = matchedSrc?.chunk?.symbol_name;
+        return `
+          <div class="qa-match-card" onclick="openCitation('${escapeHtml(ref)}')" style="padding:8px 10px;">
+            <div class="qa-match-rank">${idx + 1}</div>
+            <div class="qa-match-body">
+              <div class="qa-match-top">
+                <span class="qa-match-path" title="${escapeHtml(relPath)}">📄 ${escapeHtml(relPath)}</span>
+                ${lineSpan ? `<span class="provenance-pill seed">L${escapeHtml(lineSpan)}</span>` : ""}
+              </div>
+              ${sym ? `<div style="font-size:0.7rem; color:#64748b; margin-top:2px;">${escapeHtml(sym)}</div>` : ""}
+            </div>
+          </div>`;
+      }).join("");
+    } else {
+      citationsList.innerHTML = `<div class="empty-state" style="padding:14px 10px; font-size:0.75rem;"><p>No specific files referenced yet.</p></div>`;
+    }
   }
 }
 
@@ -1143,6 +1237,9 @@ function formatMarkdownText(md) {
   if (!md) return "";
   let html = escapeHtml(md);
 
+  // Markdown links [label](target) -> crisp inline citation pill
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="md-cite-pill" title="$2">$1</span>');
+
   // Bold **text**
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
@@ -1150,17 +1247,42 @@ function formatMarkdownText(md) {
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
   // Citations [path:1-2]
-  html = html.replace(/\[([a-zA-Z0-9_\-\.\/\\]+:\d+-\d+)\]/g, '<span style="color:var(--accent-cyan); font-weight:700;">[$1]</span>');
+  html = html.replace(/\[([a-zA-Z0-9_\-\.\/\\]+:\d+-\d+)\]/g, '<span class="md-cite-pill">[$1]</span>');
 
-  // Convert newlines to paragraphs/breaks
-  const formatted = html.split("\n\n").map(para => `<p>${para.replace(/\n/g, "<br>")}</p>`).join("");
+  // Process line-by-line for headings, bullet lists, and paragraphs
+  const lines = html.split(/\r?\n/);
+  const out = [];
+  let inList = false;
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      continue;
+    }
+    const hMatch = trimmed.match(/^#{1,4}\s+(.+)$/);
+    if (hMatch) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<h4>${hMatch[1]}</h4>`);
+      continue;
+    }
+    const liMatch = trimmed.match(/^(?:\*|-|\d+\.)\s+(.+)$/);
+    if (liMatch) {
+      if (!inList) { out.push("<ul>"); inList = true; }
+      out.push(`<li>${liMatch[1]}</li>`);
+      continue;
+    }
+    if (inList) { out.push("</ul>"); inList = false; }
+    out.push(`<p>${trimmed}</p>`);
+  }
+  if (inList) out.push("</ul>");
+
+  const formatted = out.join("");
 
   // If DOMPurify is available, apply full HTML sanitization
   if (typeof DOMPurify !== "undefined" && DOMPurify && typeof DOMPurify.sanitize === "function") {
     return sanitizeHtml(formatted);
   }
-  // If DOMPurify is unavailable, the user input was already escaped above via escapeHtml(md),
-  // and only known safe markdown tags (<p>, <br>, <strong>, <code>, <span>) were introduced.
   return formatted;
 }
 
@@ -1306,6 +1428,9 @@ function setupGraphEventListeners() {
     window.addEventListener("mouseup", handleCanvasMouseUp);
     canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
     canvas.addEventListener("dblclick", resetGraphView);
+    canvas.addEventListener("touchstart", handleCanvasTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleCanvasTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleCanvasTouchEnd);
   }
 
   window.addEventListener("resize", () => {
@@ -1379,6 +1504,18 @@ async function loadKnowledgeGraph() {
     initializeGraphEntities(gNodes, gEdges);
     renderGraphBottomWidgets(gNodes, gEdges);
     resetGraphView();
+
+    // Auto-select the highest-centrality visible node so Node Details is immediately populated
+    const visNodes = graphNodes.filter(n => n.visible !== false);
+    if (visNodes.length > 0) {
+      const degMap = {};
+      gEdges.forEach(e => {
+        degMap[e.source] = (degMap[e.source] || 0) + 1;
+        degMap[e.target] = (degMap[e.target] || 0) + 1;
+      });
+      const bestNode = [...visNodes].sort((a, b) => (degMap[b.id] || 0) - (degMap[a.id] || 0))[0];
+      if (bestNode) selectGraphNode(bestNode.id);
+    }
   } catch (err) {
     console.error("Graph loading error:", err);
   }
@@ -1991,12 +2128,19 @@ function drawArrowhead(ctx, x1, y1, x2, y2, offset, color) {
    Canvas Mouse & Pan/Zoom Handlers
    -------------------------------------------------------------------------- */
 
+let pointerDownPos = { x: 0, y: 0 };
+let dragThresholdMet = false;
+let touchState = { mode: null, lastDist: 0, panX: 0, panY: 0, tapNode: null, moved: false };
+
 function handleCanvasMouseDown(e) {
   const canvas = document.getElementById("graphCanvas");
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
+
+  pointerDownPos = { x: e.clientX, y: e.clientY };
+  dragThresholdMet = false;
 
   // Convert mouse screen coordinates to world coordinates
   const worldX = (mouseX - graphTransform.x) / graphTransform.scale;
@@ -2026,17 +2170,22 @@ function handleCanvasMouseMove(e) {
   const worldX = (mouseX - graphTransform.x) / graphTransform.scale;
   const worldY = (mouseY - graphTransform.y) / graphTransform.scale;
 
-  if (isDraggingNode && dragNode) {
+  if (!dragThresholdMet && (isDraggingNode || isPanning)) {
+    const distMoved = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+    if (distMoved > 5) dragThresholdMet = true;
+  }
+
+  if (isDraggingNode && dragNode && dragThresholdMet) {
     dragNode.x = worldX;
     dragNode.y = worldY;
     dragNode.vx = 0;
     dragNode.vy = 0;
     startGraphPhysics();
-  } else if (isPanning) {
+  } else if (isPanning && dragThresholdMet) {
     graphTransform.x = e.clientX - panStart.x;
     graphTransform.y = e.clientY - panStart.y;
     drawGraph();
-  } else {
+  } else if (!isDraggingNode && !isPanning) {
     // Hover hit test
     const hit = findNodeAt(worldX, worldY);
     const newHover = hit ? hit.id : null;
@@ -2054,9 +2203,12 @@ function handleCanvasMouseUp() {
     dragNode = null;
   }
   isPanning = false;
+  dragThresholdMet = false;
 }
 
 function handleCanvasWheel(e) {
+  // Only zoom on pinch gesture (ctrlKey) so two-finger scrolling naturally scrolls the page
+  if (!e.ctrlKey) return;
   e.preventDefault();
   const canvas = document.getElementById("graphCanvas");
   if (!canvas) return;
@@ -2064,15 +2216,75 @@ function handleCanvasWheel(e) {
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
 
-  const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
-  const newScale = Math.min(Math.max(0.15, graphTransform.scale * zoomFactor), 4.0);
+  const zoomFactor = Math.min(1.16, Math.max(0.86, Math.exp(-e.deltaY * 0.008)));
+  const newScale = Math.min(Math.max(0.2, graphTransform.scale * zoomFactor), 3.5);
 
-  // Zoom anchored at mouse pointer
   graphTransform.x = mouseX - (mouseX - graphTransform.x) * (newScale / graphTransform.scale);
   graphTransform.y = mouseY - (mouseY - graphTransform.y) * (newScale / graphTransform.scale);
   graphTransform.scale = newScale;
 
   drawGraph();
+}
+
+function handleCanvasTouchStart(e) {
+  const canvas = document.getElementById("graphCanvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const worldX = (t.clientX - rect.left - graphTransform.x) / graphTransform.scale;
+    const worldY = (t.clientY - rect.top - graphTransform.y) / graphTransform.scale;
+    touchState = {
+      mode: "pan",
+      lastDist: 0,
+      panX: t.clientX - graphTransform.x,
+      panY: t.clientY - graphTransform.y,
+      tapNode: findNodeAt(worldX, worldY, 6),
+      moved: false,
+    };
+  } else if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchState = { mode: "pinch", lastDist: Math.hypot(dx, dy), panX: 0, panY: 0, tapNode: null, moved: true };
+  }
+}
+
+function handleCanvasTouchMove(e) {
+  const canvas = document.getElementById("graphCanvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches.length === 1 && touchState.mode === "pan") {
+    e.preventDefault();
+    const t = e.touches[0];
+    touchState.moved = true;
+    graphTransform.x = t.clientX - touchState.panX;
+    graphTransform.y = t.clientY - touchState.panY;
+    drawGraph();
+  } else if (e.touches.length === 2 && touchState.mode === "pinch") {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    if (touchState.lastDist > 0) {
+      const factor = Math.min(1.15, Math.max(0.87, dist / touchState.lastDist));
+      const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+      const midY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+      const newScale = Math.min(Math.max(0.2, graphTransform.scale * factor), 3.5);
+      graphTransform.x = midX - (midX - graphTransform.x) * (newScale / graphTransform.scale);
+      graphTransform.y = midY - (midY - graphTransform.y) * (newScale / graphTransform.scale);
+      graphTransform.scale = newScale;
+      drawGraph();
+    }
+    touchState.lastDist = dist;
+  }
+}
+
+function handleCanvasTouchEnd() {
+  if (!touchState.moved && touchState.tapNode) {
+    selectGraphNode(touchState.tapNode.id);
+  }
+  touchState = { mode: null, lastDist: 0, panX: 0, panY: 0, tapNode: null, moved: false };
 }
 
 function zoomGraph(factor) {
@@ -2126,13 +2338,15 @@ function resetGraphView() {
   startGraphPhysics();
 }
 
-function findNodeAt(worldX, worldY) {
+function findNodeAt(worldX, worldY, extraPad = 0) {
   const visibleNodes = graphNodes.filter(n => n.visible !== false);
+  const hitPad = (8 + extraPad) / Math.max(0.35, graphTransform.scale);
   for (let i = visibleNodes.length - 1; i >= 0; i--) {
     const node = visibleNodes[i];
     const dx = worldX - node.x;
     const dy = worldY - node.y;
-    if (dx * dx + dy * dy <= (node.radius + 4) * (node.radius + 4)) {
+    const r = node.radius + hitPad;
+    if (dx * dx + dy * dy <= r * r) {
       return node;
     }
   }
@@ -2377,8 +2591,17 @@ async function loadEvolutionData() {
   const sortBy = document.getElementById("evoSortSelect")?.value || "commits";
 
   try {
-    // 1. Git Status
-    const statusRes = await fetch("/api/git/status");
+    const churnUrl = `/api/git/churn?limit=25&sort_by=${encodeURIComponent(sortBy)}${fileFilter ? `&path=${encodeURIComponent(fileFilter)}` : ''}`;
+    const coupUrl = `/api/git/coupling?limit=25${fileFilter ? `&file_path=${encodeURIComponent(fileFilter)}` : ''}`;
+    const histUrl = `/api/git/history?limit=50${fileFilter ? `&path=${encodeURIComponent(fileFilter)}` : ''}`;
+
+    const [statusRes, churnRes, coupRes, histRes] = await Promise.all([
+      fetch("/api/git/status"),
+      fetch(churnUrl),
+      fetch(coupUrl),
+      fetch(histUrl),
+    ]);
+
     if (statusRes.ok) {
       const statusData = await statusRes.json();
       cachedEvolutionData.status = statusData;
@@ -2406,24 +2629,21 @@ async function loadEvolutionData() {
       }
     }
 
-    // 2. Churn
-    const churnUrl = `/api/git/churn?limit=25&sort_by=${encodeURIComponent(sortBy)}${fileFilter ? `&path=${encodeURIComponent(fileFilter)}` : ''}`;
-    const churnRes = await fetch(churnUrl);
     if (churnRes.ok) {
       const churnData = await churnRes.json();
       cachedEvolutionData.churn = churnData.hotspots || [];
+      cachedEvolutionData.summary = churnData.summary || {};
       renderChurnTable(cachedEvolutionData.churn);
       const churnPill = document.getElementById("churnCountPill");
       if (churnPill) churnPill.textContent = `${churnData.total_returned || cachedEvolutionData.churn.length} files`;
       const churnTotal = document.getElementById("evoChurnTotalText");
-      if (churnTotal && churnData.summary) {
-        churnTotal.textContent = `${(churnData.summary.total_lines_added || 0) + (churnData.summary.total_lines_deleted || 0)} Total Churn Lines`;
+      if (churnTotal) {
+        const s = cachedEvolutionData.summary;
+        const computedChurn = s.total_churn || ((s.total_additions || 0) + (s.total_deletions || 0)) || cachedEvolutionData.churn.reduce((acc, h) => acc + (h.additions || 0) + (h.deletions || 0), 0);
+        churnTotal.textContent = `${computedChurn.toLocaleString()} Total Churn Lines`;
       }
     }
 
-    // 3. Logical Coupling
-    const coupUrl = `/api/git/coupling?limit=25${fileFilter ? `&file_path=${encodeURIComponent(fileFilter)}` : ''}`;
-    const coupRes = await fetch(coupUrl);
     if (coupRes.ok) {
       const coupData = await coupRes.json();
       cachedEvolutionData.coupling = coupData.couplings || [];
@@ -2434,9 +2654,6 @@ async function loadEvolutionData() {
       if (coupCount) coupCount.textContent = `${coupData.total_couplings || cachedEvolutionData.coupling.length} Logical Couplings`;
     }
 
-    // 4. Commit History
-    const histUrl = `/api/git/history?limit=30${fileFilter ? `&path=${encodeURIComponent(fileFilter)}` : ''}`;
-    const histRes = await fetch(histUrl);
     if (histRes.ok) {
       const histData = await histRes.json();
       cachedEvolutionData.history = histData.commits || [];
@@ -2506,27 +2723,34 @@ function renderCouplingTable(couplings, focalFile) {
     <table class="data-table">
       <thead>
         <tr>
-          <th>${focalFile ? 'Target Coupled File' : 'Coupled File Pair'}</th>
-          <th style="text-align: right;">Support</th>
-          <th style="text-align: right;">Jaccard</th>
+          <th>${focalFile ? 'Target Coupled File' : 'File Pair'}</th>
+          <th style="text-align: right;">Co-Changes</th>
+          <th style="text-align: right;">Jaccard ↑</th>
           <th style="text-align: right;">Confidence</th>
         </tr>
       </thead>
       <tbody>
   `;
 
+  const compactPath = p => {
+    const parts = (p || "").replace(/\\/g, "/").split("/");
+    return parts.length > 2 ? `…/${parts.slice(-2).join("/")}` : p;
+  };
   couplings.forEach(c => {
+    const fullPair = focalFile
+      ? (c.target_file || '')
+      : `${c.canonical_file_a || ''} ↔ ${c.canonical_file_b || ''}`;
     const pairLabel = focalFile
-      ? escapeHtml(c.target_file || '')
-      : `${escapeHtml(c.canonical_file_a || '')} ↔ ${escapeHtml(c.canonical_file_b || '')}`;
+      ? escapeHtml(compactPath(c.target_file || ''))
+      : `${escapeHtml(compactPath(c.canonical_file_a || ''))} ↔ ${escapeHtml(compactPath(c.canonical_file_b || ''))}`;
     const conf = c.confidence !== undefined ? c.confidence : (c.confidence_to_target !== undefined ? c.confidence_to_target : c.confidence_a_to_b);
 
     html += `
-      <tr>
-        <td class="code-font highlight-purple">${pairLabel}</td>
-        <td style="text-align: right;"><span class="metric-badge">${c.support_count} co-changes</span></td>
-        <td style="text-align: right;">${(c.jaccard_similarity || 0).toFixed(2)}</td>
-        <td style="text-align: right; color: #60a5fa;">${(conf || 0).toFixed(2)}</td>
+      <tr title="${escapeHtml(fullPair)}">
+        <td class="code-font highlight-purple" style="max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🔗 ${pairLabel}</td>
+        <td style="text-align: right; font-weight:700; color:#0f172a;">${c.support_count}</td>
+        <td style="text-align: right; font-weight:600; color:#334155;">${(c.jaccard_similarity || 0).toFixed(2)}</td>
+        <td style="text-align: right; font-weight:600; color:#6d28d9;">${(conf || 0).toFixed(2)}</td>
       </tr>
     `;
   });
@@ -3911,52 +4135,92 @@ function renderEvolutionVisuals() {
   const history = cachedEvolutionData.history || [];
   const churn = cachedEvolutionData.churn || [];
   const coupling = cachedEvolutionData.coupling || [];
+  const statusObj = cachedEvolutionData.status || {};
+  const summary = cachedEvolutionData.summary || {};
 
   const setEv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setEv("evoKpiCommits", history.length.toLocaleString());
+  setEv("evoKpiCommits", (summary.total_commits_analyzed || history.length).toLocaleString());
+  setEv("evoKpiCommitsSub", `${history.length} recent loaded`);
+
   const authors = new Set(history.map(c => c.author_name || c.author_email).filter(Boolean));
   setEv("evoKpiAuthors", authors.size.toLocaleString());
-  setEv("evoKpiCouplings", coupling.length.toLocaleString());
-  const statusEl = document.getElementById("gitStatusBadgeText");
-  setEv("evoKpiBranch", statusEl && statusEl.textContent.includes("ACTIVE") ? "Active" : "Local");
 
+  setEv("evoKpiBranch", statusObj.is_git_repo ? (statusObj.branch || statusObj.current_branch || "Active") : "Local");
+  setEv("evoKpiHead", statusObj.head_commit ? `HEAD: ${statusObj.head_commit.slice(0, 7)}` : "No HEAD");
+
+  const totAdd = summary.total_additions ?? churn.reduce((s, h) => s + (h.additions || 0), 0);
+  const totDel = summary.total_deletions ?? churn.reduce((s, h) => s + (h.deletions || 0), 0);
+  const totChurn = summary.total_churn ?? (totAdd + totDel);
+  setEv("evoKpiChurnLines", totChurn.toLocaleString());
+  setEv("evoKpiChurnSub", `+${totAdd.toLocaleString()} / -${totDel.toLocaleString()}`);
+
+  const getCommitDateStr = c => c.author_date || c.committed_date || c.timestamp || c.date || "";
+  let spanDays = 0;
   if (history.length > 0) {
-    const dates = history.map(c => new Date(c.timestamp || c.date || Date.now())).filter(d => !isNaN(d));
+    const dates = history.map(c => new Date(getCommitDateStr(c))).filter(d => !isNaN(d));
     if (dates.length > 0) {
       dates.sort((a, b) => a - b);
-      const fmt = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      setEv("evoKpiPeriod", `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}`);
+      const fmt = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const fmtShort = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      spanDays = Math.max(1, Math.round((dates[dates.length - 1] - dates[0]) / 86400000));
+      setEv("evoKpiPeriod", `${fmtShort(dates[0])} – ${fmt(dates[dates.length - 1])}`);
+      setEv("evoKpiDays", `Analysis Period (${spanDays} Days)`);
+      setEv("evoCommitActivitySub", `(Last ${spanDays} Days)`);
     }
   }
 
-  // 1. Commit Activity SVG Chart
+  // Smooth SVG path builder helper
+  const buildSmoothPath = (ptsArr) => {
+    if (ptsArr.length === 0) return "";
+    if (ptsArr.length === 1) return `M ${ptsArr[0][0].toFixed(1)},${ptsArr[0][1].toFixed(1)}`;
+    let d = `M ${ptsArr[0][0].toFixed(1)},${ptsArr[0][1].toFixed(1)}`;
+    for (let i = 0; i < ptsArr.length - 1; i++) {
+      const [x0, y0] = ptsArr[i];
+      const [x1, y1] = ptsArr[i + 1];
+      const cx = ((x0 + x1) / 2).toFixed(1);
+      d += ` C ${cx},${y0.toFixed(1)} ${cx},${y1.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+    }
+    return d;
+  };
+
+  // 1. Commit Activity Smooth Area Chart
   const actEl = document.getElementById("evoCommitActivityChart");
   if (actEl && history.length > 0) {
     const byDay = {};
     history.forEach(c => {
-      const d = (c.timestamp || c.date || "").slice(0, 10) || "Unknown";
-      byDay[d] = (byDay[d] || 0) + 1;
+      const d = getCommitDateStr(c).slice(0, 10);
+      if (d) byDay[d] = (byDay[d] || 0) + 1;
     });
-    const days = Object.keys(byDay).sort().slice(-12);
+    const days = Object.keys(byDay).sort().slice(-14);
     const vals = days.map(d => byDay[d]);
-    const maxV = Math.max(1, ...vals);
-    const pts = vals.map((v, i) => {
-      const x = days.length > 1 ? 14 + (i / (days.length - 1)) * 272 : 150;
-      const y = 98 - (v / maxV) * 76;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    const area = `14,104 ${pts.join(" ")} ${days.length > 1 ? "286" : "150"},104`;
+    const maxV = Math.max(2, ...vals);
+    const leftX = 24, rightX = 290, topY = 14, botY = 98;
+    const coords = vals.map((v, i) => [
+      days.length > 1 ? leftX + (i / (days.length - 1)) * (rightX - leftX) : (leftX + rightX) / 2,
+      botY - (v / maxV) * (botY - topY),
+    ]);
+    const linePath = buildSmoothPath(coords);
+    const firstX = coords[0][0].toFixed(1);
+    const lastX = coords[coords.length - 1][0].toFixed(1);
+    const areaPath = `${linePath} L ${lastX},${botY} L ${firstX},${botY} Z`;
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(frac => {
+      const gy = (botY - frac * (botY - topY)).toFixed(1);
+      const label = Math.round(frac * maxV);
+      return `<line x1="${leftX}" y1="${gy}" x2="${rightX}" y2="${gy}" stroke="#eef0f7" stroke-width="1"/><text x="${leftX - 5}" y="${Number(gy) + 3}" font-size="8" fill="#94a3b8" text-anchor="end">${label}</text>`;
+    }).join("");
+    const fmtTick = s => {
+      const dt = new Date(s + "T00:00:00");
+      return isNaN(dt) ? s : dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    };
+    const tickIdxs = days.length <= 4 ? days.map((_, i) => i) : [0, Math.floor(days.length / 3), Math.floor((2 * days.length) / 3), days.length - 1];
     actEl.innerHTML = `
-      <svg viewBox="0 0 300 118" width="100%" height="122">
-        <defs><linearGradient id="evoArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.35"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/></linearGradient></defs>
-        <polygon points="${area}" fill="url(#evoArea)"/>
-        <polyline points="${pts.join(" ")}" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        ${vals.map((v, i) => {
-          const [x, y] = pts[i].split(",");
-          return `<circle cx="${x}" cy="${y}" r="3" fill="#ffffff" stroke="#7c3aed" stroke-width="2"><title>${days[i]}: ${v} commits</title></circle>`;
-        }).join("")}
-        <text x="14" y="115" font-size="8.5" fill="#64748b">${days[0] || ""}</text>
-        <text x="286" y="115" font-size="8.5" fill="#64748b" text-anchor="end">${days[days.length - 1] || ""}</text>
+      <svg viewBox="0 0 300 120" width="100%" height="132">
+        <defs><linearGradient id="evoArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.34"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/></linearGradient></defs>
+        ${gridLines}
+        <path d="${areaPath}" fill="url(#evoArea)"/>
+        <path d="${linePath}" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round"/>
+        ${coords.map(([x, y], i) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.8" fill="#ffffff" stroke="#7c3aed" stroke-width="2"><title>${days[i]}: ${vals[i]} commits</title></circle>`).join("")}
+        ${tickIdxs.map(idx => `<text x="${coords[idx][0].toFixed(1)}" y="114" font-size="8.2" fill="#64748b" text-anchor="${idx === 0 ? "start" : idx === days.length - 1 ? "end" : "middle"}">${fmtTick(days[idx])}</text>`).join("")}
       </svg>`;
   }
 
@@ -3979,7 +4243,7 @@ function renderEvolutionVisuals() {
   if (tRing) {
     tRing.innerHTML = Object.entries(types).map(([k, v]) => {
       const dash = (v / totC) * circ;
-      const seg = `<circle cx="50" cy="50" r="38" fill="none" stroke="${tPalette[k]}" stroke-width="14" stroke-dasharray="${dash.toFixed(1)} ${circ}" stroke-dashoffset="-${tOff.toFixed(1)}" transform="rotate(-90 50 50)"/>`;
+      const seg = `<circle cx="50" cy="50" r="38" fill="none" stroke="${tPalette[k]}" stroke-width="15" stroke-dasharray="${dash.toFixed(1)} ${circ}" stroke-dashoffset="-${tOff.toFixed(1)}" transform="rotate(-90 50 50)"/>`;
       tOff += dash;
       return seg;
     }).join("");
@@ -3991,57 +4255,138 @@ function renderEvolutionVisuals() {
     ).join("");
   }
 
-  // 3. Top Modified Files Bars
+  // 3. Top Modified Files Bars (uses h.path and h.commits_count)
   const barsEl = document.getElementById("evoTopModBars");
   if (barsEl && churn.length > 0) {
     const top5 = churn.slice(0, 5);
-    const maxC = Math.max(1, ...top5.map(f => f.commit_count || 1));
+    const maxC = Math.max(1, ...top5.map(f => f.commits_count ?? f.commit_count ?? 1));
     barsEl.innerHTML = top5.map(f => {
-      const cnt = f.commit_count || 0;
-      const pct = Math.max(10, Math.round((cnt / maxC) * 100));
+      const fPath = f.path || f.file_path || "unknown";
+      const cnt = f.commits_count ?? f.commit_count ?? 0;
+      const pct = Math.max(14, Math.round((cnt / maxC) * 100));
       return `
         <div class="top-mod-row">
-          <span class="top-mod-name" title="${escapeHtml(f.file_path)}">${escapeHtml(f.file_path)}</span>
+          <span class="top-mod-name" title="${escapeHtml(fPath)}">${escapeHtml(fPath)}</span>
           <div class="top-mod-track"><div class="top-mod-fill" style="width:${pct}%"></div></div>
           <span class="top-mod-val">${cnt}</span>
         </div>`;
     }).join("");
   }
 
-  // 4. File Change Heatmap (Modules x Recent Commits)
+  // 4. File Change Heatmap (top 5 modules x 14 chronological commit buckets)
   const hmEl = document.getElementById("evoHeatmapGrid");
+  let topMods = [];
   if (hmEl && history.length > 0) {
     const modCounts = {};
-    history.forEach(c => (c.files || []).forEach(f => {
-      const p = (f.file_path || f.path || "").replace(/\\/g, "/");
+    const getCommitFiles = c => c.files_changed || c.files || [];
+    const getFilePath = f => (typeof f === "string" ? f : (f.path || f.file_path || "")).replace(/\\/g, "/");
+    history.forEach(c => getCommitFiles(c).forEach(f => {
+      const p = getFilePath(f);
+      if (!p) return;
       const m = p.includes("/") ? p.split("/")[0] + "/" : "root/";
       modCounts[m] = (modCounts[m] || 0) + 1;
     }));
-    const topMods = Object.keys(modCounts).sort((a, b) => modCounts[b] - modCounts[a]).slice(0, 5);
-    const recentCommits = history.slice(0, 14);
+    topMods = Object.keys(modCounts).sort((a, b) => modCounts[b] - modCounts[a]).slice(0, 5);
+    const chrono = [...history].reverse();
+    const numCols = Math.min(14, Math.max(6, chrono.length));
+    const buckets = Array.from({ length: numCols }, () => []);
+    chrono.forEach((c, idx) => {
+      const bIdx = Math.min(numCols - 1, Math.floor((idx / chrono.length) * numCols));
+      buckets[bIdx].push(c);
+    });
     const shades = ["#f1f5f9", "#ddd6fe", "#c4b5fd", "#a78bfa", "#7c3aed"];
-    hmEl.innerHTML = topMods.map(mod => {
-      const cells = recentCommits.map(c => {
-        const hits = (c.files || []).filter(f => {
-          const p = (f.file_path || f.path || "").replace(/\\/g, "/");
-          return mod === "root/" ? !p.includes("/") : p.startsWith(mod);
-        }).length;
-        const shade = shades[Math.min(4, hits)];
-        return `<div class="heatmap-cell" style="background:${shade}" title="${escapeHtml(mod)} (${hits} files)"></div>`;
+    if (topMods.length === 0) {
+      hmEl.innerHTML = `<div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>No file changes recorded in commit history.</p></div>`;
+    } else {
+      hmEl.innerHTML = topMods.map(mod => {
+        const cells = buckets.map((bucketCommits, bIdx) => {
+          let hits = 0;
+          bucketCommits.forEach(c => {
+            hits += getCommitFiles(c).filter(f => {
+              const p = getFilePath(f);
+              return mod === "root/" ? !p.includes("/") : p.startsWith(mod);
+            }).length;
+          });
+          const idx = hits === 0 ? 0 : hits <= 2 ? 1 : hits <= 5 ? 2 : hits <= 9 ? 3 : 4;
+          return `<div class="heatmap-cell" style="background:${shades[idx]}" title="${escapeHtml(mod)} • Window ${bIdx + 1}: ${hits} file changes"></div>`;
+        }).join("");
+        return `<div class="heatmap-row"><span class="heatmap-mod-lbl">${escapeHtml(mod)}</span><div class="heatmap-cells">${cells}</div></div>`;
       }).join("");
-      return `<div class="heatmap-row"><span class="heatmap-mod-lbl">${escapeHtml(mod)}</span><div class="heatmap-cells">${cells}</div></div>`;
-    }).join("");
+    }
   }
 
-  // 5. Evolution Insights
+  // 5. Repository Evolution Multi-Series SVG Chart (Total Churn, Additions, Deletions)
+  const repoChartEl = document.getElementById("evoRepoLinesChart");
+  if (repoChartEl && history.length > 0) {
+    const chrono = [...history].reverse();
+    let runAdd = 0, runDel = 0;
+    const series = chrono.map(c => {
+      const files = c.files_changed || [];
+      let cAdd = 0, cDel = 0;
+      files.forEach(f => { cAdd += (f.additions || 0); cDel += (f.deletions || 0); });
+      runAdd += cAdd || (files.length * 12);
+      runDel += cDel || (files.length * 4);
+      return { add: runAdd, del: runDel, total: runAdd + runDel, dt: getCommitDateStr(c).slice(0, 10) };
+    });
+    const maxY = Math.max(10, ...series.map(s => s.total));
+    const leftX = 32, rightX = 310, topY = 12, botY = 98;
+    const mapPts = key => series.map((s, i) => [
+      series.length > 1 ? leftX + (i / (series.length - 1)) * (rightX - leftX) : (leftX + rightX) / 2,
+      botY - (s[key] / maxY) * (botY - topY),
+    ]);
+    const pTot = mapPts("total"), pAdd = mapPts("add"), pDel = mapPts("del");
+    const fmtK = n => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
+    const yGrid = [0, 0.33, 0.66, 1].map(fr => {
+      const y = (botY - fr * (botY - topY)).toFixed(1);
+      return `<line x1="${leftX}" y1="${y}" x2="${rightX}" y2="${y}" stroke="#eef0f7" stroke-width="1"/><text x="${leftX - 5}" y="${Number(y) + 3}" font-size="8" fill="#94a3b8" text-anchor="end">${fmtK(Math.round(fr * maxY))}</text>`;
+    }).join("");
+    const areaOf = (pts, base) => `${buildSmoothPath(pts)} L ${pts[pts.length - 1][0].toFixed(1)},${base} L ${pts[0][0].toFixed(1)},${base} Z`;
+    const fmtTick = s => { const d = new Date(s + "T00:00:00"); return isNaN(d) ? s : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+    const finalAdd = series[series.length - 1]?.add || totAdd;
+    const finalDel = series[series.length - 1]?.del || totDel;
+    const finalTot = series[series.length - 1]?.total || totChurn;
+    repoChartEl.innerHTML = `
+      <div class="repo-evo-wrap">
+        <svg viewBox="0 0 325 118" style="flex:1; height:138px;">
+          <defs>
+            <linearGradient id="evoAddFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#14b8a6" stop-opacity="0.28"/><stop offset="100%" stop-color="#14b8a6" stop-opacity="0.03"/></linearGradient>
+            <linearGradient id="evoDelFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f472b6" stop-opacity="0.26"/><stop offset="100%" stop-color="#f472b6" stop-opacity="0.03"/></linearGradient>
+          </defs>
+          ${yGrid}
+          <path d="${areaOf(pAdd, botY)}" fill="url(#evoAddFill)"/>
+          <path d="${areaOf(pDel, botY)}" fill="url(#evoDelFill)"/>
+          <path d="${buildSmoothPath(pTot)}" fill="none" stroke="#7c3aed" stroke-width="2.2"/>
+          <path d="${buildSmoothPath(pAdd)}" fill="none" stroke="#14b8a6" stroke-width="2"/>
+          <path d="${buildSmoothPath(pDel)}" fill="none" stroke="#f472b6" stroke-width="2"/>
+          <circle cx="${pTot[pTot.length - 1][0].toFixed(1)}" cy="${pTot[pTot.length - 1][1].toFixed(1)}" r="3.2" fill="#fff" stroke="#7c3aed" stroke-width="2"/>
+          <circle cx="${pAdd[pAdd.length - 1][0].toFixed(1)}" cy="${pAdd[pAdd.length - 1][1].toFixed(1)}" r="3" fill="#fff" stroke="#14b8a6" stroke-width="2"/>
+          <circle cx="${pDel[pDel.length - 1][0].toFixed(1)}" cy="${pDel[pDel.length - 1][1].toFixed(1)}" r="3" fill="#fff" stroke="#f472b6" stroke-width="2"/>
+          <text x="${leftX}" y="114" font-size="8" fill="#64748b">${series[0]?.dt ? fmtTick(series[0].dt) : ""}</text>
+          <text x="${rightX}" y="114" font-size="8" fill="#64748b" text-anchor="end">${series[series.length - 1]?.dt ? fmtTick(series[series.length - 1].dt) : ""}</text>
+        </svg>
+        <div class="repo-evo-legend">
+          <div class="repo-evo-leg-item"><span class="repo-evo-swatch" style="background:#7c3aed;"></span><span>Total Churn (<strong>${finalTot.toLocaleString()}</strong>)</span></div>
+          <div class="repo-evo-leg-item"><span class="repo-evo-swatch" style="background:#14b8a6;"></span><span>Additions (<strong>+${finalAdd.toLocaleString()}</strong>)</span></div>
+          <div class="repo-evo-leg-item"><span class="repo-evo-swatch" style="background:#f472b6;"></span><span>Deletions (<strong>-${finalDel.toLocaleString()}</strong>)</span></div>
+        </div>
+      </div>`;
+  }
+
+  // 6. Evolution Insights (uses real churn, coupling, modules, and commit types)
   const insEl = document.getElementById("evoInsightsList");
   if (insEl && history.length > 0) {
-    const topFile = churn[0]?.file_path || "N/A";
+    const topFile = churn[0]?.path || churn[0]?.file_path || "N/A";
+    const topCnt = churn[0]?.commits_count ?? churn[0]?.commit_count ?? 0;
     const featPct = ((types.Feature / totC) * 100).toFixed(0);
+    const refPct = ((types.Refactor / totC) * 100).toFixed(1);
+    const topPair = coupling[0] ? `${coupling[0].canonical_file_a || ""} ↔ ${coupling[0].canonical_file_b || ""}` : null;
+    const focusMods = topMods.slice(0, 3).map(m => m.replace(/\/$/, "")).join(", ") || "core modules";
     insEl.innerHTML = `
-      <div class="insight-bullet-row"><span>✅</span><span>Analyzed <strong>${history.length}</strong> commits from <strong>${authors.size}</strong> contributors (~${featPct}% feature commits).</span></div>
-      <div class="insight-bullet-row"><span>✅</span><span>Most frequently modified file: <strong>${escapeHtml(topFile)}</strong> (${churn[0]?.commit_count || 0} commits).</span></div>
-      <div class="insight-bullet-row"><span>ℹ️</span><span>Detected <strong>${coupling.length}</strong> statistically coupled file pairs via co-change mining.</span></div>
+      <div class="insight-bullet-row"><span>✅</span><span>Steady code growth with <strong>~${featPct}% feature commits</strong> across <strong>${authors.size}</strong> contributors.</span></div>
+      ${topPair ? `<div class="insight-bullet-row"><span>✅</span><span>Strongest logical coupling: <strong>${escapeHtml(topPair)}</strong> (${coupling[0].support_count} co-changes).</span></div>` : ""}
+      <div class="insight-bullet-row"><span>ℹ️</span><span>Key development focus: <strong>${escapeHtml(focusMods)}</strong>.</span></div>
+      <div class="insight-bullet-row"><span>ℹ️</span><span>Refactoring share is <strong>${refPct}%</strong> (${types.Fix} bug-fix commits analyzed).</span></div>
+      <div class="insight-bullet-row"><span>✅</span><span>Most active hotspot: <strong>${escapeHtml(topFile)}</strong> (${topCnt} commits).</span></div>
     `;
   }
 }

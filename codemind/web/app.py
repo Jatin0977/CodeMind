@@ -46,10 +46,13 @@ class ScanRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(..., description="Developer question")
-    top_k: int = Field(default=4, ge=1, le=10, description="Top evidence chunks to retrieve")
+    top_k: int = Field(default=8, ge=1, le=12, description="Top evidence chunks to retrieve")
     mock: bool = Field(default=False, description="Use Mock LLM provider for offline demo")
     model: Optional[str] = Field(default=None, description="Optional LLM model name")
     use_graph: bool = Field(default=True, description="Enable hybrid graph-aware retrieval")
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider: auto, gemini, local, mock")
+    api_key: Optional[str] = Field(default=None, description="Optional runtime API key (not logged or persisted)")
+    history: Optional[List[Dict[str, str]]] = Field(default=None, description="Recent chat turns for conversational context")
 
 
 class InvestigateRequest(BaseModel):
@@ -221,8 +224,12 @@ class CodebaseState:
             "syntax_errors": syntax_errors,
         }
 
-        # Index in vector store (Phase 3)
-        indexed_chunks_count = self.retriever.index_chunks(self.chunks)
+        # Index in vector store (Phase 3): run synchronously for small/mock scans, background for heavy CPU neural encoding
+        provider_name = type(self.retriever.embedding_provider).__name__
+        if provider_name == "MockEmbeddingProvider" or len(self.chunks) <= 150:
+            indexed_chunks_count = self.retriever.index_chunks(self.chunks)
+        else:
+            indexed_chunks_count = self.retriever.index_chunks_background(self.chunks)
 
         # Construct Software Knowledge Graph (Phase 4)
         nx_graph = self.graph_builder.build(self.repo, self.parsed_files)
@@ -250,7 +257,7 @@ class CodebaseState:
             if status.is_git_repo and not status.is_empty:
                 self.git_client = client
                 self.git_miner = GitMiner(client)
-                self.git_commits = self.git_miner.mine_commits(max_commits=1000)
+                self.git_commits = self.git_miner.mine_commits(max_commits=500)
 
                 self.git_churn_analyzer = CodeChurnAnalyzer()
                 churn_res = self.git_churn_analyzer.analyze(self.git_commits)
@@ -413,6 +420,13 @@ def create_app():
     static_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    # Pre-warm local SentenceTransformer model in background on live server boot
+    import sys
+    if "pytest" not in sys.modules and not os.environ.get("PYTEST_CURRENT_TEST"):
+        ep = getattr(GLOBAL_STATE.retriever, "embedding_provider", None)
+        if hasattr(ep, "_load_model"):
+            threading.Thread(target=ep._load_model, daemon=True, name="embed-warmup").start()
+
     @app.get("/", response_class=HTMLResponse)
     async def get_index():
         index_file = static_dir / "index.html"
@@ -489,18 +503,72 @@ def create_app():
                 detail="No repository scanned yet. Please scan a repository first.",
             )
 
-        provider_type = "mock" if request.mock else None
-        llm_provider = get_llm_provider(provider_type=provider_type, model_name=request.model)
+        provider_type = "mock" if request.mock else request.provider
+        try:
+            llm_provider = get_llm_provider(
+                provider_type=provider_type,
+                model_name=request.model,
+                api_key=request.api_key,
+            )
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
         rag_engine = RAGEngine(
             retriever=GLOBAL_STATE.retriever,
             hybrid_retriever=GLOBAL_STATE.hybrid_retriever,
             llm_provider=llm_provider,
         )
 
+        # Build concise repository overview & path-aware file index for live AI Q&A
+        repo_context_str: Optional[str] = None
+        if not request.mock and GLOBAL_STATE.repo is not None:
+            import re as _re
+            repo = GLOBAL_STATE.repo
+            q_tokens = [t for t in _re.findall(r"[a-zA-Z0-9_]{3,}", request.question.lower())]
+            # Simple typo-tolerant stems (e.g., "frond" -> "fron" matches "frontend")
+            q_stems = [t[:4] for t in q_tokens]
+            all_files = sorted(repo.files, key=lambda f: f.relative_path)
+            matched_files = [
+                f for f in all_files
+                if any(st in f.relative_path.lower() for st in q_stems)
+            ]
+            # Order path-matched files first, then remaining repo files up to 160 entries
+            seen_rel = set()
+            ordered_files = []
+            for f in matched_files + all_files:
+                if f.relative_path not in seen_rel:
+                    seen_rel.add(f.relative_path)
+                    ordered_files.append(f)
+                if len(ordered_files) >= 100:
+                    break
+
+            file_lines = []
+            for f in ordered_files:
+                parsed = GLOBAL_STATE.parsed_files.get(f.relative_path)
+                sym_parts = []
+                if parsed and parsed.is_valid:
+                    cls_names = [c.name for c in parsed.classes[:4]]
+                    fn_names = [fn.name for fn in parsed.functions[:5]]
+                    if cls_names:
+                        sym_parts.append("classes: " + ", ".join(cls_names))
+                    if fn_names:
+                        sym_parts.append("funcs: " + ", ".join(fn_names))
+                sym_suffix = f" ({'; '.join(sym_parts)})" if sym_parts else ""
+                file_lines.append(f"- {f.relative_path} [{f.language}, {f.line_count}L]{sym_suffix}")
+
+            langs = ", ".join(f"{k}: {v}" for k, v in repo.summary.language_breakdown.items())
+            repo_context_str = (
+                f"Repository: {repo.repo_name} | Total Files: {repo.summary.total_files} | "
+                f"Total Lines: {repo.summary.total_lines} | Languages: {langs}\n"
+                f"Files in Repository ({len(ordered_files)} shown):\n" + "\n".join(file_lines)
+            )
+
+        effective_top_k = request.top_k if request.mock else max(request.top_k, 8)
         response: RAGResponse = rag_engine.ask(
             query=request.question,
-            top_k=request.top_k,
+            top_k=effective_top_k,
             use_graph=request.use_graph,
+            repo_context=repo_context_str,
+            history=request.history,
         )
 
         data = response.to_dict(include_sources=True)
@@ -771,6 +839,10 @@ def create_app():
             raise HTTPException(status_code=400, detail="Git repository history is not available.")
 
         try:
+            if path is None and since is None and author is None and GLOBAL_STATE.git_commits:
+                serialized = [c.to_dict() for c in GLOBAL_STATE.git_commits[:limit]]
+                return {"commits": serialized, "total_commits": len(serialized), "filtered_path": path}
+
             commits = GLOBAL_STATE.git_miner.mine_commits(
                 max_commits=limit,
                 path=path,

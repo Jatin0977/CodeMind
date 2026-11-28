@@ -12,8 +12,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=11.2.0">
-  <link rel="stylesheet" href="/static/style.css?v=11.2.0">
+  <link rel="stylesheet" href="style.css?v=13.2.0">
+  <link rel="stylesheet" href="/static/style.css?v=13.2.0">
 </head>
 
 <body class="light-theme">
@@ -866,92 +866,109 @@
           </div>
         </div>
 
-        <!-- Page 4: Semantic Understanding (Grounded Q&A) -->
+        <!-- Page 4: Semantic Understanding (AI Codebase Assistant) -->
         <div class="tab-content" id="tabQA">
-          <div class="subpage-hero">
-            <div class="subpage-hero-left">
-              <div class="subpage-hero-icon">🔍</div>
+          <div class="subpage-hero" style="padding: 11px 18px; position: relative; overflow: hidden;">
+            <div class="subpage-hero-left" style="z-index:2;">
+              <div class="subpage-hero-icon">✨</div>
               <div>
-                <h2 class="subpage-hero-title">Semantic Understanding</h2>
-                <p class="subpage-hero-desc">Ask repository questions, retrieve relevant code meaning, and generate grounded answers from semantic evidence.</p>
+                <h2 class="subpage-hero-title">CodeMind AI Assistant</h2>
+                <p class="subpage-hero-desc">Ask anything about files, architecture, APIs, components, or code behavior — answered by Google Gemini with direct file references.</p>
               </div>
             </div>
-            <div class="subpage-hero-right">
+            <div class="subpage-hero-art" aria-hidden="true">
+              <svg viewBox="0 0 220 90" width="190" height="76" fill="none">
+                <defs>
+                  <linearGradient id="qaIsoG1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient>
+                  <linearGradient id="qaIsoG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#c4b5fd"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient>
+                </defs>
+                <path d="M38 56 L88 30 L138 56 L88 82 Z" fill="#ede9fe" opacity="0.9"/>
+                <path d="M38 43 L88 17 L138 43 L88 69 Z" fill="url(#qaIsoG2)" opacity="0.92"/>
+                <path d="M38 30 L88 4 L138 30 L88 56 Z" fill="url(#qaIsoG1)"/>
+                <circle cx="88" cy="28" r="10" fill="#ffffff" opacity="0.95"/>
+                <path d="M88 21 L90 26 L95 28 L90 30 L88 35 L86 30 L81 28 L86 26 Z" fill="#6d28d9"/>
+                <path d="M138 44 L196 44" stroke="#8b5cf6" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="158" cy="44" r="4" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+                <circle cx="182" cy="44" r="4" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="subpage-hero-right" style="z-index:2;">
               <div class="hero-pills-col">
-                <span class="hero-feature-pill">🎯 Query Understanding</span>
-                <span class="hero-feature-pill">🧬 Embeddings</span>
-                <span class="hero-feature-pill">🕸️ Vector Retrieval</span>
-                <span class="hero-feature-pill">💬 Grounded Q&amp;A</span>
+                <span class="hero-feature-pill">✨ Gemini AI Chat</span>
+                <span class="hero-feature-pill">📁 Full File Awareness</span>
+                <span class="hero-feature-pill">🔗 Code Flow Analysis</span>
+                <span class="hero-feature-pill">📌 Grounded Sources</span>
               </div>
             </div>
           </div>
 
-          <div class="subpage-kpi-row">
-            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-purple">🧩</div><div><div class="subpage-kpi-val" id="qaKpiChunks">0</div><div class="subpage-kpi-lbl">Semantic Chunks</div></div></div>
-            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-indigo">🧠</div><div><div class="subpage-kpi-val" id="qaKpiModel" style="font-size:0.95rem;">all-MiniLM-L6-v2</div><div class="subpage-kpi-lbl">Embedding Model</div></div></div>
-            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-blue">📄</div><div><div class="subpage-kpi-val" id="qaKpiFiles">0</div><div class="subpage-kpi-lbl">Indexed Files</div></div></div>
-            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-green">🛡️</div><div><div class="subpage-kpi-val" id="qaKpiConf">--</div><div class="subpage-kpi-lbl">Grounding Status</div></div></div>
-            <div class="subpage-kpi-card"><div class="stat-icon-circle icon-violet">⚡</div><div><div class="subpage-kpi-val" id="qaKpiTopK">4</div><div class="subpage-kpi-lbl">Top-k Retrieval</div></div></div>
-          </div>
+          <!-- Hidden compatibility inputs for existing JS hooks -->
+          <input type="hidden" id="topKSelect" value="8" />
+          <input type="checkbox" id="hybridToggle" checked class="hidden" />
+          <span id="qaKpiChunks" class="hidden">0</span>
 
-          <div class="sp-grid-2">
-            <div class="sp-card">
-              <div class="sp-card-header"><div class="sp-card-title">💬 Ask the Codebase</div></div>
-              <div class="qa-ask-row">
-                <input type="text" id="questionInput" class="qa-ask-input" placeholder="Ask any question about this repository..." onkeydown="if(event.key==='Enter'){ askCodebase(); }">
-                <button id="askBtn" class="btn btn-primary btn-scan-gradient">
-                  <span class="btn-spinner hidden" id="askSpinner"></span>
-                  <span id="askIcon">🔍</span>
-                  <span id="askText">Run Semantic Search</span>
-                </button>
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
-                <div class="example-chips" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                  <span style="font-size:0.74rem; color:#64748b;">Suggested prompts:</span>
-                  <button class="chip-btn" onclick="setExampleQuery('How does file filtering ignore binary files?')">Ignore Filters</button>
-                  <button class="chip-btn" onclick="setExampleQuery('Explain how AST parsing extracts classes and methods.')">AST Parsing</button>
-                  <button class="chip-btn" onclick="setExampleQuery('How does hybrid graph retrieval rank code chunks?')">Hybrid Retrieval</button>
+          <div class="ai-assistant-grid" id="answerContainer">
+            <!-- Left Main Column: AI Conversation -->
+            <div class="bento-card ai-chat-card">
+              <div class="card-title-row" style="border-bottom:1px solid #eef0f7; padding-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span>✨ Gemini AI Assistant</span>
+                  <span id="answerModelBadge" class="qa-conf-pill" style="background:#f3efff; color:#6d28d9;">Gemini Flash AI</span>
                 </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <select id="topKSelect" class="compact-select" onchange="document.getElementById('qaKpiTopK').textContent=this.value">
-                    <option value="3">3 Chunks</option>
-                    <option value="4" selected>4 Chunks</option>
-                    <option value="6">6 Chunks</option>
-                  </select>
-                  <label style="font-size:0.76rem; color:#475569; display:flex; align-items:center; gap:4px;">
-                    <input type="checkbox" id="hybridToggle" checked /> Hybrid Graph
-                  </label>
-                </div>
+                <button type="button" class="chip-btn" onclick="clearAiChat()" title="Start a fresh conversation">🗑️ Clear Chat</button>
               </div>
-            </div>
 
-            <div class="sp-card">
-              <div class="sp-card-header"><div class="sp-card-title">⚙️ Retrieval Pipeline</div></div>
-              <div class="pipeline-4steps">
-                <div class="pipeline-step-box"><div class="pipeline-step-title">1. Query Intent</div><div class="pipeline-step-desc">Extract search intent &amp; canonical entities.</div></div>
-                <div class="pipeline-step-box"><div class="pipeline-step-title">2. Embedding Search</div><div class="pipeline-step-desc">Retrieve semantically relevant vector chunks.</div></div>
-                <div class="pipeline-step-box"><div class="pipeline-step-title">3. Re-rank Results</div><div class="pipeline-step-desc">Fuse BM25 + graph topology scores.</div></div>
-                <div class="pipeline-step-box"><div class="pipeline-step-title">4. Grounded Answer</div><div class="pipeline-step-desc">Synthesize answer with cited files.</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="answer-container hidden" id="answerContainer">
-            <div class="sp-grid-2">
-              <div class="sp-card">
-                <div class="sp-card-header">
-                  <span id="answerModelBadge" class="sp-card-title" style="color:#15803d;">Grounded Answer</span>
-                  <div style="display:flex; gap:8px; align-items:center;">
-                    <span id="answerModeBadge" style="display:none;"></span>
-                    <span id="answerLatencyBadge" class="count-pill">0ms</span>
+              <div class="ai-chat-thread" id="aiChatThread">
+                <div class="ai-msg ai-msg-assistant" id="aiWelcomeMsg">
+                  <div class="ai-msg-avatar">✨</div>
+                  <div class="ai-msg-content">
+                    <div class="ai-msg-body">Hi! Scan a repository or ask me anything about files, frontend components, backend APIs, architecture, or how specific features work.</div>
+                    <div class="example-chips" id="qaPromptChips" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+                      <button class="chip-btn" onclick="askSuggestedQuery('Summarize what this repository does and its main folders')">Summarize Repository</button>
+                      <button class="chip-btn" onclick="askSuggestedQuery('List and explain the frontend files and components')">Frontend Files</button>
+                      <button class="chip-btn" onclick="askSuggestedQuery('Explain the main backend API routes and core logic')">Backend &amp; API Flow</button>
+                      <button class="chip-btn" onclick="askSuggestedQuery('What are the most important entry points in this codebase?')">Entry Points</button>
+                    </div>
                   </div>
                 </div>
-                <div class="markdown-body" id="answerBody"></div>
               </div>
-              <div class="sp-card">
-                <div class="sp-card-header"><div class="sp-card-title">📌 Top Semantic Matches &amp; Citations</div></div>
-                <div class="citations-section" id="citationsSection">
-                  <div id="citationsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+              <div class="ai-composer-bar">
+                <input type="text" id="questionInput" class="qa-ask-input" placeholder="Ask Gemini AI anything about this repository..." onkeydown="if(event.key==='Enter'){ askQuestion(); }">
+                <button id="askBtn" class="btn btn-primary btn-scan-gradient">
+                  <span class="btn-spinner hidden" id="askSpinner"></span>
+                  <span id="askIcon">✨</span>
+                  <span id="askText">Ask AI</span>
+                </button>
+              </div>
+              <div id="answerBody" class="hidden"></div>
+              <span id="answerLatencyBadge" class="hidden">0ms</span>
+              <span id="answerModeBadge" class="hidden"></span>
+            </div>
+
+            <!-- Right Context Column: Repo Summary & Referenced Files -->
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div class="bento-card">
+                <div class="card-title-row"><span>📁 Repository Context</span></div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <div class="qa-health-row"><span>Repository</span><strong id="qaRepoName">--</strong></div>
+                  <div class="qa-health-row"><span>Indexed Files</span><strong id="qaKpiFiles">0</strong></div>
+                  <div class="qa-health-row"><span>Languages</span><strong id="qaLangSummary">--</strong></div>
+                  <div class="qa-health-row"><span>AI Engine</span><strong id="qaHealthMode">Gemini Flash AI</strong></div>
+                </div>
+              </div>
+
+              <div class="bento-card" style="flex:1;">
+                <div class="card-title-row">
+                  <span>📌 Referenced Files</span>
+                  <span class="count-pill" id="qaMatchesCount">0 files</span>
+                </div>
+                <div class="citations-section" id="citationsSection" style="max-height:315px; overflow-y:auto;">
+                  <div id="citationsList" style="display:flex; flex-direction:column; gap:6px;">
+                    <div class="empty-state" style="padding:18px 10px; font-size:0.76rem;">
+                      <p>Files referenced in the AI response appear here for one-click code viewing.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -959,15 +976,32 @@
         </div>
   <!-- Knowledge Graph -->
   <div class="tab-content" id="tabGraph">
-          <div class="subpage-hero">
-            <div class="subpage-hero-left">
+          <div class="subpage-hero" style="padding: 11px 18px; position: relative; overflow: hidden;">
+            <div class="subpage-hero-left" style="z-index:2;">
               <div class="subpage-hero-icon">🕸️</div>
               <div>
                 <h2 class="subpage-hero-title">Software Knowledge Graph</h2>
                 <p class="subpage-hero-desc">A unified, multi-relational graph of the repository that connects code entities (modules, classes, functions) with their dependencies, semantics, and evolution.</p>
               </div>
             </div>
-            <div class="subpage-hero-right">
+            <div class="subpage-hero-art" aria-hidden="true">
+              <svg viewBox="0 0 220 90" width="190" height="78" fill="none">
+                <defs>
+                  <linearGradient id="kgIsoG1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient>
+                  <linearGradient id="kgIsoG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#c4b5fd"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient>
+                </defs>
+                <path d="M55 56 L110 28 L165 56 L110 84 Z" fill="#ede9fe" opacity="0.9"/>
+                <path d="M55 43 L110 15 L165 43 L110 71 Z" fill="url(#kgIsoG2)" opacity="0.92"/>
+                <path d="M55 30 L110 2 L165 30 L110 58 Z" fill="url(#kgIsoG1)"/>
+                <circle cx="96" cy="28" r="4" fill="#ffffff"/>
+                <circle cx="124" cy="28" r="4" fill="#ffffff"/>
+                <circle cx="110" cy="40" r="4" fill="#ffffff"/>
+                <line x1="96" y1="28" x2="124" y2="28" stroke="#ffffff" stroke-width="1.8"/>
+                <line x1="96" y1="28" x2="110" y2="40" stroke="#ffffff" stroke-width="1.8"/>
+                <line x1="124" y1="28" x2="110" y2="40" stroke="#ffffff" stroke-width="1.8"/>
+              </svg>
+            </div>
+            <div class="subpage-hero-right" style="z-index:2;">
               <div class="hero-pills-col">
                 <span class="hero-feature-pill">📦 Code Entities</span>
                 <span class="hero-feature-pill">🔗 Dependencies</span>
@@ -976,7 +1010,7 @@
               </div>
             </div>
           </div>
-          <div class="subpage-kpi-row cols-6" style="margin-bottom:14px;">
+          <div class="subpage-kpi-row cols-6" style="gap:8px;">
             <div class="subpage-kpi-card"><div class="stat-icon-circle icon-purple">📦</div><div><div class="subpage-kpi-val" id="graphKpiEntities">0</div><div class="subpage-kpi-lbl">Code Entities</div></div></div>
             <div class="subpage-kpi-card"><div class="stat-icon-circle icon-blue">🧩</div><div><div class="subpage-kpi-val" id="graphKpiChunks">0</div><div class="subpage-kpi-lbl">Semantic Chunks</div></div></div>
             <div class="subpage-kpi-card"><div class="stat-icon-circle icon-indigo">🔗</div><div><div class="subpage-kpi-val" id="graphKpiDeps">0</div><div class="subpage-kpi-lbl">Dependencies</div></div></div>
@@ -1023,8 +1057,7 @@
           <span style="color:#fbbf24;">— IMPORTS</span>
           <span style="color:#fb7185;">- - INHERITS</span>
         </div>
-        <span style="font-size:0.7rem; color:var(--text-tertiary);">Hover to highlight connections • Click node to
-          inspect • Scroll to zoom</span>
+        <span style="font-size:0.7rem; color:var(--text-tertiary);">Click/tap node to inspect • Drag to pan • Pinch or + / - to zoom</span>
       </div>
     </div>
 
@@ -1041,16 +1074,18 @@
         </div>
       </div>
 
-      <div class="graph-details-pane" id="graphDetailsPane">
-        <div class="empty-state" id="graphNoSelectionPrompt">
-          <span class="empty-icon">🕸️</span>
-          <p>Click any node in the graph to inspect its callers, callees, dependencies, or isolate its 1-hop
-            neighborhood.</p>
+      <div class="graph-details-pane bento-card" id="graphDetailsPane">
+        <div class="card-title-row" style="border-bottom:1px solid #eef0f7; padding-bottom:8px;">
+          <span>&lt;/&gt; Node Details</span>
         </div>
-        <div class="node-details-card hidden" id="nodeDetailsCard">
+        <div class="empty-state" id="graphNoSelectionPrompt" style="padding:24px 12px;">
+          <span class="empty-icon">🕸️</span>
+          <p style="font-size:0.78rem;">Scan a repository or click any node in the graph to inspect its callers, callees, and dependencies.</p>
+        </div>
+        <div class="node-details-card hidden" id="nodeDetailsCard" style="border:none !important; box-shadow:none !important; padding:2px 0 !important; gap:10px;">
           <div style="margin-bottom:10px;">
             <span class="archetype-pill" id="selectedNodeTypeBadge">CLASS</span>
-            <h4 id="selectedNodeName" style="margin:4px 0; color:#fff;">NodeName</h4>
+            <h4 id="selectedNodeName" style="margin:4px 0; color:#0f172a;">NodeName</h4>
             <div id="selectedNodePath" style="font-size:0.74rem; color:var(--text-muted);">path/to/file.py</div>
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
@@ -1079,7 +1114,7 @@
 
         <div class="impact-report-panel hidden" id="impactReportPanel">
           <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-            <strong style="color:#fff;">⚡ Structural Reachability</strong>
+            <strong style="color:#0f172a;">⚡ Structural Reachability</strong>
             <button class="panel-action-btn" id="closeImpactBtn">✕</button>
           </div>
           <div style="font-size:0.74rem; color:var(--text-muted); margin-bottom:8px;">
@@ -1087,6 +1122,34 @@
               id="impactBreakdownVal"></span>
           </div>
           <div id="impactEntitiesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;">
+      <div class="bento-card">
+        <div class="card-title-row"><span>🎯 Top Central Entities</span></div>
+        <div id="graphTopCentralList" class="centrality-bars-list">
+          <div class="empty-state" style="padding:10px;font-size:0.75rem;"><p>Load graph to inspect centrality.</p></div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="card-title-row"><span>🧩 Community Detection</span></div>
+        <div class="donut-wrap" style="display:flex; align-items:center; justify-content:center; gap:14px;">
+          <div style="position:relative; width:92px; height:92px; flex-shrink:0;">
+            <svg viewBox="0 0 100 100" width="92" height="92" id="graphCommRing"></svg>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none;">
+              <strong id="graphCommCenterCount" style="font-size:1.05rem; color:#0f172a;">0</strong>
+              <span style="font-size:0.62rem; color:#64748b;">Clusters</span>
+            </div>
+          </div>
+          <div id="graphCommLegend" class="donut-legend" style="flex:1; max-width:148px; display:flex; flex-direction:column; gap:4px; font-size:0.74rem;"></div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="card-title-row"><span>💡 Graph Insights</span></div>
+        <div id="graphInsightsList" class="insights-list" style="display:flex; flex-direction:column; gap:6px; font-size:0.75rem; color:#334155;">
+          <div class="empty-state" style="padding:10px;font-size:0.75rem;"><p>Insights appear once graph loads.</p></div>
         </div>
       </div>
     </div>
@@ -1129,12 +1192,12 @@
           <span id="investigateLatencyBadge" style="font-family:var(--font-mono); color:var(--text-muted);">0ms</span>
         </div>
         <div id="investigatePlanSection">
-          <div style="font-weight:600; margin-bottom:6px; color:#fff;">📋 Execution Plan &amp; Tool Provenance
+          <div style="font-weight:600; margin-bottom:6px; color:#0f172a;">📋 Execution Plan &amp; Tool Provenance
           </div>
           <div id="investigateStepsList" style="display:flex; flex-direction:column; gap:6px;"></div>
         </div>
         <div>
-          <div style="font-weight:600; margin-bottom:6px; color:#fff;">💡 Synthesized Investigation Findings</div>
+          <div style="font-weight:600; margin-bottom:6px; color:#0f172a;">💡 Synthesized Investigation Findings</div>
           <div class="markdown-body" id="investigateAnswerBody"></div>
         </div>
         <div id="investigateCitationsSection">
@@ -1151,23 +1214,164 @@
 
   <!-- Evolution & Git Intelligence -->
   <div class="tab-content" id="tabEvolution">
-          <div class="subpage-hero" style="margin-bottom:14px;">
-            <div class="subpage-hero-left">
-              <div class="subpage-hero-icon">⏳</div>
-              <div>
-                <h2 class="subpage-hero-title">Evolution and Git Intelligence</h2>
-                <p class="subpage-hero-desc">Analyze the repository's evolutionary history, development patterns, and code change intelligence from Git data.</p>
-              </div>
-            </div>
-            <div class="subpage-hero-right">
-              <div class="hero-pills-col">
-                <span class="hero-feature-pill">🔀 Commits</span>
-                <span class="hero-feature-pill">⚡ Change Impact</span>
-                <span class="hero-feature-pill">🔗 Co-Change Analysis</span>
-                <span class="hero-feature-pill">📈 Evolution Trends</span>
-              </div>
+    <div class="subpage-hero" style="position:relative; overflow:hidden; padding: 11px 18px;">
+      <div class="subpage-hero-left" style="z-index:2;">
+        <div class="subpage-hero-icon" style="background:linear-gradient(135deg,#ede9fe,#e0e7ff); color:#6d28d9; font-size:1.25rem;">🔀</div>
+        <div>
+          <h2 class="subpage-hero-title">Evolution and Git Intelligence</h2>
+          <p class="subpage-hero-desc">Analyze the repository's evolutionary history, development patterns, and code change intelligence from Git data.</p>
+        </div>
+      </div>
+      <div class="subpage-hero-art" aria-hidden="true">
+        <svg viewBox="0 0 260 110" width="240" height="96" fill="none">
+          <defs>
+            <linearGradient id="evoIsoGrad1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient>
+            <linearGradient id="evoIsoGrad2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient>
+          </defs>
+          <path d="M22 65 L68 38 L114 65 L68 92 Z" fill="#ddd6fe" opacity="0.85"/>
+          <path d="M22 50 L68 23 L114 50 L68 77 Z" fill="url(#evoIsoGrad2)" opacity="0.9"/>
+          <path d="M22 35 L68 8 L114 35 L68 62 Z" fill="url(#evoIsoGrad1)"/>
+          <circle cx="68" cy="34" r="13" fill="#ffffff" opacity="0.92"/>
+          <path d="M68 26 C63.6 26 60 29.6 60 34 C60 37.5 62.3 40.5 65.5 41.6 C65.9 41.7 66 41.4 66 41.2 L66 39.7 C63.8 40.2 63.3 38.7 63.3 38.7 C62.9 37.8 62.4 37.5 62.4 37.5 C61.7 37 62.5 37 62.5 37 C63.3 37.1 63.7 37.8 63.7 37.8 C64.4 39 65.6 38.7 66.1 38.5 C66.2 38 66.4 37.6 66.6 37.4 C64.8 37.2 62.9 36.5 62.9 33.4 C62.9 32.5 63.2 31.8 63.8 31.2 C63.7 31 63.4 30.1 63.9 29 C63.9 29 64.6 28.8 66 29.8 C66.6 29.6 67.3 29.5 68 29.5 C68.7 29.5 69.4 29.6 70 29.8 C71.4 28.8 72.1 29 72.1 29 C72.6 30.1 72.3 31 72.2 31.2 C72.8 31.8 73.1 32.5 73.1 33.4 C73.1 36.5 71.2 37.2 69.4 37.4 C69.7 37.7 70 38.2 70 39 L70 41.2 C70 41.4 70.1 41.7 70.5 41.6 C73.7 40.5 76 37.5 76 34 C76 29.6 72.4 26 68 26 Z" fill="#6d28d9"/>
+          <path d="M114 55 L210 55" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M168 55 C182 55 182 32 198 32 L218 32" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="140" cy="55" r="5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.5"/>
+          <circle cx="168" cy="55" r="5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.5"/>
+          <circle cx="204" cy="55" r="5" fill="#ffffff" stroke="#7c3aed" stroke-width="2.5"/>
+          <rect x="200" y="14" width="44" height="18" rx="6" fill="#ede9fe" stroke="#c4b5fd"/>
+          <text x="222" y="26" font-size="8.5" font-weight="700" fill="#6d28d9" text-anchor="middle">git head</text>
+        </svg>
+      </div>
+      <div class="subpage-hero-right" style="z-index:2;">
+        <div class="hero-pills-col">
+          <span class="hero-feature-pill">🔀 Commits</span>
+          <span class="hero-feature-pill">⚡ Change Impact</span>
+          <span class="hero-feature-pill">🔗 Co-Change Analysis</span>
+          <span class="hero-feature-pill">📈 Evolution Trends</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 KPI Cards matching design -->
+    <div class="evo-kpi-grid">
+      <div class="evo-kpi-card">
+        <div class="evo-kpi-icon">📚</div>
+        <div class="evo-kpi-body">
+          <strong id="evoKpiCommits" class="evo-kpi-val">--</strong>
+          <span class="evo-kpi-lbl">Analyzed Commits</span>
+          <span class="evo-kpi-sub" id="evoKpiCommitsSub">Mined history</span>
+        </div>
+      </div>
+      <div class="evo-kpi-card">
+        <div class="evo-kpi-icon">🔀</div>
+        <div class="evo-kpi-body">
+          <strong id="evoKpiBranch" class="evo-kpi-val">--</strong>
+          <span class="evo-kpi-lbl">Git Status</span>
+          <span class="evo-kpi-sub" id="evoKpiHead">HEAD: --</span>
+        </div>
+      </div>
+      <div class="evo-kpi-card">
+        <div class="evo-kpi-icon">🏷️</div>
+        <div class="evo-kpi-body">
+          <strong id="evoKpiChurnLines" class="evo-kpi-val">--</strong>
+          <span class="evo-kpi-lbl">Total Churn Lines</span>
+          <span class="evo-kpi-sub" id="evoKpiChurnSub">+0 / -0 lines</span>
+        </div>
+      </div>
+      <div class="evo-kpi-card">
+        <div class="evo-kpi-icon">👥</div>
+        <div class="evo-kpi-body">
+          <strong id="evoKpiAuthors" class="evo-kpi-val">--</strong>
+          <span class="evo-kpi-lbl">Contributors</span>
+          <span class="evo-kpi-sub">Active authors</span>
+        </div>
+      </div>
+      <div class="evo-kpi-card">
+        <div class="evo-kpi-icon">📅</div>
+        <div class="evo-kpi-body">
+          <strong id="evoKpiPeriod" class="evo-kpi-val" style="font-size:0.96rem;">--</strong>
+          <span class="evo-kpi-lbl">Analysis Period</span>
+          <span class="evo-kpi-sub" id="evoKpiDays">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 1: Commit Activity | Change Type Distribution | Top Modified Files -->
+    <div style="display:grid; grid-template-columns:1.1fr 0.95fr 1.15fr; gap:8px;">
+      <div class="bento-card">
+        <div class="card-title-row"><span>📈 Commit Activity <span id="evoCommitActivitySub" style="font-weight:400; color:#64748b; font-size:0.74rem;"></span></span></div>
+        <div id="evoCommitActivityChart">
+          <div class="empty-state" style="padding:10px;font-size:0.75rem;"><p>Mine git history to render activity.</p></div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="card-title-row"><span>&lt;/&gt; Change Type Distribution</span></div>
+        <div class="donut-wrap" style="display:flex; align-items:center; justify-content:center; gap:14px; flex:1;">
+          <div style="position:relative; width:96px; height:96px; flex-shrink:0;">
+            <svg viewBox="0 0 100 100" width="96" height="96" id="evoTypeRing"></svg>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none;">
+              <strong id="evoTypeTotal" style="font-size:1.1rem; color:#0f172a; line-height:1.1;">0</strong>
+              <span style="font-size:0.62rem; color:#64748b;">Commits</span>
             </div>
           </div>
+          <div id="evoTypeLegend" class="donut-legend" style="flex:1; max-width:142px; display:flex; flex-direction:column; gap:4px; font-size:0.74rem;"></div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="card-title-row"><span>📄 Top Modified Files</span></div>
+        <div id="evoTopModBars" class="top-mod-bars" style="flex:1; justify-content:center;">
+          <div class="empty-state" style="padding:10px;font-size:0.75rem;"><p>No churn data yet.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: File Change Heatmap (Modules x Commits) | Co-Change Analysis (Logical Coupling) -->
+    <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:8px;">
+      <div class="bento-card">
+        <div class="card-title-row"><span>📊 File Change Heatmap <span style="font-weight:400; color:#64748b; font-size:0.74rem;">(Modules × Commits)</span></span></div>
+        <div class="heatmap-wrap-with-legend">
+          <div id="evoHeatmapGrid" class="heatmap-grid" style="flex:1;">
+            <div class="empty-state" style="padding:10px;font-size:0.75rem;"><p>Commit heatmap appears after git mining.</p></div>
+          </div>
+          <div class="heatmap-scale-legend">
+            <div class="heatmap-scale-item"><span class="heatmap-scale-box" style="background:#7c3aed;"></span><span>≥ 10</span></div>
+            <div class="heatmap-scale-item"><span class="heatmap-scale-box" style="background:#a78bfa;"></span><span>6–9</span></div>
+            <div class="heatmap-scale-item"><span class="heatmap-scale-box" style="background:#c4b5fd;"></span><span>3–5</span></div>
+            <div class="heatmap-scale-item"><span class="heatmap-scale-box" style="background:#ddd6fe;"></span><span>1–2</span></div>
+            <div class="heatmap-scale-item"><span class="heatmap-scale-box" style="background:#f1f5f9;"></span><span>0</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="card-title-row" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>🔗 Co-Change Analysis <span style="font-weight:400; color:#64748b; font-size:0.74rem;">(Logical Coupling)</span></span>
+          <span class="count-pill" id="couplingCountPill">0 pairs</span>
+        </div>
+        <div class="table-scroll-container evo-compact-table" id="couplingTableContainer" style="max-height:132px;">
+          <div class="empty-state" style="padding:10px;font-size:0.75rem;">
+            <p>Scan a Git repository to discover co-changes.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Repository Evolution | Evolution Insights -->
+    <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:8px;">
+      <div class="bento-card">
+        <div class="card-title-row"><span>📚 Repository Evolution</span></div>
+        <div id="evoRepoLinesChart">
+          <div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>Cumulative code evolution renders after git mining.</p></div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="card-title-row"><span>✨ Evolution Insights</span></div>
+        <div id="evoInsightsList" class="insights-list" style="display:flex; flex-direction:column; gap:7px; font-size:0.76rem; color:#334155;">
+          <div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>Insights appear after git mining.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Explorer Controls & Tables -->
     <div class="evolution-header-card glass-card">
       <div class="evolution-status-row">
         <span class="status-badge status-badge-met" id="evoRepoStatusBadge"><span id="evoRepoStatusText">Git:
@@ -1192,9 +1396,9 @@
     </div>
 
     <div class="evolution-sections-grid">
-      <div class="evolution-card">
+      <div class="evolution-card full-width">
         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <strong style="color:#fff;">🔥 Code Churn Hotspots</strong>
+          <strong style="color:#0f172a;">🔥 Code Churn Hotspots</strong>
           <span class="count-pill" id="churnCountPill">0 files</span>
         </div>
         <div class="table-scroll-container" id="churnTableContainer">
@@ -1204,21 +1408,9 @@
         </div>
       </div>
 
-      <div class="evolution-card">
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <strong style="color:#fff;">🔗 Logical Coupling (Co-Changes)</strong>
-          <span class="count-pill" id="couplingCountPill">0 pairs</span>
-        </div>
-        <div class="table-scroll-container" id="couplingTableContainer">
-          <div class="empty-state">
-            <p>Scan a Git repository to discover co-changes.</p>
-          </div>
-        </div>
-      </div>
-
       <div class="evolution-card full-width">
         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <strong style="color:#fff;">📜 Git Commit History Stream</strong>
+          <strong style="color:#0f172a;">📜 Git Commit History Stream</strong>
           <span class="count-pill" id="historyCountPill">0 commits</span>
         </div>
         <div class="table-scroll-container" id="historyStreamContainer">
@@ -1344,7 +1536,7 @@
       <div class="hidden" id="impactDiagnosticAlert"></div>
 
       <div class="bento-card">
-        <strong style="color:#fff;">📊 Multi-Signal Breakdown</strong>
+        <strong style="color:#0f172a;">📊 Multi-Signal Breakdown</strong>
         <div class="table-scroll-container">
           <table class="data-table">
             <thead>
@@ -1363,7 +1555,7 @@
       </div>
 
       <div class="bento-card">
-        <strong style="color:#fff;">💥 Reverse Dependency Blast Radius</strong>
+        <strong style="color:#0f172a;">💥 Reverse Dependency Blast Radius</strong>
         <div class="table-scroll-container">
           <table class="data-table">
             <thead>
@@ -1382,7 +1574,7 @@
       </div>
 
       <div class="bento-card">
-        <strong style="color:#fff;">🧪 Prioritized Regression Tests</strong>
+        <strong style="color:#0f172a;">🧪 Prioritized Regression Tests</strong>
         <div class="table-scroll-container">
           <table class="data-table">
             <thead>
@@ -1435,7 +1627,7 @@
 
     <div id="archEmptyState" class="empty-state">
       <span class="empty-icon">🏛️</span>
-      <h3 style="color:#fff;">Architecture &amp; Risk Intelligence</h3>
+      <h3 style="color:#0f172a;">Architecture &amp; Risk Intelligence</h3>
       <p>Paste a GitHub repository link in the top bar and click Analyze Repo to inspect layer conformance, Tarjan
         SCC cycles, and debt hotspots.</p>
     </div>
@@ -1468,9 +1660,81 @@
         </div>
       </div>
 
+
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px;">
+        <div class="bento-card">
+          <div class="card-title-row"><span>🏗️ System Architecture (Layered View)</span></div>
+          <div id="archPastelLayers" style="display:flex; flex-direction:column; gap:8px;">
+            <div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>Analyze repository to map layers.</p></div>
+          </div>
+        </div>
+        <div class="bento-card">
+          <div class="card-title-row"><span>🛡️ Risk Assessment Overview</span></div>
+          <div class="risk-gauge-wrap">
+            <div class="risk-gauge-svg-box">
+              <svg viewBox="0 0 140 85" width="132" height="82">
+                <path d="M 15 72 A 55 55 0 0 1 125 72" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round"/>
+                <path id="archRiskGaugeArc" d="M 15 72 A 55 55 0 0 1 125 72" fill="none" stroke="#8b5cf6" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 173"/>
+              </svg>
+              <div class="risk-gauge-score-text">
+                <span id="archGaugeScore" class="risk-score-big">0.0</span>
+                <span class="risk-score-sub">/ 5.0</span>
+              </div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:6px; font-size:0.76rem;">
+              <div><span id="archRiskLevelBadge" class="risk-pill-badge risk-pill-low">Low Risk</span></div>
+              <div style="display:flex; justify-content:space-between; color:#475569;"><span>High Risk Modules</span><strong id="archGaugeHigh" style="color:#dc2626;">0</strong></div>
+              <div style="display:flex; justify-content:space-between; color:#475569;"><span>Medium Risk</span><strong id="archGaugeMed" style="color:#d97706;">0</strong></div>
+              <div style="display:flex; justify-content:space-between; color:#475569;"><span>Low Risk</span><strong id="archGaugeLow" style="color:#16a34a;">0</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="bento-card">
+          <div class="card-title-row"><span>🔥 Risk Hotspots (Top 5)</span></div>
+          <div id="archHotspotTop5" class="hotspot-top5-list">
+            <div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>No hotspots evaluated yet.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px;">
+        <div class="bento-card">
+          <div class="card-title-row"><span>🔗 Component Dependency Graph</span></div>
+          <div id="archCompDepGraph" style="min-height:140px; display:flex; align-items:center; justify-content:center;">
+            <div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>Component topology renders after scan.</p></div>
+          </div>
+        </div>
+        <div class="bento-card">
+          <div class="card-title-row"><span>📊 Risk Matrix (Impact vs Likelihood)</span></div>
+          <div class="risk-matrix-wrapper">
+            <div class="risk-y-labels"><span>High</span><span>Med</span><span>Low</span></div>
+            <div style="flex:1;">
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:4px; height:132px;">
+                <div style="background:#fef3c7; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#92400e;" id="rmHL">0</div>
+                <div style="background:#fee2e2; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#b91c1c;" id="rmHM">0</div>
+                <div style="background:#fecaca; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#991b1b;" id="rmHH">0</div>
+                <div style="background:#dcfce7; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#166534;" id="rmML">0</div>
+                <div style="background:#fef3c7; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#92400e;" id="rmMM">0</div>
+                <div style="background:#fee2e2; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#b91c1c;" id="rmMH">0</div>
+                <div style="background:#dcfce7; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#166534;" id="rmLL">0</div>
+                <div style="background:#dcfce7; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#166534;" id="rmLM">0</div>
+                <div style="background:#fef3c7; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#92400e;" id="rmLH">0</div>
+              </div>
+              <div class="risk-x-labels"><span>Low</span><span>Med</span><span>High</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="bento-card">
+          <div class="card-title-row"><span>💡 Architectural Insights</span></div>
+          <div id="archInsightsList" class="insights-list" style="display:flex; flex-direction:column; gap:7px; font-size:0.76rem; color:#334155;">
+            <div class="empty-state" style="padding:14px;font-size:0.76rem;"><p>Insights appear after analysis.</p></div>
+          </div>
+        </div>
+      </div>
+
       <div class="bento-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <strong style="color:#fff;">📐 Layer Hierarchy &amp; Conformance</strong>
+          <strong style="color:#0f172a;">📐 Layer Hierarchy &amp; Conformance</strong>
           <div style="display:flex; gap:8px; align-items:center;">
             <label style="font-size:0.78rem; color:var(--text-secondary);"><input type="checkbox"
                 id="archStrictLayeringCheck" onchange="loadArchitectureConformance()"> Strict Layering</label>
@@ -1508,13 +1772,13 @@
       </div>
 
       <div class="bento-card">
-        <strong style="color:#fff;">🔄 Package Dependency Cycles</strong>
+        <strong style="color:#0f172a;">🔄 Package Dependency Cycles</strong>
         <div id="archCyclesContainer"></div>
       </div>
 
       <div class="bento-card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <strong style="color:#fff;">🔥 Maintenance Hotspots &amp; Debt Archetypes</strong>
+          <strong style="color:#0f172a;">🔥 Maintenance Hotspots &amp; Debt Archetypes</strong>
           <div style="display:flex; gap:6px;">
             <input type="text" id="archHotspotFilterInput" class="compact-input" placeholder="Filter by module..."
               oninput="filterHotspotsTable()" />
@@ -1549,7 +1813,7 @@
       </div>
 
       <div class="bento-card">
-        <strong style="color:#fff;">📊 Evaluation Benchmarks</strong>
+        <strong style="color:#0f172a;">📊 Evaluation Benchmarks</strong>
         <div class="table-scroll-container">
           <table class="data-table">
             <thead>
@@ -1575,7 +1839,7 @@
 
   <!-- Sanitization & Client Application -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
-  <script src="/static/app.js?v=11.2.0"></script>
+  <script src="/static/app.js?v=13.2.0"></script>
 </body>
 
 </html>
